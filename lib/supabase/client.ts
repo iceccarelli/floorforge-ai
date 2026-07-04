@@ -1,9 +1,17 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+let client: SupabaseClient | null = null;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * Guarded, lazy Supabase client. Returns null when env vars are absent so
+ * importing this module can never crash a build or a Vercel deployment.
+ */
+export function getSupabase(): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  if (!client) client = createClient(url, key);
+  return client;
+}
 
-// Example schema reference (see README for full SQL):
-// Tables: jobs, sanding_reports, finish_applications, robots, quotes
+// Schema reference (see README): jobs, sanding_reports, finish_applications, robots, quotes
