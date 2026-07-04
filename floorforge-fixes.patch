@@ -1,0 +1,2209 @@
+From 749f12f4914b2e13be52a3a9271307029ea712be Mon Sep 17 00:00:00 2001
+From: Vincenzo Grimaldi <vince.ceccarelli@gmail.com>
+Date: Sat, 4 Jul 2026 14:51:38 +0000
+Subject: [PATCH 1/3] fix(deploy): build and deploy on Vercel with zero env
+ vars
+
+- Clerk is now optional: middleware is a pass-through and ClerkProvider/
+  header auth UI mount only when keys are present (lib/auth.ts flag)
+- Supabase client is guarded and lazy; importing it can no longer throw
+- Geist fonts self-hosted via the geist package: no Google Fonts network
+  fetch at build time (removes a build-environment failure mode)
+- Honest metadata; removed reference to non-existent /og-image.jpg
+- Added .env.example (un-ignored) documenting every variable is optional
+---
+ .env.example           |  13 +++++
+ .gitignore             |   1 +
+ app/layout.tsx         |  66 ++++++++++------------
+ lib/auth.ts            |   8 +++
+ lib/supabase/client.ts |  20 +++++--
+ middleware.ts          |  27 +++++----
+ package-lock.json      | 124 ++++-------------------------------------
+ package.json           |   1 +
+ 8 files changed, 92 insertions(+), 168 deletions(-)
+ create mode 100644 .env.example
+ create mode 100644 lib/auth.ts
+
+diff --git a/.env.example b/.env.example
+new file mode 100644
+index 0000000..93018fb
+--- /dev/null
++++ b/.env.example
+@@ -0,0 +1,13 @@
++# All variables are OPTIONAL. The site builds and deploys with none of them.
++
++# Clerk (enables Sign in + protected /dashboard when BOTH are set)
++NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
++CLERK_SECRET_KEY=
++
++# Supabase (future production data layer; unused by the demo dashboard)
++NEXT_PUBLIC_SUPABASE_URL=
++NEXT_PUBLIC_SUPABASE_ANON_KEY=
++
++# Formspree form ID for the pilot waitlist form (e.g. abcdwxyz).
++# Without it, the waitlist CTA falls back to a mailto link.
++NEXT_PUBLIC_FORMSPREE_FORM_ID=
+diff --git a/.gitignore b/.gitignore
+index 5ef6a52..7b8da95 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -32,6 +32,7 @@ yarn-error.log*
+ 
+ # env files (can opt-in for committing if needed)
+ .env*
++!.env.example
+ 
+ # vercel
+ .vercel
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 00914f3..c029b76 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -1,42 +1,30 @@
+ import type { Metadata } from "next";
+-import { Geist, Geist_Mono } from "next/font/google";
++import { GeistSans } from "geist/font/sans";
++import { GeistMono } from "geist/font/mono";
+ import "./globals.css";
+ import { ClerkProvider } from "@clerk/nextjs";
+ import { Toaster } from "sonner";
+ import Header from "@/components/Header";
+ import Footer from "@/components/Footer";
+-
+-const geistSans = Geist({
+-  variable: "--font-geist-sans",
+-  subsets: ["latin"],
+-  weight: ["400", "500", "600", "700"],
+-});
+-
+-const geistMono = Geist_Mono({
+-  variable: "--font-geist-mono",
+-  subsets: ["latin"],
+-  weight: ["400", "500", "700"],
+-});
++import { authEnabled } from "@/lib/auth";
+ 
+ export const metadata: Metadata = {
+-  title: "FloorForge | Autonomous Hardwood Floor Refinishing OS",
+-  description: "Sand and finish hardwood floors with unmatched consistency and speed. The operating system for autonomous floor refinishing — field sanding, edging assistance, and perfect finish application. Powered by InteriorFinish OS. Book months out with data-driven operations.",
++  title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
++  description:
++    "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning, multi-grit sanding orchestration, dust and quality reporting. Join the pilot waitlist.",
+   icons: {
+     icon: "/favicon.ico",
+   },
+   openGraph: {
+-    title: "FloorForge | The Operating System for Autonomous Floor Refinishing",
+-    description: "Turn every hardwood refinish into a high-margin, data-driven operation. Trusted by crews who refuse to lose bids to inconsistency.",
+-    images: [{ url: "/og-image.jpg" }],
++    title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
++    description:
++      "An operating system for autonomous floor refinishing, in active development. Join the pilot waitlist and help shape it.",
+   },
+   keywords: [
+     "autonomous floor sanding",
+-    "hardwood floor refinishing robots",
+-    "floor finishing automation",
+-    "commercial floor sanding",
+-    "robotic floor refinisher",
+-    "InteriorFinish OS",
+-    "floor sander robot",
++    "hardwood floor refinishing automation",
++    "robotic floor refinishing",
++    "floor sanding software",
+     "hardwood refinishing software",
+   ],
+ };
+@@ -46,19 +34,21 @@ export default function RootLayout({
+ }: Readonly<{
+   children: React.ReactNode;
+ }>) {
+-  return (
+-    <ClerkProvider>
+-      <html
+-        lang="en"
+-        className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+-      >
+-        <body className="min-h-full flex flex-col bg-white text-slate-900">
+-          <Header />
+-          <main className="flex-1">{children}</main>
+-          <Footer />
+-          <Toaster position="top-center" richColors closeButton />
+-        </body>
+-      </html>
+-    </ClerkProvider>
++  const content = (
++    <html
++      lang="en"
++      className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
++    >
++      <body className="min-h-full flex flex-col bg-white text-slate-900">
++        <Header />
++        <main className="flex-1">{children}</main>
++        <Footer />
++        <Toaster position="top-center" richColors closeButton />
++      </body>
++    </html>
+   );
++
++  // ClerkProvider throws without a publishable key, so it is only mounted
++  // when auth is configured. The site deploys with zero env vars.
++  return authEnabled ? <ClerkProvider>{content}</ClerkProvider> : content;
+ }
+diff --git a/lib/auth.ts b/lib/auth.ts
+new file mode 100644
+index 0000000..2a0226f
+--- /dev/null
++++ b/lib/auth.ts
+@@ -0,0 +1,8 @@
++/**
++ * Auth is optional. The site must build and deploy on Vercel with zero env
++ * vars. When NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY is set (build-time inlined),
++ * Clerk UI and route protection turn on automatically.
++ */
++export const authEnabled = Boolean(
++  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
++);
+diff --git a/lib/supabase/client.ts b/lib/supabase/client.ts
+index 69a010d..9f3cac4 100644
+--- a/lib/supabase/client.ts
++++ b/lib/supabase/client.ts
+@@ -1,9 +1,17 @@
+-import { createClient } from "@supabase/supabase-js";
++import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+ 
+-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
++let client: SupabaseClient | null = null;
+ 
+-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
++/**
++ * Guarded, lazy Supabase client. Returns null when env vars are absent so
++ * importing this module can never crash a build or a Vercel deployment.
++ */
++export function getSupabase(): SupabaseClient | null {
++  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
++  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
++  if (!url || !key) return null;
++  if (!client) client = createClient(url, key);
++  return client;
++}
+ 
+-// Example schema reference (see README for full SQL):
+-// Tables: jobs, sanding_reports, finish_applications, robots, quotes
++// Schema reference (see README): jobs, sanding_reports, finish_applications, robots, quotes
+diff --git a/middleware.ts b/middleware.ts
+index afdf11a..1b2b9ac 100644
+--- a/middleware.ts
++++ b/middleware.ts
+@@ -1,17 +1,24 @@
+ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
++import { NextResponse } from "next/server";
++
++// Clerk is optional: without keys the middleware is a pass-through so the
++// site deploys on Vercel with zero env vars. With keys, /dashboard is protected.
++const authEnabled = Boolean(
++  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
++);
+ 
+ const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
+ 
+-export default clerkMiddleware(async (auth, req) => {
+-  if (isProtectedRoute(req)) {
+-    await auth.protect();
+-  }
+-});
++const handler = authEnabled
++  ? clerkMiddleware(async (auth, req) => {
++      if (isProtectedRoute(req)) {
++        await auth.protect();
++      }
++    })
++  : () => NextResponse.next();
++
++export default handler;
+ 
+ export const config = {
+-  matcher: [
+-    "/((?!.*\\..*|_next).*)",
+-    "/",
+-    "/(api|trpc)(.*)",
+-  ],
++  matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],
+ };
+diff --git a/package-lock.json b/package-lock.json
+index 3c80241..1395884 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -21,6 +21,7 @@
+         "class-variance-authority": "^0.7.1",
+         "clsx": "^2.1.1",
+         "framer-motion": "^11.15.0",
++        "geist": "^1.7.2",
+         "lucide-react": "^0.469.0",
+         "next": "16.2.10",
+         "react": "19.2.4",
+@@ -773,9 +774,6 @@
+       "cpu": [
+         "arm"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -792,9 +790,6 @@
+       "cpu": [
+         "arm64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -811,9 +806,6 @@
+       "cpu": [
+         "ppc64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -830,9 +822,6 @@
+       "cpu": [
+         "riscv64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -849,9 +838,6 @@
+       "cpu": [
+         "s390x"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -868,9 +854,6 @@
+       "cpu": [
+         "x64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -887,9 +870,6 @@
+       "cpu": [
+         "arm64"
+       ],
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -906,9 +886,6 @@
+       "cpu": [
+         "x64"
+       ],
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "LGPL-3.0-or-later",
+       "optional": true,
+       "os": [
+@@ -925,9 +902,6 @@
+       "cpu": [
+         "arm"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -950,9 +924,6 @@
+       "cpu": [
+         "arm64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -975,9 +946,6 @@
+       "cpu": [
+         "ppc64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -1000,9 +968,6 @@
+       "cpu": [
+         "riscv64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -1025,9 +990,6 @@
+       "cpu": [
+         "s390x"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -1050,9 +1012,6 @@
+       "cpu": [
+         "x64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -1075,9 +1034,6 @@
+       "cpu": [
+         "arm64"
+       ],
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -1100,9 +1056,6 @@
+       "cpu": [
+         "x64"
+       ],
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "Apache-2.0",
+       "optional": true,
+       "os": [
+@@ -1318,9 +1271,6 @@
+       "cpu": [
+         "arm64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1337,9 +1287,6 @@
+       "cpu": [
+         "arm64"
+       ],
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1356,9 +1303,6 @@
+       "cpu": [
+         "x64"
+       ],
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -1375,9 +1319,6 @@
+       "cpu": [
+         "x64"
+       ],
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2421,9 +2362,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2441,9 +2379,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2461,9 +2396,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -2481,9 +2413,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3041,9 +2970,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3058,9 +2984,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3075,9 +2998,6 @@
+         "loong64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3092,9 +3012,6 @@
+         "loong64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3109,9 +3026,6 @@
+         "ppc64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3126,9 +3040,6 @@
+         "riscv64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3143,9 +3054,6 @@
+         "riscv64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3160,9 +3068,6 @@
+         "s390x"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3177,9 +3082,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -3194,9 +3096,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MIT",
+       "optional": true,
+       "os": [
+@@ -4892,6 +4791,15 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
++    "node_modules/geist": {
++      "version": "1.7.2",
++      "resolved": "https://registry.npmjs.org/geist/-/geist-1.7.2.tgz",
++      "integrity": "sha512-Gu5lDFa3pLRyoBlBPf0QIFHVdWAnpco7fS1bJm41jyLPFoguBgiubseUN2oLXMgqZ7uxAxDoXcHMhCY/fOTTgg==",
++      "license": "SIL OPEN FONT LICENSE",
++      "peerDependencies": {
++        "next": ">=13.2.0"
++      }
++    },
+     "node_modules/generator-function": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/generator-function/-/generator-function-2.0.1.tgz",
+@@ -5994,9 +5902,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+@@ -6018,9 +5923,6 @@
+         "arm64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+@@ -6042,9 +5944,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "glibc"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+@@ -6066,9 +5965,6 @@
+         "x64"
+       ],
+       "dev": true,
+-      "libc": [
+-        "musl"
+-      ],
+       "license": "MPL-2.0",
+       "optional": true,
+       "os": [
+diff --git a/package.json b/package.json
+index d400b77..4ee6fe2 100644
+--- a/package.json
++++ b/package.json
+@@ -22,6 +22,7 @@
+     "class-variance-authority": "^0.7.1",
+     "clsx": "^2.1.1",
+     "framer-motion": "^11.15.0",
++    "geist": "^1.7.2",
+     "lucide-react": "^0.469.0",
+     "next": "16.2.10",
+     "react": "19.2.4",
+-- 
+2.43.0
+
+
+From 8dd4a0ef69c4aff3ad5a9594f4f39dfeacdd8905 Mon Sep 17 00:00:00 2001
+From: Vincenzo Grimaldi <vince.ceccarelli@gmail.com>
+Date: Sat, 4 Jul 2026 14:51:38 +0000
+Subject: [PATCH 2/3] fix(honesty): remove all fabricated metrics,
+ testimonials, and deployment claims
+
+Removed: '850+ robots deployed', '98.7% first-pass approval', '3.2x faster',
+'+41% margin', three invented customer testimonials with fake company names,
+'booked 3-5 months out', fake 'InteriorFinish Technologies, Inc.' entity,
+'free trial' CTAs for a product that does not exist, dead resources links,
+decorative social icons pointing at platform homepages, and links to
+dryforge.ai/paintforge.ai domains.
+
+Replaced with truthful early-stage positioning:
+- Pilot-program recruitment as the single conversion path (WaitlistCTA:
+  Formspree if configured, mailto fallback -- never a dead button)
+- ROI calculator reframed as a transparent model with stated assumptions
+- Pricing labeled as planned/indicative
+- Chatbot labeled as a scripted demo, fabricated stats stripped
+- Dashboard carries an unmissable SAMPLE DATA banner
+- Fixed pre-existing react-hooks/purity lint error and unused imports
+---
+ app/dashboard/page.tsx       |  15 +-
+ app/page.tsx                 | 307 +++++++++++++++++------------------
+ components/Chatbot.tsx       |  43 ++---
+ components/Footer.tsx        | 117 +++++--------
+ components/Header.tsx        | 102 +++++++-----
+ components/ROICalculator.tsx |  66 ++------
+ components/WaitlistCTA.tsx   | 143 ++++++++++++++++
+ 7 files changed, 440 insertions(+), 353 deletions(-)
+ create mode 100644 components/WaitlistCTA.tsx
+
+diff --git a/app/dashboard/page.tsx b/app/dashboard/page.tsx
+index d3365e0..3a98167 100644
+--- a/app/dashboard/page.tsx
++++ b/app/dashboard/page.tsx
+@@ -3,11 +3,10 @@
+ import React, { useState } from "react";
+ import Link from "next/link";
+ import { Button } from "@/components/ui/button";
+-import { 
+-  ArrowLeft, Users, Clock, TrendingUp, AlertCircle, CheckCircle, 
+-  Zap, BarChart3 
++import {
++  ArrowLeft, Clock, TrendingUp,
++  Zap, BarChart3
+ } from "lucide-react";
+-import { motion } from "framer-motion";
+ 
+ interface Job {
+   id: string;
+@@ -51,6 +50,10 @@ export default function FloorForgeDashboard() {
+ 
+   return (
+     <div className="min-h-screen bg-muted">
++      {/* DEMO banner — every number on this page is illustrative sample data */}
++      <div className="bg-accent text-white text-center text-xs font-semibold tracking-wider py-2 px-4">
++        PRODUCT PREVIEW — ALL DATA ON THIS PAGE IS SAMPLE DATA ILLUSTRATING THE PLANNED DASHBOARD
++      </div>
+       {/* Dashboard Header - consistent with main but dashboard focused */}
+       <div className="border-b bg-white sticky top-0 z-40">
+         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+@@ -177,7 +180,7 @@ export default function FloorForgeDashboard() {
+                 <div className="flex-1">
+                   <div className="uppercase tracking-[2px] text-xs font-semibold text-accent mb-2">CROSS-PLATFORM OPPORTUNITY</div>
+                   <div className="text-2xl font-semibold tracking-tight">This client has 42,000 sqft of walls & ceilings still untouched.</div>
+-                  <p className="mt-2 text-muted-foreground">Add DryForge + PaintForge to this job for unified InteriorFinish OS reporting and 25% bundle discount. Estimated additional margin: $47k.</p>
++                  <p className="mt-2 text-muted-foreground">Future Forge products are planned to share this reporting layer for whole-interior jobs.</p>
+                 </div>
+                 <div>
+                   <Button variant="accent" className="whitespace-nowrap">Start walls & ceilings quote in DryForge</Button>
+@@ -209,7 +212,7 @@ export default function FloorForgeDashboard() {
+                 <div className="text-xs">/100 across all coats • Target: 92</div>
+               </div>
+             </div>
+-            <div className="mt-8 text-xs text-muted-foreground border-t pt-4">All metrics automatically logged to Supabase and available via API for your BI tools.</div>
++            <div className="mt-8 text-xs text-muted-foreground border-t pt-4">Sample data. In production, metrics will be logged per job and exposed via API.</div>
+           </div>
+         )}
+ 
+diff --git a/app/page.tsx b/app/page.tsx
+index e1e3251..a218e7a 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -1,45 +1,55 @@
+ "use client";
+ 
+ import React from "react";
+-import Link from "next/link";
+-import { 
+-  Zap, Shield, Target, Layers, Bot, BarChart3, Users, Award, 
+-  CheckCircle, ArrowRight, Play 
++import {
++  Zap, Shield, Target, Layers, Bot, BarChart3,
++  CheckCircle, ArrowRight, ArrowDown,
+ } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import ROICalculator from "@/components/ROICalculator";
+ import Chatbot from "@/components/Chatbot";
++import WaitlistCTA from "@/components/WaitlistCTA";
++
++const scrollTo = (id: string) => {
++  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
++};
+ 
+ const features = [
+   {
+     icon: Zap,
+     title: "Autonomous Multi-Grit Sanding",
+-    description: "Real-time load sensing and species detection. 36→180 grit sequences executed with perfect pressure and overlap. 62% average time reduction vs manual crews.",
++    description:
++      "Designed around real-time load sensing and species detection, executing 36→180 grit sequences with consistent pressure and pass overlap — the same cut, every pass, every job.",
+   },
+   {
+     icon: Target,
+-    title: "Precision Semi-Autonomous Edging",
+-    description: "LiDAR + vision edge detection handles baseboards, transitions, and complex perimeters with <2mm accuracy. Minimal hand work required.",
++    title: "Semi-Autonomous Edging",
++    description:
++      "LiDAR and vision-based edge detection targeting baseboards, transitions, and complex perimeters, with a human-oversight mode to minimize hand work.",
+   },
+   {
+     icon: Layers,
+     title: "Consistent Finish Application",
+-    description: "T-bar or robotic spray modes with live viscosity and ambient monitoring. Uniform sheen and film build every time — zero lap marks or holidays.",
++    description:
++      "T-bar and robotic spray modes with live viscosity and ambient monitoring, targeting uniform sheen and film build across the whole floor.",
+   },
+   {
+     icon: Shield,
+-    title: "Superior Dust Containment",
+-    description: "Integrated HEPA-14 cyclonic system. <15 µg/m³ airborne during aggressive cuts. Full particulate reporting for every job included.",
++    title: "Dust Containment & Reporting",
++    description:
++      "Designed around HEPA filtration with cyclonic pre-separation and per-job airborne particulate logging, so dust performance is documented, not promised.",
+   },
+   {
+     icon: Bot,
+-    title: "InteriorFinish OS Intelligence",
+-    description: "Shared planning, live fleet view, quality scoring, and analytics layer across DryForge, PaintForge, and FloorForge. One source of truth for the entire interior.",
++    title: "One Operating System",
++    description:
++      "A shared planning, fleet, and quality-scoring layer — one source of truth for every job, designed to extend across future Forge products for the rest of the interior.",
+   },
+   {
+     icon: BarChart3,
+     title: "Data-Driven Operations",
+-    description: "Every pass, dust reading, and finish measurement logged. Instant post-job reports and trend analysis. Know exactly where margin is made or lost.",
++    description:
++      "Every pass, dust reading, and finish measurement logged. Post-job reports and trend analysis, so you know exactly where margin is made or lost.",
+   },
+ ];
+ 
+@@ -47,113 +57,110 @@ const howItWorks = [
+   {
+     step: "01",
+     title: "Site Capture & Digital Twin",
+-    desc: "Robot or technician performs rapid LiDAR + photogrammetry scan. FloorForge generates optimized multi-pass plan tailored to species, condition, and desired finish.",
++    desc: "A rapid LiDAR + photogrammetry scan generates an optimized multi-pass plan tailored to species, condition, and desired finish.",
+   },
+   {
+     step: "02",
+     title: "Autonomous Field Sanding",
+-    desc: "Multiple robots execute coordinated grit sequence with real-time adaptive pressure and speed. Edge robots handle perimeter simultaneously.",
++    desc: "Robots execute the coordinated grit sequence with adaptive pressure and speed, while edge units work the perimeter in parallel.",
+   },
+   {
+     step: "03",
+     title: "Precision Edging & Detail",
+-    desc: "Semi-autonomous edging pass with human oversight option. Handles complex transitions, vents, and built-ins with minimal rework.",
++    desc: "A semi-autonomous edging pass with a human-oversight option handles transitions, vents, and built-ins with minimal rework.",
+   },
+   {
+     step: "04",
+-    title: "Flawless Finish Application",
+-    desc: "T-bar or precision spray application. Environmental sensors ensure perfect cure conditions. Live monitoring of film build.",
++    title: "Finish Application",
++    desc: "T-bar or precision spray application with environmental sensors monitoring cure conditions and film build in real time.",
+   },
+   {
+     step: "05",
+     title: "Quality Report & Analytics",
+-    desc: "Complete digital record: grit logs, dust metrics, finish uniformity, photos. Synced to InteriorFinish OS and shared with GC/property manager instantly.",
++    desc: "A complete digital record — grit logs, dust metrics, finish uniformity, photos — ready to share with the GC or property manager.",
+   },
+ ];
+ 
+-const useCases = [
++const segments = [
+   {
+     title: "High-End Residential",
+-    metric: "47% faster turnover",
+-    quote: "We went from 11-day refinish jobs to under 6 days with the same crew size. Callbacks dropped to near zero.",
+-    attribution: "Owner, Prestige Hardwood Refinishing — Austin, TX",
++    desc: "Single-family refinishing where turnover speed, dust control inside occupied homes, and callback-free finishes decide who gets the referral.",
+   },
+   {
+     title: "Commercial Office & Retail",
+-    metric: "3.1x more sq ft per week",
+-    quote: "FloorForge lets us bid and win large multi-floor projects we used to walk away from. The consistency is what wins repeat GC business.",
+-    attribution: "VP Operations, National Commercial Flooring — Chicago, IL",
++    desc: "Large multi-floor projects where edge-to-edge consistency, night-shift scheduling around occupancy, and documented quality win repeat GC business.",
+   },
+   {
+     title: "Historic & Specialty",
+-    metric: "92% first-pass approval",
+-    quote: "On 1800s heart pine and walnut, the auto species detection and gentle start sequences have been game-changing. We protect the character while delivering modern performance.",
+-    attribution: "Lead Craftsman, Heritage Floor Studio — Philadelphia, PA",
++    desc: "Heart pine, walnut, and delicate species where gentle start sequences and adaptive pressure protect character while delivering modern performance.",
+   },
+ ];
+ 
+ const techHighlights = [
+-  "Low-profile autonomous sanders (under 8\" height for door clearance)",
+-  "HEPA-14 + cyclonic pre-separation dust systems",
+-  "Edge-sensing LiDAR + high-res vision array",
++  "Low-profile autonomous sanders (target: under 8\" for door clearance)",
++  "HEPA + cyclonic pre-separation dust systems",
++  "Edge-sensing LiDAR + high-resolution vision array",
+   "Onboard species & moisture detection",
+-  "Shared InteriorFinish OS planning & fleet layer",
+-  "Offline capable with seamless cloud sync",
++  "Shared planning & fleet software layer",
++  "Offline-capable with cloud sync",
+ ];
+ 
+ export default function FloorForgeLanding() {
+   return (
+     <div className="overflow-hidden">
+-      {/* HERO - AWS enterprise tone, confident & premium */}
++      {/* HERO */}
+       <section className="relative pt-16 pb-20 md:pt-20 md:pb-24 border-b">
+         <div className="mx-auto max-w-5xl px-6 text-center">
+           <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-1 text-xs font-medium tracking-[1.5px] mb-6">
+-            PART OF THE INTERIORFINISH OS PLATFORM
++            EARLY STAGE — PILOT PROGRAM FORMING
+           </div>
+-          
++
+           <h1 className="text-6xl md:text-7xl font-semibold tracking-[-2.8px] leading-[0.92] mb-6">
+-            Sand and Finish Hardwood Floors<br />with Unmatched Consistency and Speed.
++            Autonomous Sanding and Finishing<br />for Hardwood Floors.
+           </h1>
+-          
++
+           <p className="max-w-3xl mx-auto text-xl md:text-2xl text-muted-foreground tracking-[-0.3px] mb-10">
+-            The Operating System for Autonomous Floor Refinishing. Field sanding, edging assistance, 
+-            and perfect finish application — powered by the same software intelligence as DryForge and PaintForge.
++            FloorForge is the operating system we&apos;re building for autonomous floor
++            refinishing — job planning, multi-grit sanding orchestration, edging
++            assistance, and finish application with full dust and quality reporting.
+           </p>
+ 
+           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+-            <Link href="#pricing">
+-              <Button variant="accent" size="lg" className="text-base px-9 h-14">
+-                Start 14-day free trial
+-              </Button>
+-            </Link>
+-            <Button 
+-              variant="secondary" 
+-              size="lg" 
++            <Button
++              variant="accent"
++              size="lg"
++              className="text-base px-9 h-14"
++              onClick={() => scrollTo("waitlist")}
++            >
++              Join the pilot waitlist
++            </Button>
++            <Button
++              variant="secondary"
++              size="lg"
+               className="text-base px-8 h-14 group"
+-              onClick={() => {
+-                const el = document.getElementById('how-it-works');
+-                el?.scrollIntoView({ behavior: 'smooth' });
+-              }}
++              onClick={() => scrollTo("how-it-works")}
+             >
+-              <Play className="mr-2 h-4 w-4 group-hover:scale-110 transition" /> Watch 2-min overview
++              <ArrowDown className="mr-2 h-4 w-4 group-hover:translate-y-0.5 transition" />
++              See how it works
+             </Button>
+           </div>
+-          
++
+           <div className="mt-8 text-xs text-muted-foreground flex items-center justify-center gap-2">
+-            <CheckCircle className="h-3.5 w-3.5 text-success" /> No credit card required • Full platform access
++            <CheckCircle className="h-3.5 w-3.5 text-success" />
++            In active development. Pilot crews help shape the product.
+           </div>
+         </div>
+       </section>
+ 
+-      {/* TRUSTED BY / KEY STATS BAR - Enterprise credibility */}
++      {/* CAPABILITY PILLARS BAR */}
+       <section className="stats-bar py-5 text-white/90 text-sm">
+         <div className="mx-auto max-w-6xl px-6 flex flex-wrap items-center justify-center md:justify-between gap-x-8 gap-y-3 text-center md:text-left">
+-          <div>Trusted by crews who refuse to lose bids to inconsistency</div>
++          <div>Built for crews who refuse to lose bids to inconsistency</div>
+           <div className="flex flex-wrap justify-center gap-x-8 gap-y-1 text-xs md:text-sm font-medium tracking-wider">
+-            <div>3.2× FASTER AVERAGE COMPLETION</div>
+-            <div>98.7% FIRST-PASS APPROVAL</div>
+-            <div>+41% REPORTED PROFIT MARGIN</div>
+-            <div>850+ ROBOTS DEPLOYED</div>
++            <div>MULTI-GRIT AUTOMATION</div>
++            <div>EDGE INTELLIGENCE</div>
++            <div>DUST REPORTING</div>
++            <div>UNIFIED FLEET OS</div>
+           </div>
+         </div>
+       </section>
+@@ -161,9 +168,12 @@ export default function FloorForgeLanding() {
+       {/* FEATURES */}
+       <section id="features" className="section max-w-7xl mx-auto px-6 pt-20 pb-16">
+         <div className="text-center mb-14">
+-          <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">BUILT FOR THE CREWS THAT WIN</div>
+-          <h2 className="text-5xl tracking-[-1.8px] font-semibold">Everything you need to own hardwood refinishing.</h2>
+-          <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">Stop losing money to inconsistent sanding and callbacks. Turn every job into a predictable, high-margin operation.</p>
++          <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">WHAT WE&apos;RE BUILDING</div>
++          <h2 className="text-5xl tracking-[-1.8px] font-semibold">Everything a refinishing operation needs.</h2>
++          <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">
++            Inconsistent sanding and callbacks burn margin. FloorForge is designed to
++            turn every job into a predictable, documented operation.
++          </p>
+         </div>
+ 
+         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+@@ -180,10 +190,6 @@ export default function FloorForgeLanding() {
+             );
+           })}
+         </div>
+-
+-        <div className="mt-8 text-center text-sm text-muted-foreground">
+-          The refinishing crews using FloorForge are booking months out.
+-        </div>
+       </section>
+ 
+       {/* HOW IT WORKS */}
+@@ -191,10 +197,13 @@ export default function FloorForgeLanding() {
+         <div className="max-w-6xl mx-auto px-6">
+           <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12">
+             <div>
+-              <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">THE WORKFLOW</div>
+-              <h2 className="text-5xl tracking-[-1.6px] font-semibold">From scan to sign-off in a fraction of the time.</h2>
++              <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">THE PLANNED WORKFLOW</div>
++              <h2 className="text-5xl tracking-[-1.6px] font-semibold">From scan to sign-off.</h2>
+             </div>
+-            <p className="mt-4 md:mt-0 max-w-md text-muted-foreground">The same proven intelligence that powers DryForge and PaintForge, now applied to the floor.</p>
++            <p className="mt-4 md:mt-0 max-w-md text-muted-foreground">
++              One software core for planning, execution, and reporting — designed to
++              extend to the rest of the interior over time.
++            </p>
+           </div>
+ 
+           <div className="space-y-4">
+@@ -211,67 +220,59 @@ export default function FloorForgeLanding() {
+         </div>
+       </section>
+ 
+-      {/* ROI & BUSINESS IMPACT + INTERACTIVE CALCULATOR */}
++      {/* ROI MODEL */}
+       <section id="roi" className="section max-w-7xl mx-auto px-6 py-20">
+         <div className="text-center mb-12">
+-          <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">THE NUMBERS THAT MATTER</div>
+-          <h2 className="text-5xl tracking-[-1.8px] font-semibold mb-4">Turn every hardwood refinish into a high-margin, data-driven operation.</h2>
+-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">Real crews. Real economics. See what changes when you stop sanding by hand.</p>
++          <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">MODEL THE ECONOMICS</div>
++          <h2 className="text-5xl tracking-[-1.8px] font-semibold mb-4">What could automation change for your jobs?</h2>
++          <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
++            Adjust the model to your typical job. All outputs are estimates derived
++            from the stated assumptions — not measured customer results.
++          </p>
+         </div>
+ 
+         <ROICalculator />
+-
+-        <div className="mt-8 grid md:grid-cols-3 gap-4 text-sm">
+-          <div className="flex items-start gap-3 p-5 rounded-xl border bg-white">
+-            <CheckCircle className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+-            <div>The last crews still hand-sanding are losing bids to FloorForge-powered teams on price and schedule.</div>
+-          </div>
+-          <div className="flex items-start gap-3 p-5 rounded-xl border bg-white">
+-            <CheckCircle className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+-            <div>Average reported margin improvement of 18–29% driven by speed, consistency, and near-zero callbacks.</div>
+-          </div>
+-          <div className="flex items-start gap-3 p-5 rounded-xl border bg-white">
+-            <CheckCircle className="h-5 w-5 text-success mt-0.5 flex-shrink-0" />
+-            <div>Positioned as the logical next expansion after dominating walls (DryForge) and ceilings (PaintForge).</div>
+-          </div>
+-        </div>
+       </section>
+ 
+-      {/* USE CASES & CUSTOMER STORIES */}
++      {/* WHO WE'RE BUILDING FOR */}
+       <section className="section bg-muted py-20 border-y">
+         <div className="max-w-6xl mx-auto px-6">
+           <div className="text-center mb-12">
+-            <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">REAL RESULTS FROM REAL CREWS</div>
+-            <h2 className="text-5xl tracking-[-1.6px] font-semibold">Use cases that win business.</h2>
++            <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">TARGET SEGMENTS</div>
++            <h2 className="text-5xl tracking-[-1.6px] font-semibold">Who we&apos;re building for.</h2>
+           </div>
+ 
+           <div className="grid md:grid-cols-3 gap-6">
+-            {useCases.map((useCase, index) => (
++            {segments.map((segment, index) => (
+               <div key={index} className="card p-8 flex flex-col">
+-                <div className="text-accent text-sm font-semibold tracking-wider mb-4">{useCase.title.toUpperCase()}</div>
+-                <div className="text-3xl font-semibold tracking-tight mb-6 text-accent">{useCase.metric}</div>
+-                <blockquote className="flex-1 text-lg italic text-muted-foreground">“{useCase.quote}”</blockquote>
+-                <div className="mt-6 pt-6 border-t text-sm text-muted-foreground font-medium">{useCase.attribution}</div>
++                <div className="text-accent text-sm font-semibold tracking-wider mb-4">{segment.title.toUpperCase()}</div>
++                <p className="flex-1 text-lg text-muted-foreground">{segment.desc}</p>
+               </div>
+             ))}
+           </div>
++
++          <div className="mt-8 text-center text-sm text-muted-foreground">
++            Run one of these operations? The pilot program is how you get a seat at the table.
++          </div>
+         </div>
+       </section>
+ 
+-      {/* TECHNOLOGY & ROBOT INTEGRATION */}
++      {/* TECHNOLOGY */}
+       <section className="section max-w-6xl mx-auto px-6 py-20">
+         <div className="grid lg:grid-cols-12 gap-x-16 gap-y-10 items-center">
+           <div className="lg:col-span-5">
+             <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">HARDWARE + SOFTWARE</div>
+-            <h2 className="text-5xl tracking-[-1.8px] font-semibold leading-none mb-6">Purpose-built for the floor.<br />Unified with the suite.</h2>
+-            <p className="text-xl text-muted-foreground">Low-profile autonomous sanders, best-in-class dust systems, and edge intelligence — all running on the shared InteriorFinish OS that already powers your walls and ceilings.</p>
+-            
++            <h2 className="text-5xl tracking-[-1.8px] font-semibold leading-none mb-6">Purpose-built for the floor.</h2>
++            <p className="text-xl text-muted-foreground">
++              Low-profile autonomous sanders, serious dust systems, and edge
++              intelligence — orchestrated by one software layer. These are the design
++              targets guiding development.
++            </p>
++
+             <div className="mt-8">
+-              <Link href="#pricing">
+-                <Button variant="accent" className="group">
+-                  Explore deployment options <ArrowRight className="ml-2 group-hover:translate-x-0.5 transition" />
+-                </Button>
+-              </Link>
++              <Button variant="accent" className="group" onClick={() => scrollTo("waitlist")}>
++                Shape the pilot spec <ArrowRight className="ml-2 group-hover:translate-x-0.5 transition" />
++              </Button>
+             </div>
+           </div>
+ 
+@@ -284,18 +285,23 @@ export default function FloorForgeLanding() {
+                 </div>
+               ))}
+             </div>
+-            <div className="mt-4 text-xs text-muted-foreground px-2">All hardware and software updates delivered over-the-air. No on-site technicians required for routine improvements.</div>
++            <div className="mt-4 text-xs text-muted-foreground px-2">
++              Design targets, not shipped specifications. Pilot feedback drives what gets built first.
++            </div>
+           </div>
+         </div>
+       </section>
+ 
+-      {/* PRICING */}
++      {/* PLANNED PRICING */}
+       <section id="pricing" className="section bg-white border-y py-20">
+         <div className="max-w-6xl mx-auto px-6">
+           <div className="text-center mb-12">
+-            <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">SIMPLE, TRANSPARENT, BUILT TO SCALE</div>
+-            <h2 className="text-5xl tracking-[-1.6px] font-semibold">Pricing designed as a powerful bolt-on expansion.</h2>
+-            <p className="mt-3 text-xl text-muted-foreground">Start with FloorForge alone or bundle with DryForge + PaintForge for maximum InteriorFinish OS value.</p>
++            <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">PLANNED PRICING</div>
++            <h2 className="text-5xl tracking-[-1.6px] font-semibold">Simple pricing, designed to scale with you.</h2>
++            <p className="mt-3 text-xl text-muted-foreground">
++              Indicative pricing for the launch phase — subject to change as the pilot
++              program defines the product.
++            </p>
+           </div>
+ 
+           <div className="grid md:grid-cols-3 gap-6">
+@@ -311,14 +317,14 @@ export default function FloorForgeLanding() {
+               </div>
+               <ul className="mt-8 space-y-3.5 text-sm flex-1">
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Core autonomous sanding + reporting</li>
+-                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Basic InteriorFinish OS dashboard</li>
++                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Base fleet dashboard</li>
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Email + chat support</li>
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Up to 3 robots</li>
+               </ul>
+-              <Button variant="secondary" className="mt-8 w-full h-12">Start free trial</Button>
++              <Button variant="secondary" className="mt-8 w-full h-12" onClick={() => scrollTo("waitlist")}>Join waitlist</Button>
+             </div>
+ 
+-            {/* Professional - Featured */}
++            {/* Professional */}
+             <div className="pricing-card featured card p-8 flex flex-col border-2 border-accent relative">
+               <div>
+                 <div className="text-sm font-semibold tracking-widest text-accent">PROFESSIONAL</div>
+@@ -329,13 +335,12 @@ export default function FloorForgeLanding() {
+                 <div className="text-sm mt-1 text-muted-foreground">+ $99 /robot /month</div>
+               </div>
+               <ul className="mt-8 space-y-3.5 text-sm flex-1">
+-                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Full autonomous sanding + edging + finish assist</li>
+-                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Complete InteriorFinish OS (planning, analytics, fleet)</li>
++                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Full sanding + edging + finish assist</li>
++                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Complete OS: planning, analytics, fleet</li>
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Priority support + dedicated onboarding</li>
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Unlimited robots • Advanced reporting</li>
+-                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> 25% bundle discount with DryForge + PaintForge</li>
+               </ul>
+-              <Button variant="accent" className="mt-8 w-full h-12">Start free trial — most popular</Button>
++              <Button variant="accent" className="mt-8 w-full h-12" onClick={() => scrollTo("waitlist")}>Join waitlist</Button>
+             </div>
+ 
+             {/* Enterprise */}
+@@ -352,62 +357,54 @@ export default function FloorForgeLanding() {
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Dedicated customer success manager</li>
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Custom integrations &amp; SSO</li>
+                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> On-site or remote training programs</li>
+-                <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Highest priority hardware &amp; software updates</li>
+               </ul>
+-              <Button variant="secondary" className="mt-8 w-full h-12">Contact sales</Button>
++              <Button variant="secondary" className="mt-8 w-full h-12" onClick={() => scrollTo("waitlist")}>Contact us</Button>
+             </div>
+           </div>
+ 
+-          <p className="text-center text-xs text-muted-foreground mt-8">All plans include access to the full InteriorFinish OS core. 14-day full-feature trial. Cancel anytime.</p>
++          <p className="text-center text-xs text-muted-foreground mt-8">
++            Pilot participants receive preferential launch pricing.
++          </p>
+         </div>
+       </section>
+ 
+-      {/* RESOURCES */}
+-      <section id="resources" className="section max-w-6xl mx-auto px-6 py-20">
+-        <div className="text-center mb-12">
+-          <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">DEEPEN YOUR KNOWLEDGE</div>
+-          <h2 className="text-5xl tracking-[-1.6px] font-semibold">Resources to help you win more work.</h2>
+-        </div>
+-
+-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+-          {[
+-            { title: "Documentation", desc: "Complete guides for setup, workflows, and InteriorFinish OS integration." },
+-            { title: "Case Studies", desc: "Detailed before/after economics from crews who scaled with FloorForge." },
+-            { title: "API Reference", desc: "Build custom dashboards, reporting, or integrate with your existing CRM/ERP." },
+-            { title: "Webinars & Community", desc: "Monthly deep-dives and active practitioner community on Discord." },
+-          ].map((res, i) => (
+-            <div key={i} className="card p-7 group cursor-pointer hover:border-accent/40 transition-colors">
+-              <div className="font-semibold text-xl tracking-tight mb-3 group-hover:text-accent transition">{res.title}</div>
+-              <p className="text-muted-foreground text-[15px]">{res.desc}</p>
+-              <div className="mt-5 text-xs text-accent flex items-center gap-1 font-medium">Explore <ArrowRight className="h-3 w-3" /></div>
+-            </div>
+-          ))}
++      {/* WAITLIST */}
++      <section id="waitlist" className="section max-w-6xl mx-auto px-6 py-20">
++        <div className="text-center mb-10">
++          <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">THE PILOT PROGRAM</div>
++          <h2 className="text-5xl tracking-[-1.6px] font-semibold">Help us build it. Then run it first.</h2>
++          <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">
++            We&apos;re recruiting a small group of refinishing operations to define
++            requirements, test early workflows, and get preferential launch terms.
++          </p>
+         </div>
++        <WaitlistCTA />
+       </section>
+ 
+-      {/* FINAL CTA BANNER */}
++      {/* FINAL CTA */}
+       <section className="bg-primary py-16 text-white">
+         <div className="max-w-4xl mx-auto px-6 text-center">
+-          <h2 className="text-5xl tracking-[-1.8px] font-semibold">Ready to dominate hardwood refinishing?</h2>
+-          <p className="mt-4 text-2xl text-white/80 tracking-tight">Join the crews who are already booked months out. Start your 14-day free trial today.</p>
+-          
++          <h2 className="text-5xl tracking-[-1.8px] font-semibold">The floor is the next frontier.</h2>
++          <p className="mt-4 text-2xl text-white/80 tracking-tight">
++            Autonomous refinishing is coming. Decide whether you shape it or react to it.
++          </p>
++
+           <div className="mt-9 flex flex-col sm:flex-row gap-4 justify-center">
+-            <Link href="#pricing">
+-              <Button variant="accent" size="lg" className="h-14 px-10 text-base">Start free trial</Button>
+-            </Link>
+-            <Button 
+-              variant="outline" 
+-              size="lg" 
++            <Button variant="accent" size="lg" className="h-14 px-10 text-base" onClick={() => scrollTo("waitlist")}>
++              Join the pilot waitlist
++            </Button>
++            <Button
++              variant="outline"
++              size="lg"
+               className="h-14 px-9 text-base border-white/40 text-white hover:bg-white/10"
+               onClick={() => {
+                 const chatBtn = document.querySelector('[aria-label="Open FloorForge Assistant"]') as HTMLButtonElement;
+                 chatBtn?.click();
+               }}
+             >
+-              Talk to our floor specialists
++              Ask the demo assistant
+             </Button>
+           </div>
+-          <div className="mt-5 text-xs text-white/50">No credit card required. Full access to Professional tier during trial.</div>
+         </div>
+       </section>
+ 
+diff --git a/components/Chatbot.tsx b/components/Chatbot.tsx
+index 513eed1..94f9010 100644
+--- a/components/Chatbot.tsx
++++ b/components/Chatbot.tsx
+@@ -12,22 +12,24 @@ interface Message {
+ }
+ 
+ const quickReplies = [
+-  "Show refinishing pricing",
++  "What is FloorForge?",
+   "Grit sequencing explained",
+-  "Dust containment on site",
+-  "Commercial vs residential jobs",
+-  "ROI for 12,000 sqft office refinish",
+-  "How does it integrate with DryForge?",
++  "How does dust reporting work?",
++  "What's the planned pricing?",
++  "How does the ROI model work?",
++  "How do I join the pilot?",
+ ];
+ 
++// Scripted demo responses. This assistant is explicitly labeled as a demo —
++// it makes no claims about deployed hardware or existing customers.
+ const demoResponses: Record<string, string> = {
+-  "pricing": "Our Professional tier starts at $799/mo base + $99 per robot/month. Essentials at $299 base. Enterprise is custom. All include full InteriorFinish OS access, HEPA dust systems, and quality reporting. Bundle with DryForge + PaintForge for 25% savings on the full suite. Want me to walk you through a custom quote?",
+-  "grit": "Standard high-performance sequence for most North American hardwoods (oak, maple, ash): 36/40 grit aggressive stock removal → 60 grit → 80 grit → 120 grit → 150/180 grit final. FloorForge robots use real-time load sensing and species detection to auto-optimize pressure, feed rate, and pass overlap. Walnut and exotics often start at 60 grit to protect color. We log every pass for your quality report.",
+-  "dust": "Our integrated HEPA-14 + cyclonic pre-separation system captures 99.97% of dust at source. On-site airborne readings average <15 µg/m³ even during aggressive 36-grit passes — well below OSHA and LEED limits. Negative air machines optional for sensitive environments. Post-job, we generate a full particulate report tied to the job record in InteriorFinish OS.",
+-  "commercial": "Commercial jobs (offices, retail, schools) typically use 2–6 robots depending on sqft and timeline. We prioritize edge-to-edge consistency and schedule around occupancy. Residential focuses on single-family with faster setup/teardown and noise considerations. Both use the exact same software intelligence and hardware — workflow templates differ. Our edge-sensing tech shines in commercial with complex baseboards and transitions.",
+-  "roi": "For a 12,000 sqft commercial office refinish: typical manual is ~140–160 labor hours. With FloorForge you’ll see ~58% time reduction (robots run parallel passes), 2–3 robots recommended, ~$9,800–12,400 labor savings per job at $75/hr blended rate, plus 19–24% margin lift from fewer callbacks and faster turnover. Many crews book 3–4 months out once they adopt. Shall I open the full ROI calculator for your numbers?",
+-  "integrate": "FloorForge shares the exact same InteriorFinish OS layer as DryForge (walls) and PaintForge (ceilings). One job = one digital twin of the entire interior. Plan walls → ceilings → floors in sequence or parallel. Unified fleet dashboard, quality scoring across trades, and single source of truth for GCs and property managers. Cross-sell rate on existing DryForge/PaintForge customers is >70%.",
+-  default: "Thanks for your question. FloorForge delivers unmatched consistency on every hardwood species and job type. Our robots handle multi-grit sanding, precision edging, and flawless finish application (T-bar or robotic spray) while containing dust to near-zero. Everything syncs to InteriorFinish OS for planning, live monitoring, and post-job analytics. What specific part of the workflow can I help clarify — or would you like pricing for your typical job size?"
++  what: "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning from a site scan, multi-grit sanding orchestration, edging assistance, finish application monitoring, and per-job dust and quality reporting. The hardware and software are in development — the pilot program is how refinishing crews get involved now.",
++  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Pilot participants get preferential launch pricing. Want to join the waitlist?",
++  grit: "A standard high-performance sequence for most North American hardwoods (oak, maple, ash) runs 36/40 grit for aggressive stock removal, then 60, 80, 120, and 150/180 for the final pass. Walnut and exotics often start at 60 grit to protect color. FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.",
++  dust: "The design pairs HEPA filtration with cyclonic pre-separation and logs airborne particulate readings throughout the job, so dust performance is documented in the job record rather than promised verbally. Final specs will be validated during the pilot program.",
++  roi: "The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a 62% baseline time-reduction target (adjusted by job type), a $78/hr blended labor rate, and a ~2,200 sqft/robot/day throughput target. Those are design assumptions, not measured field results — validating them is a core goal of the pilot.",
++  pilot: "Scroll to the waitlist section and drop your details, or use the button in the header. We're recruiting a small group of residential, commercial, and specialty refinishing operations to define requirements and test early workflows, in exchange for preferential launch terms.",
++  default: "I'm a scripted demo assistant for FloorForge, an early-stage autonomous floor refinishing platform. I can explain the concept, the planned workflow, grit sequencing, the transparent ROI model, planned pricing, or how to join the pilot program. What would you like to know?",
+ };
+ 
+ export default function Chatbot() {
+@@ -36,10 +38,11 @@ export default function Chatbot() {
+     {
+       id: 1,
+       type: "assistant",
+-      content: "Hi, I'm the FloorForge Assistant. I specialize in autonomous hardwood refinishing workflows, grit sequencing, dust containment, commercial vs residential economics, and integration with the rest of the InteriorFinish OS suite. How can I help you today?",
++      content: "Hi — I'm a scripted demo assistant for FloorForge, an early-stage product in active development. I can explain what we're building, grit sequencing, dust reporting, the ROI model, planned pricing, and how to join the pilot program.",
+     },
+   ]);
+   const [inputValue, setInputValue] = useState("");
++  const nextId = useRef(2);
+   const [isTyping, setIsTyping] = useState(false);
+   const messagesEndRef = useRef<HTMLDivElement>(null);
+ 
+@@ -52,7 +55,7 @@ export default function Chatbot() {
+   }, [messages, isOpen]);
+ 
+   const addMessage = (type: "user" | "assistant", content: string) => {
+-    const newMessage: Message = { id: Date.now(), type, content };
++    const newMessage: Message = { id: nextId.current++, type, content };
+     setMessages((prev) => [...prev, newMessage]);
+   };
+ 
+@@ -60,10 +63,10 @@ export default function Chatbot() {
+     const q = query.toLowerCase();
+     if (q.includes("price") || q.includes("pricing") || q.includes("cost") || q.includes("tier")) return demoResponses.pricing;
+     if (q.includes("grit") || q.includes("sequence") || q.includes("sand")) return demoResponses.grit;
+-    if (q.includes("dust") || q.includes("hepa") || q.includes("containment")) return demoResponses.dust;
+-    if (q.includes("commercial") || q.includes("residential") || q.includes("job type")) return demoResponses.commercial;
+-    if (q.includes("roi") || q.includes("12,000") || q.includes("12000") || q.includes("office")) return demoResponses.roi;
+-    if (q.includes("integrate") || q.includes("dryforge") || q.includes("paintforge") || q.includes("suite")) return demoResponses.integrate;
++    if (q.includes("dust") || q.includes("hepa") || q.includes("containment") || q.includes("report")) return demoResponses.dust;
++    if (q.includes("roi") || q.includes("model") || q.includes("calculat") || q.includes("economic")) return demoResponses.roi;
++    if (q.includes("pilot") || q.includes("waitlist") || q.includes("join") || q.includes("sign up")) return demoResponses.pilot;
++    if (q.includes("what is") || q.includes("about") || q.includes("floorforge")) return demoResponses.what;
+     return demoResponses.default;
+   };
+ 
+@@ -112,8 +115,8 @@ export default function Chatbot() {
+                 </div>
+                 <div>
+                   <div className="font-semibold text-base tracking-tight">FloorForge Assistant</div>
+-                  <div className="text-xs text-success flex items-center gap-1.5">
+-                    <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Online • Specialized in hardwood
++                  <div className="text-xs text-muted-foreground flex items-center gap-1.5">
++                    <div className="h-1.5 w-1.5 rounded-full bg-accent" /> Scripted demo — not a live agent
+                   </div>
+                 </div>
+               </div>
+diff --git a/components/Footer.tsx b/components/Footer.tsx
+index afbca53..d5df5bd 100644
+--- a/components/Footer.tsx
++++ b/components/Footer.tsx
+@@ -1,26 +1,13 @@
+ import Link from "next/link";
+-import { 
+-  Linkedin, Twitter, Youtube, Instagram, Facebook, 
+-  MessageCircle, Github, Users 
+-} from "lucide-react"; // Using available lucide icons; TikTok approximated with MessageCircle for demo. Reddit with Users.
++import { Github, Mail } from "lucide-react";
+ 
+-const socialLinks = [
+-  { icon: Linkedin, href: "https://linkedin.com", label: "LinkedIn" },
+-  { icon: Twitter, href: "https://x.com", label: "X" },
+-  { icon: Youtube, href: "https://youtube.com", label: "YouTube" },
+-  { icon: Instagram, href: "https://instagram.com", label: "Instagram" },
+-  { icon: Facebook, href: "https://facebook.com", label: "Facebook" },
+-  { icon: MessageCircle, href: "https://tiktok.com", label: "TikTok" },
+-  { icon: MessageCircle, href: "https://discord.com", label: "Discord" },
+-  { icon: Github, href: "https://github.com", label: "GitHub" },
+-  { icon: Users, href: "https://reddit.com", label: "Reddit" },
+-];
++const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
+ 
+ export default function Footer() {
+   return (
+     <footer className="bg-primary text-primary-foreground border-t border-white/10">
+       <div className="mx-auto max-w-7xl px-6 pt-16 pb-12">
+-        <div className="grid grid-cols-2 md:grid-cols-5 gap-y-12">
++        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12">
+           {/* Brand */}
+           <div className="col-span-2 md:col-span-1">
+             <div className="flex items-center gap-2 mb-4">
+@@ -29,88 +16,70 @@ export default function Footer() {
+               </div>
+               <span className="font-semibold text-xl tracking-[-0.5px]">FloorForge</span>
+             </div>
+-            <p className="text-sm text-white/60 max-w-[200px]">
+-              The operating system for autonomous hardwood floor refinishing.
++            <p className="text-sm text-white/60 max-w-[220px]">
++              An operating system for autonomous hardwood floor refinishing.
++              Early stage — pilot program forming.
+             </p>
+-            <div className="mt-6 text-[10px] text-white/40">© {new Date().getFullYear()} InteriorFinish Technologies, Inc.</div>
++            <div className="mt-6 text-[10px] text-white/40">
++              © {new Date().getFullYear()} FloorForge — a Grimaldi Engineering project.
++            </div>
+           </div>
+ 
+           {/* Product */}
+           <div>
+             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Product</div>
+             <ul className="space-y-2.5 text-sm text-white/80">
+-              <li><button onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">Features</button></li>
+-              <li><button onClick={() => document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">How it Works</button></li>
+-              <li><button onClick={() => document.getElementById('roi')?.scrollIntoView({ behavior: 'smooth' })} className="hover:text-white transition">ROI Calculator</button></li>
+-              <li><Link href="#pricing" className="hover:text-white transition">Pricing</Link></li>
+-              <li><Link href="/dashboard" className="hover:text-white transition">Dashboard</Link></li>
++              <li><Link href="/#features" className="hover:text-white transition">Features</Link></li>
++              <li><Link href="/#how-it-works" className="hover:text-white transition">How it Works</Link></li>
++              <li><Link href="/#roi" className="hover:text-white transition">ROI Model</Link></li>
++              <li><Link href="/#pricing" className="hover:text-white transition">Planned Pricing</Link></li>
++              <li><Link href="/dashboard" className="hover:text-white transition">Dashboard Preview</Link></li>
+             </ul>
+           </div>
+ 
+-          {/* Solutions */}
++          {/* Pilot */}
+           <div>
+-            <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Solutions</div>
++            <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Pilot Program</div>
+             <ul className="space-y-2.5 text-sm text-white/80">
+-              <li><span className="hover:text-white transition cursor-pointer">Residential Refinishing</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Commercial Projects</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Historic Restoration</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">High-Traffic Floors</span></li>
+-              <li><Link href="https://dryforge.ai" className="hover:text-white transition" target="_blank">DryForge (Walls)</Link></li>
+-              <li><Link href="https://paintforge.ai" className="hover:text-white transition" target="_blank">PaintForge (Ceilings)</Link></li>
+-            </ul>
+-          </div>
+-
+-          {/* Resources */}
+-          <div>
+-            <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Resources</div>
+-            <ul className="space-y-2.5 text-sm text-white/80">
+-              <li><Link href="#resources" className="hover:text-white transition">Documentation</Link></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Case Studies</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">API Reference</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Webinars</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Community</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Status</span></li>
++              <li><Link href="/#waitlist" className="hover:text-white transition">Join the Waitlist</Link></li>
++              <li>
++                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition">
++                  Contact Us
++                </a>
++              </li>
+             </ul>
+           </div>
+ 
+-          {/* Company */}
++          {/* Contact */}
+           <div>
+-            <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Company</div>
++            <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Connect</div>
+             <ul className="space-y-2.5 text-sm text-white/80">
+-              <li><span className="hover:text-white transition cursor-pointer">About Us</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Careers</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Contact Sales</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Partners</span></li>
+-              <li><span className="hover:text-white transition cursor-pointer">Trust &amp; Security</span></li>
+-            </ul>
+-          </div>
+-        </div>
+-
+-        {/* Social Icons - 9 icons exactly as specified */}
+-        <div className="mt-14 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+-          <div className="flex items-center gap-5">
+-            {socialLinks.map((social, index) => {
+-              const Icon = social.icon;
+-              return (
++              <li>
++                <a
++                  href={`mailto:${CONTACT_EMAIL}`}
++                  className="hover:text-white transition inline-flex items-center gap-2"
++                >
++                  <Mail size={14} /> Email
++                </a>
++              </li>
++              <li>
+                 <a
+-                  key={index}
+-                  href={social.href}
++                  href="https://github.com/iceccarelli"
+                   target="_blank"
+                   rel="noopener noreferrer"
+-                  className="text-white/50 hover:text-white transition-colors p-1"
+-                  aria-label={social.label}
++                  className="hover:text-white transition inline-flex items-center gap-2"
+                 >
+-                  <Icon size={18} />
++                  <Github size={14} /> GitHub
+                 </a>
+-              );
+-            })}
+-          </div>
+-          
+-          <div className="text-xs text-white/50 text-center md:text-right">
+-            Part of the InteriorFinish OS platform • DryForge • PaintForge • FloorForge<br className="md:hidden" /> 
+-            Enterprise-grade autonomy for the built environment.
++              </li>
++            </ul>
+           </div>
+         </div>
++
++        <div className="mt-14 pt-8 border-t border-white/10 text-xs text-white/50 text-center md:text-left">
++          FloorForge is in active development. Pricing, specifications, and features
++          described on this site are design targets and are subject to change.
++        </div>
+       </div>
+     </footer>
+   );
+diff --git a/components/Header.tsx b/components/Header.tsx
+index ef22210..821f393 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -2,9 +2,10 @@
+ 
+ import React, { useState } from "react";
+ import Link from "next/link";
+-import { Menu, X, ChevronDown } from "lucide-react";
++import { Menu, X } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
++import { authEnabled } from "@/lib/auth";
+ import { motion, AnimatePresence } from "framer-motion";
+ 
+ const navLinks = [
+@@ -12,7 +13,7 @@ const navLinks = [
+   { href: "#how-it-works", label: "How it Works" },
+   { href: "#roi", label: "ROI" },
+   { href: "#pricing", label: "Pricing" },
+-  { href: "#resources", label: "Resources" },
++  { href: "#waitlist", label: "Pilot Program" },
+ ];
+ 
+ export default function Header() {
+@@ -41,7 +42,7 @@ export default function Header() {
+             </div>
+             <div>
+               <div className="font-semibold text-2xl tracking-[-1.2px] text-primary">FloorForge</div>
+-              <div className="text-[10px] text-muted-foreground -mt-1.5">BY INTERIORFINISH OS</div>
++              <div className="text-[10px] text-muted-foreground -mt-1.5">EARLY ACCESS</div>
+             </div>
+           </Link>
+ 
+@@ -60,33 +61,40 @@ export default function Header() {
+ 
+           {/* Desktop CTAs */}
+           <div className="hidden md:flex items-center gap-3">
+-            <SignedOut>
+-              <SignInButton mode="modal">
+-                <Button variant="ghost" size="sm" className="font-medium">
+-                  Sign in
+-                </Button>
+-              </SignInButton>
+-            </SignedOut>
+-            <SignedIn>
+-              <Link href="/dashboard">
+-                <Button variant="ghost" size="sm" className="font-medium">
+-                  Dashboard
+-                </Button>
+-              </Link>
+-              <UserButton 
+-                appearance={{
+-                  elements: {
+-                    avatarBox: "h-8 w-8 rounded-full ring-1 ring-border"
+-                  }
+-                }}
+-              />
+-            </SignedIn>
+-            
+-            <Link href="#pricing">
+-              <Button variant="accent" size="sm" className="font-semibold px-5">
+-                Start free trial
+-              </Button>
+-            </Link>
++            {authEnabled && (
++              <>
++                <SignedOut>
++                  <SignInButton mode="modal">
++                    <Button variant="ghost" size="sm" className="font-medium">
++                      Sign in
++                    </Button>
++                  </SignInButton>
++                </SignedOut>
++                <SignedIn>
++                  <Link href="/dashboard">
++                    <Button variant="ghost" size="sm" className="font-medium">
++                      Dashboard
++                    </Button>
++                  </Link>
++                  <UserButton
++                    appearance={{
++                      elements: {
++                        avatarBox: "h-8 w-8 rounded-full ring-1 ring-border"
++                      }
++                    }}
++                  />
++                </SignedIn>
++              </>
++            )}
++
++            <Button
++              variant="accent"
++              size="sm"
++              className="font-semibold px-5"
++              onClick={() => scrollToSection("#waitlist")}
++            >
++              Join waitlist
++            </Button>
+           </div>
+ 
+           {/* Mobile Menu Button */}
+@@ -120,19 +128,27 @@ export default function Header() {
+                 </button>
+               ))}
+               <div className="pt-4 border-t flex flex-col gap-3">
+-                <SignedOut>
+-                  <SignInButton mode="modal">
+-                    <Button variant="secondary" className="w-full justify-center">Sign in</Button>
+-                  </SignInButton>
+-                </SignedOut>
+-                <SignedIn>
+-                  <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+-                    <Button variant="secondary" className="w-full justify-center">Dashboard</Button>
+-                  </Link>
+-                </SignedIn>
+-                <Link href="#pricing" onClick={() => setMobileMenuOpen(false)}>
+-                  <Button variant="accent" className="w-full justify-center">Start free trial</Button>
+-                </Link>
++                {authEnabled && (
++                  <>
++                    <SignedOut>
++                      <SignInButton mode="modal">
++                        <Button variant="secondary" className="w-full justify-center">Sign in</Button>
++                      </SignInButton>
++                    </SignedOut>
++                    <SignedIn>
++                      <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
++                        <Button variant="secondary" className="w-full justify-center">Dashboard</Button>
++                      </Link>
++                    </SignedIn>
++                  </>
++                )}
++                <Button
++                  variant="accent"
++                  className="w-full justify-center"
++                  onClick={() => scrollToSection("#waitlist")}
++                >
++                  Join waitlist
++                </Button>
+               </div>
+             </div>
+           </motion.div>
+diff --git a/components/ROICalculator.tsx b/components/ROICalculator.tsx
+index 0bd49e6..27f8184 100644
+--- a/components/ROICalculator.tsx
++++ b/components/ROICalculator.tsx
+@@ -2,14 +2,11 @@
+ 
+ import React, { useState, useMemo } from "react";
+ import { Button } from "@/components/ui/button";
+-import { motion } from "framer-motion";
+ import { Calculator, TrendingUp, Clock, Users, Award, ArrowRight } from "lucide-react";
+ 
+ interface ROIInputs {
+   sqft: number;
+   manualHours: number;
+-  gritPasses: number;
+-  finishCoats: number;
+   jobType: "residential" | "commercial";
+ }
+ 
+@@ -17,13 +14,11 @@ export default function ROICalculator() {
+   const [inputs, setInputs] = useState<ROIInputs>({
+     sqft: 8500,
+     manualHours: 95,
+-    gritPasses: 5,
+-    finishCoats: 3,
+     jobType: "commercial",
+   });
+ 
+   const results = useMemo(() => {
+-    const { sqft, manualHours, gritPasses, finishCoats, jobType } = inputs;
++    const { sqft, manualHours, jobType } = inputs;
+     
+     const complexityMultiplier = jobType === "commercial" ? 1.15 : 0.92;
+     const baseRobotEfficiency = 0.38; // 62% time reduction baseline
+@@ -40,21 +35,12 @@ export default function ROICalculator() {
+     const blendedLaborRate = 78; // realistic crew blended
+     const laborSaved = Math.round(timeSavedHours * blendedLaborRate);
+     
+-    // Margin improvement from consistency + speed + fewer callbacks
+-    const baseMarginLift = jobType === "commercial" ? 22 : 18;
+-    const marginImprovement = baseMarginLift + Math.floor(gritPasses / 2) + Math.floor(finishCoats / 2);
+-    
+-    // Suggested bundle path
+-    const bundleDiscount = "25% when bundled with DryForge + PaintForge";
+-    
+     return {
+       robotHours,
+       timeSavedHours,
+       timeSavedPercent,
+       robotsRecommended,
+       laborSaved,
+-      marginImprovement: Math.min(marginImprovement, 29),
+-      bundleDiscount,
+       jobTypeLabel: jobType === "commercial" ? "Commercial" : "Residential",
+     };
+   }, [inputs]);
+@@ -70,8 +56,8 @@ export default function ROICalculator() {
+           <Calculator className="h-6 w-6" />
+         </div>
+         <div>
+-          <div className="font-semibold text-2xl tracking-tight">Interactive ROI Calculator</div>
+-          <div className="text-muted-foreground text-sm">See exactly how FloorForge transforms your hardwood refinishing economics</div>
++          <div className="font-semibold text-2xl tracking-tight">Interactive ROI Model</div>
++          <div className="text-muted-foreground text-sm">A transparent model of automation economics — estimates from the assumptions below, not measured results</div>
+         </div>
+       </div>
+ 
+@@ -110,29 +96,6 @@ export default function ROICalculator() {
+             </div>
+           </div>
+ 
+-          <div className="grid grid-cols-2 gap-4">
+-            <div>
+-              <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">GRIT PASSES</label>
+-              <select 
+-                value={inputs.gritPasses} 
+-                onChange={(e) => updateInput("gritPasses", parseInt(e.target.value))}
+-                className="input h-11"
+-              >
+-                {[3,4,5,6,7].map(n => <option key={n} value={n}>{n} passes</option>)}
+-              </select>
+-            </div>
+-            <div>
+-              <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">FINISH COATS</label>
+-              <select 
+-                value={inputs.finishCoats} 
+-                onChange={(e) => updateInput("finishCoats", parseInt(e.target.value))}
+-                className="input h-11"
+-              >
+-                {[2,3,4,5].map(n => <option key={n} value={n}>{n} coats</option>)}
+-              </select>
+-            </div>
+-          </div>
+-
+           <div>
+             <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">JOB TYPE</label>
+             <div className="flex gap-2">
+@@ -155,7 +118,7 @@ export default function ROICalculator() {
+         <div className="lg:col-span-3">
+           <div className="bg-slate-950 text-white rounded-2xl p-7">
+             <div className="uppercase text-xs tracking-[2px] text-white/50 mb-4 flex items-center gap-2">
+-              PROJECTED OUTCOMES <div className="flex-1 h-px bg-white/20" />
++              MODELED ESTIMATES <div className="flex-1 h-px bg-white/20" />
+             </div>
+ 
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+@@ -185,22 +148,15 @@ export default function ROICalculator() {
+ 
+               <div className="roi-result">
+                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
+-                  <Award className="h-4 w-4" /> MARGIN LIFT
++                  <Award className="h-4 w-4" /> ROBOT HOURS
+                 </div>
+-                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">+{results.marginImprovement}<span className="text-3xl align-super">%</span></div>
+-                <div className="text-sm text-white/60 mt-1">from consistency + speed</div>
++                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotHours}</div>
++                <div className="text-sm text-white/60 mt-1">modeled machine time</div>
+               </div>
+             </div>
+ 
+-            <div className="mt-7 pt-6 border-t border-white/10 text-sm">
+-              <div className="flex items-start gap-3 text-white/90">
+-                <div className="mt-1 text-accent">→</div>
+-                <div>
+-                  <span className="font-medium text-white">Recommended next step:</span> Deploy {results.robotsRecommended} robot{results.robotsRecommended > 1 ? "s" : ""} on {results.jobTypeLabel.toLowerCase()} workflows. 
+-                  {" "}{results.bundleDiscount}. 
+-                  Crews using FloorForge report being booked solid 3–5 months out.
+-                </div>
+-              </div>
++            <div className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
++              <span className="font-medium text-white/80">Model assumptions:</span> $78/hr blended labor rate; automation efficiency baseline of 62% time reduction adjusted by job type; ~2,200 sqft per robot per day throughput target for {results.jobTypeLabel.toLowerCase()} work. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
+             </div>
+ 
+             <div className="mt-6 flex flex-wrap gap-3">
+@@ -212,7 +168,7 @@ export default function ROICalculator() {
+                   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                 }}
+               >
+-                See Pricing &amp; Start Trial <ArrowRight className="ml-2 h-4 w-4" />
++                See planned pricing <ArrowRight className="ml-2 h-4 w-4" />
+               </Button>
+               <Button 
+                 variant="outline" 
+@@ -226,7 +182,7 @@ export default function ROICalculator() {
+                   }, 300);
+                 }}
+               >
+-                Talk to specialist about this scenario
++                Ask the demo assistant about this scenario
+               </Button>
+             </div>
+           </div>
+diff --git a/components/WaitlistCTA.tsx b/components/WaitlistCTA.tsx
+new file mode 100644
+index 0000000..7b15edf
+--- /dev/null
++++ b/components/WaitlistCTA.tsx
+@@ -0,0 +1,143 @@
++"use client";
++
++import React, { useState } from "react";
++import { Button } from "@/components/ui/button";
++import { toast } from "sonner";
++import { Mail, ArrowRight } from "lucide-react";
++
++const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID;
++const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
++
++/**
++ * The single honest conversion path on the site. Posts to Formspree when
++ * NEXT_PUBLIC_FORMSPREE_FORM_ID is set; otherwise falls back to mailto so
++ * the CTA is never a dead button.
++ */
++export default function WaitlistCTA() {
++  const [name, setName] = useState("");
++  const [email, setEmail] = useState("");
++  const [company, setCompany] = useState("");
++  const [volume, setVolume] = useState("");
++  const [submitting, setSubmitting] = useState(false);
++  const [submitted, setSubmitted] = useState(false);
++
++  const handleSubmit = async () => {
++    if (!email.trim() || !email.includes("@")) {
++      toast.error("Please enter a valid email address.");
++      return;
++    }
++    setSubmitting(true);
++    try {
++      const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
++        method: "POST",
++        headers: { "Content-Type": "application/json", Accept: "application/json" },
++        body: JSON.stringify({
++          name,
++          email,
++          company,
++          monthly_sqft: volume,
++          source: "floorforge-pilot-waitlist",
++        }),
++      });
++      if (!res.ok) throw new Error(`Formspree responded ${res.status}`);
++      setSubmitted(true);
++      toast.success("You're on the pilot waitlist. We'll be in touch.");
++    } catch {
++      toast.error("Submission failed. Please email us directly instead.");
++    } finally {
++      setSubmitting(false);
++    }
++  };
++
++  if (submitted) {
++    return (
++      <div className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-white">
++        <div className="text-2xl font-semibold tracking-tight mb-2">You&apos;re on the list.</div>
++        <p className="text-muted-foreground">
++          Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
++          program takes shape.
++        </p>
++      </div>
++    );
++  }
++
++  if (!FORMSPREE_ID) {
++    // No form backend configured — honest mailto fallback, never a dead CTA.
++    return (
++      <div className="max-w-xl mx-auto text-center">
++        <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
++          <Button variant="accent" size="lg" className="h-14 px-10 text-base">
++            <Mail className="mr-2 h-4 w-4" /> Email us to join the pilot waitlist
++          </Button>
++        </a>
++        <div className="mt-3 text-xs text-muted-foreground">
++          Tell us your typical monthly refinishing volume and market.
++        </div>
++      </div>
++    );
++  }
++
++  return (
++    <div className="max-w-2xl mx-auto card p-8 md:p-10 bg-white border-2 border-slate-200">
++      <div className="grid sm:grid-cols-2 gap-4">
++        <div>
++          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++            NAME
++          </label>
++          <input
++            className="input h-11 w-full"
++            value={name}
++            onChange={(e) => setName(e.target.value)}
++            placeholder="Jane Doe"
++          />
++        </div>
++        <div>
++          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++            WORK EMAIL *
++          </label>
++          <input
++            className="input h-11 w-full"
++            type="email"
++            value={email}
++            onChange={(e) => setEmail(e.target.value)}
++            placeholder="jane@yourcompany.com"
++          />
++        </div>
++        <div>
++          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++            COMPANY
++          </label>
++          <input
++            className="input h-11 w-full"
++            value={company}
++            onChange={(e) => setCompany(e.target.value)}
++            placeholder="Refinishing Co."
++          />
++        </div>
++        <div>
++          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++            MONTHLY REFINISHING VOLUME (SQFT)
++          </label>
++          <input
++            className="input h-11 w-full"
++            value={volume}
++            onChange={(e) => setVolume(e.target.value)}
++            placeholder="e.g. 25,000"
++          />
++        </div>
++      </div>
++      <Button
++        variant="accent"
++        className="mt-6 w-full h-12"
++        onClick={handleSubmit}
++        disabled={submitting}
++      >
++        {submitting ? "Submitting…" : "Join the pilot waitlist"}
++        {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
++      </Button>
++      <div className="mt-3 text-center text-xs text-muted-foreground">
++        No spam. We&apos;ll contact you about the pilot program only.
++      </div>
++    </div>
++  );
++}
+-- 
+2.43.0
+
+
+From c4705ded55c0a8c440c08d8741f292c6996b3ac3 Mon Sep 17 00:00:00 2001
+From: Vincenzo Grimaldi <vince.ceccarelli@gmail.com>
+Date: Sat, 4 Jul 2026 14:51:38 +0000
+Subject: [PATCH 3/3] docs: honest README with real status, zero-config Vercel
+ deploy, optional env vars
+
+---
+ README.md | 204 +++++++++++-------------------------------------------
+ 1 file changed, 39 insertions(+), 165 deletions(-)
+
+diff --git a/README.md b/README.md
+index 3177d99..b313d51 100644
+--- a/README.md
++++ b/README.md
+@@ -1,188 +1,62 @@
+ # FloorForge
+ 
+-**The Operating System for Autonomous Hardwood Floor Refinishing.**
++**An operating system for autonomous hardwood floor refinishing — early stage, pilot program forming.**
+ 
+-Production-ready, enterprise-grade Next.js 16 SaaS website for FloorForge at floorforge.ai. Built to feel exactly like AWS in tone, visual hierarchy, professionalism, and conversion power — while maintaining perfect consistency with DryForge and PaintForge as part of the billion-dollar InteriorFinish OS vision.
++Marketing and waitlist site for FloorForge at floorforge.ai. The site presents the product vision honestly: hardware and software are **in development**, all specifications are design targets, pricing is indicative, and the ROI calculator is a transparent model with stated assumptions — not measured customer results. The one conversion path is the pilot waitlist.
+ 
+-## Tech Stack (Non-negotiable)
++## Status
+ 
+-- Next.js 16 (App Router) + TypeScript (strict)
+-- Tailwind CSS + shadcn/ui-inspired components + Radix UI primitives
+-- Framer Motion for premium micro-interactions and animations
+-- React Hook Form + Zod
+-- Clerk for authentication (Google, LinkedIn, Microsoft, email, organizations)
+-- Supabase (Postgres) with client + example schema
+-- Fully Vercel-optimized
+-- Lucide-react icons, Sonner toasts
+-
+-## Key Features Implemented
+-
+-- Sticky professional header with mobile menu, Clerk SignIn/UserButton, smooth section scroll
+-- Powerful hero with ruthless positioning copy
+-- Trusted by / Key Stats bar
+-- Detailed Features grid (6 core capabilities)
+-- Visual 5-step How it Works
+-- ROI & Business Impact section
+-- **Fully functional Interactive ROI Calculator** (live-updating, realistic economics for sqft, job type, grit/finish complexity)
+-- Use Cases & Customer Stories (3 detailed verticals)
+-- Technology & Robot Integration (hardware + shared InteriorFinish OS)
+-- 3-tier Pricing with suite bundle discounts (Essentials / Professional featured / Enterprise)
+-- Resources section
+-- Final high-converting CTA banner
+-- **Identical premium Footer** with all 9 social icons (LinkedIn, X, YouTube, Instagram, Facebook, TikTok, Discord, GitHub, Reddit)
+-- **Floating professional Chatbot** — context-aware for hardwood refinishing with 6 quick-reply buttons, realistic demo responses, typing indicator, smooth UX (identical design system)
+-- **Mock protected `/dashboard`** showing active jobs, grit progress, dust metrics, finish reports, and aggressive cross-sell to DryForge/PaintForge
+-- WCAG AA, perfect responsiveness, strong SEO foundation (metadata, keywords, OG)
+-
+-## Design System
+-
+-- Enterprise AWS-like: generous whitespace, confident language, clean typography (Geist), subtle micro-interactions
+-- Subtle wood/amber accents (#b45309) on professional slate/navy base — never cheap or overly "woodsy"
+-- Card hover lifts, progress bars, live calculator results, premium chatbot panel
+-
+-## Local Development
++- ✅ Landing page, ROI model, planned pricing, pilot waitlist
++- ✅ Scripted demo chatbot (clearly labeled — not a live agent)
++- ✅ Dashboard preview at `/dashboard` (clearly labeled sample data)
++- 🚧 No shipped hardware or production software yet — that is what the pilot program exists to build
+ 
+-1. Clone the repo
+-2. `cd floorforge`
+-3. `npm install`
+-4. Copy `.env.example` → `.env.local` and fill Clerk + Supabase keys (see below)
+-5. `npm run dev`
+-6. Open http://localhost:3000
+-
+-### Clerk Setup (Required for auth + dashboard)
+-
+-1. Go to https://clerk.com → Create application
+-2. Enable Google, LinkedIn, Microsoft, Email providers + Organizations if desired
+-3. Copy `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` into `.env.local`
+-4. The `/dashboard` route is protected via `middleware.ts` + `auth.protect()`
+-
+-### Supabase Setup (Optional but recommended for production data)
+-
+-1. Create project at https://supabase.com
+-2. Copy URL and anon key into `.env.local`
+-3. Run the schema below in SQL Editor (or use migrations)
+-
+-**Example Supabase Schema** (paste into Supabase SQL Editor):
+-
+-```sql
+--- Enable RLS
+-alter table if exists jobs enable row level security;
+-
+-create table if not exists jobs (
+-  id uuid primary key default gen_random_uuid(),
+-  user_id text not null,                    -- Clerk user id
+-  site_address text,
+-  sqft numeric,
+-  job_type text check (job_type in ('residential','commercial')),
+-  status text default 'planning',
+-  started_at timestamptz,
+-  completed_at timestamptz,
+-  created_at timestamptz default now()
+-);
+-
+-create table if not exists sanding_reports (
+-  id uuid primary key default gen_random_uuid(),
+-  job_id uuid references jobs(id) on delete cascade,
+-  grit_pass integer,
+-  dust_reading numeric,
+-  robot_id text,
+-  recorded_at timestamptz default now()
+-);
+-
+-create table if not exists finish_applications (
+-  id uuid primary key default gen_random_uuid(),
+-  job_id uuid references jobs(id),
+-  coat_number integer,
+-  uniformity_score numeric,
+-  application_method text,
+-  created_at timestamptz default now()
+-);
+-
+-create table if not exists robots (
+-  id text primary key,
+-  model text,
+-  status text,
+-  last_maintenance timestamptz,
+-  assigned_job_id uuid references jobs(id)
+-);
+-
+-create table if not exists quotes (
+-  id uuid primary key default gen_random_uuid(),
+-  user_id text,
+-  sqft numeric,
+-  job_type text,
+-  estimated_robots integer,
+-  created_at timestamptz default now()
+-);
+-
+--- Add RLS policies as needed for production (user_id = auth.jwt() -> 'sub' etc.)
+-```
++## Tech Stack
+ 
+-Dashboard currently uses realistic mock data. Swap in Supabase queries easily.
++- Next.js 16 (App Router) + TypeScript (strict)
++- Tailwind CSS v4 + shadcn-style primitives (Radix, cva)
++- Framer Motion, Lucide, Sonner
++- Geist fonts self-hosted via the `geist` package (no Google Fonts fetch at build time)
++- Clerk (optional), Supabase (optional), Formspree (optional)
+ 
+-## Vercel Deployment (Recommended)
++## Deploy on Vercel — zero configuration required
+ 
+-1. Push to GitHub
+-2. Import project in Vercel
+-3. Add environment variables from `.env.example`
+-4. Deploy — automatic preview + production URLs
+-5. (Optional) Add custom domain floorforge.ai
++The site **builds and deploys with no environment variables**. Auth, database, and the waitlist form backend are all optional and activate automatically when their env vars are present.
+ 
+-Vercel automatically optimizes images, edge functions, etc.
++1. Import the repo in Vercel (framework preset: Next.js, root directory: repo root)
++2. Deploy — that's it
+ 
+-## GitHub Push Instructions
++### Optional environment variables
+ 
+-```bash
+-git init
+-git add .
+-git commit -m "feat: FloorForge enterprise SaaS landing + dashboard + chatbot + ROI calculator"
+-git branch -M main
+-git remote add origin https://github.com/your-org/floorforge.git
+-git push -u origin main
+-```
++| Variable | Effect when set |
++|---|---|
++| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` | Enables Sign in UI and protects `/dashboard` |
++| `NEXT_PUBLIC_SUPABASE_URL` + `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Enables the Supabase client (`getSupabase()` returns `null` otherwise) |
++| `NEXT_PUBLIC_FORMSPREE_FORM_ID` | Waitlist form posts to Formspree; without it, the CTA falls back to a mailto link |
+ 
+-Then connect the repo to Vercel for continuous deployment.
++Copy `.env.example` → `.env.local` for local development.
+ 
+-## Project Structure Highlights
++## Local Development
+ 
+-```
+-app/
+-├── layout.tsx          # ClerkProvider, metadata (SEO), Header, Footer, Toaster
+-├── page.tsx            # Full landing with all 13 required sections + Chatbot
+-├── dashboard/
+-│   └── page.tsx        # Mock protected dashboard with jobs, analytics, fleet, cross-sell
+-├── globals.css         # Premium enterprise styles + chatbot/calculator specifics
+-middleware.ts           # Clerk route protection
+-components/
+-├── Header.tsx          # Sticky nav, mobile, Clerk buttons, smooth scroll
+-├── Footer.tsx          # Full columns + exactly 9 social icons
+-├── Chatbot.tsx         # Fully functional floating enterprise chatbot
+-├── ROICalculator.tsx   # Live interactive economics calculator
+-├── ui/                 # Button (cva + Slot), other shadcn-style primitives
+-lib/
+-├── utils.ts            # cn() tailwind merge
+-├── supabase/client.ts  # Example client
++```bash
++npm install
++npm run dev   # http://localhost:3000
++npm run build # production build (works with zero env vars)
++npm run lint
+ ```
+ 
+-## Conversion & Positioning Notes
++## Architecture Notes
+ 
+-- Hero & copy ruthlessly positions FloorForge as the high-margin bolt-on after DryForge/PaintForge domination
+-- "The refinishing crews using FloorForge are booking months out."
+-- Calculator outputs realistic time/margin/robots + explicit bundle recommendation
+-- Chatbot pre-loaded with expert hardwood knowledge (grit sequencing, dust, commercial vs residential, integration)
+-- Dashboard demonstrates real operational value + aggressive cross-sell
++- `middleware.ts` is a pass-through unless both Clerk keys are set — the site can never 500 for lack of auth config
++- `lib/auth.ts` exposes `authEnabled` (build-time inlined) used by the layout and header to conditionally mount Clerk components
++- `lib/supabase/client.ts` is guarded and lazy; importing it never throws
++- `components/WaitlistCTA.tsx` is the single conversion path (Formspree → mailto fallback)
++- All landing copy avoids fabricated metrics, testimonials, and deployment claims by design. Keep it that way: no numbers go on the site that don't come from real, sourced data.
+ 
+-This site is ready to convert enterprise buyers and stand shoulder-to-shoulder with the other Forge platforms as part of a true billion-dollar category-defining vision.
++## Supabase schema (future production data layer)
+ 
+-Built by Grok — world-class full-stack + elite conversion design.
++See `docs/` history or the schema comment in `lib/supabase/client.ts` for the planned tables: `jobs`, `sanding_reports`, `finish_applications`, `robots`, `quotes`.
+ 
+ ## License
+ 
+-Internal / proprietary for the InteriorFinish platform.
+-
+-
+-## Deploy on Vercel
+-
+-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+-
+-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
++Proprietary — Grimaldi Engineering.
+-- 
+2.43.0
+
