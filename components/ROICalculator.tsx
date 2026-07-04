@@ -126,7 +126,7 @@ export default function ROICalculator() {
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
                   <Clock className="h-4 w-4" /> TIME SAVED
                 </div>
-                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.timeSavedPercent}<span className="text-3xl align-super">%</span></div>
+                <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.timeSavedPercent}<span className="text-3xl align-super">%</span></div>
                 <div className="text-sm text-white/60 mt-1">{results.timeSavedHours} hours per job</div>
               </div>
 
@@ -134,7 +134,7 @@ export default function ROICalculator() {
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
                   <Users className="h-4 w-4" /> ROBOTS NEEDED
                 </div>
-                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotsRecommended}</div>
+                <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotsRecommended}</div>
                 <div className="text-sm text-white/60 mt-1">for parallel execution</div>
               </div>
 
@@ -142,7 +142,7 @@ export default function ROICalculator() {
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
                   <TrendingUp className="h-4 w-4" /> LABOR COST SAVED
                 </div>
-                <div className="text-4xl font-semibold tabular-nums tracking-tighter roi-number">${results.laborSaved.toLocaleString()}</div>
+                <div className="text-3xl lg:text-4xl font-semibold tabular-nums tracking-tighter roi-number">${results.laborSaved.toLocaleString()}</div>
                 <div className="text-sm text-white/60 mt-1">per typical job</div>
               </div>
 
@@ -150,7 +150,7 @@ export default function ROICalculator() {
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
                   <Award className="h-4 w-4" /> ROBOT HOURS
                 </div>
-                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotHours}</div>
+                <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotHours}</div>
                 <div className="text-sm text-white/60 mt-1">modeled machine time</div>
               </div>
             </div>

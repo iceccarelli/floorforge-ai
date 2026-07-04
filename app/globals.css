@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-light: var(--accent-light);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
 :root {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
@@ -282,4 +301,21 @@ a:focus-visible {
     padding: 10px 18px;
     font-size: 13px;
   }
+}
+
+/* Chat launcher pulse — AWS-style attention ring */
+@keyframes chat-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(180, 83, 9, 0.45); }
+  70%  { box-shadow: 0 0 0 14px rgba(180, 83, 9, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(180, 83, 9, 0); }
+}
+.chat-launcher {
+  animation: chat-pulse-ring 2.4s cubic-bezier(0.66, 0, 0, 1) infinite;
+}
+.chat-launcher.chat-open,
+.chat-launcher:hover {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-launcher { animation: none; }
 }

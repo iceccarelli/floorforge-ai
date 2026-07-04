@@ -93,7 +93,7 @@ export default function Chatbot() {
     <>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-white shadow-xl hover:bg-[#1e293b] transition-all active:scale-95"
+        className={`chat-launcher ${isOpen ? "chat-open" : ""} fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-xl hover:bg-accent-hover transition-all active:scale-95`}
         aria-label="Open FloorForge Assistant"
       >
         {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
@@ -106,7 +106,7 @@ export default function Chatbot() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.98 }}
             transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}
-            className="fixed bottom-24 right-6 z-[60] w-full max-w-[380px] h-[520px] chatbot-panel rounded-3xl bg-white flex flex-col overflow-hidden shadow-2xl"
+            className="fixed bottom-24 right-4 sm:right-6 z-[60] w-[calc(100vw-2rem)] max-w-[380px] h-[min(520px,calc(100dvh-8rem))] chatbot-panel rounded-3xl bg-white flex flex-col overflow-hidden shadow-2xl"
           >
             <div className="flex items-center justify-between px-5 py-4 border-b bg-white">
               <div className="flex items-center gap-3">

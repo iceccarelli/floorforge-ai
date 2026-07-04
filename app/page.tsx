@@ -115,11 +115,11 @@ export default function FloorForgeLanding() {
             EARLY STAGE — PILOT PROGRAM FORMING
           </div>
 
-          <h1 className="text-6xl md:text-7xl font-semibold tracking-[-2.8px] leading-[0.92] mb-6">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-semibold tracking-[-0.04em] leading-[0.95] mb-6">
             Autonomous Sanding and Finishing<br />for Hardwood Floors.
           </h1>
 
-          <p className="max-w-3xl mx-auto text-xl md:text-2xl text-muted-foreground tracking-[-0.3px] mb-10">
+          <p className="max-w-3xl mx-auto text-lg sm:text-xl md:text-2xl text-muted-foreground tracking-[-0.3px] mb-10">
             FloorForge is the operating system we&apos;re building for autonomous floor
             refinishing — job planning, multi-grit sanding orchestration, edging
             assistance, and finish application with full dust and quality reporting.
@@ -169,7 +169,7 @@ export default function FloorForgeLanding() {
       <section id="features" className="section max-w-7xl mx-auto px-6 pt-20 pb-16">
         <div className="text-center mb-14">
           <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">WHAT WE&apos;RE BUILDING</div>
-          <h2 className="text-5xl tracking-[-1.8px] font-semibold">Everything a refinishing operation needs.</h2>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">Everything a refinishing operation needs.</h2>
           <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">
             Inconsistent sanding and callbacks burn margin. FloorForge is designed to
             turn every job into a predictable, documented operation.
@@ -198,7 +198,7 @@ export default function FloorForgeLanding() {
           <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12">
             <div>
               <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">THE PLANNED WORKFLOW</div>
-              <h2 className="text-5xl tracking-[-1.6px] font-semibold">From scan to sign-off.</h2>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">From scan to sign-off.</h2>
             </div>
             <p className="mt-4 md:mt-0 max-w-md text-muted-foreground">
               One software core for planning, execution, and reporting — designed to
@@ -224,7 +224,7 @@ export default function FloorForgeLanding() {
       <section id="roi" className="section max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-12">
           <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">MODEL THE ECONOMICS</div>
-          <h2 className="text-5xl tracking-[-1.8px] font-semibold mb-4">What could automation change for your jobs?</h2>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold mb-4">What could automation change for your jobs?</h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
             Adjust the model to your typical job. All outputs are estimates derived
             from the stated assumptions — not measured customer results.
@@ -239,7 +239,7 @@ export default function FloorForgeLanding() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">TARGET SEGMENTS</div>
-            <h2 className="text-5xl tracking-[-1.6px] font-semibold">Who we&apos;re building for.</h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">Who we&apos;re building for.</h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -262,7 +262,7 @@ export default function FloorForgeLanding() {
         <div className="grid lg:grid-cols-12 gap-x-16 gap-y-10 items-center">
           <div className="lg:col-span-5">
             <div className="text-accent text-xs tracking-[3px] font-semibold mb-3">HARDWARE + SOFTWARE</div>
-            <h2 className="text-5xl tracking-[-1.8px] font-semibold leading-none mb-6">Purpose-built for the floor.</h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold leading-tight mb-6">Purpose-built for the floor.</h2>
             <p className="text-xl text-muted-foreground">
               Low-profile autonomous sanders, serious dust systems, and edge
               intelligence — orchestrated by one software layer. These are the design
@@ -297,7 +297,7 @@ export default function FloorForgeLanding() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">PLANNED PRICING</div>
-            <h2 className="text-5xl tracking-[-1.6px] font-semibold">Simple pricing, designed to scale with you.</h2>
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">Simple pricing, designed to scale with you.</h2>
             <p className="mt-3 text-xl text-muted-foreground">
               Indicative pricing for the launch phase — subject to change as the pilot
               program defines the product.
@@ -372,7 +372,7 @@ export default function FloorForgeLanding() {
       <section id="waitlist" className="section max-w-6xl mx-auto px-6 py-20">
         <div className="text-center mb-10">
           <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">THE PILOT PROGRAM</div>
-          <h2 className="text-5xl tracking-[-1.6px] font-semibold">Help us build it. Then run it first.</h2>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">Help us build it. Then run it first.</h2>
           <p className="mt-4 text-xl text-muted-foreground max-w-2xl mx-auto">
             We&apos;re recruiting a small group of refinishing operations to define
             requirements, test early workflows, and get preferential launch terms.
@@ -384,8 +384,8 @@ export default function FloorForgeLanding() {
       {/* FINAL CTA */}
       <section className="bg-primary py-16 text-white">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-5xl tracking-[-1.8px] font-semibold">The floor is the next frontier.</h2>
-          <p className="mt-4 text-2xl text-white/80 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">The floor is the next frontier.</h2>
+          <p className="mt-4 text-xl sm:text-2xl text-white/80 tracking-tight">
             Autonomous refinishing is coming. Decide whether you shape it or react to it.
           </p>
 

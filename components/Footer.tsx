@@ -1,13 +1,38 @@
 import Link from "next/link";
-import { Github, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
+import {
+  FaLinkedinIn, FaXTwitter, FaYoutube, FaInstagram, FaFacebookF,
+  FaTiktok, FaDiscord, FaGithub, FaRedditAlien,
+} from "react-icons/fa6";
+import type { IconType } from "react-icons";
 
 const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
 
+/**
+ * The 9 primary social channels. An icon is rendered ONLY when its URL is
+ * filled in — linking customers to platform homepages (or to accounts that
+ * don't exist yet) reads as a broken site. Create the profile, paste the
+ * URL here, and the icon appears automatically.
+ */
+const socialLinks: { icon: IconType; label: string; href: string }[] = [
+  { icon: FaLinkedinIn, label: "LinkedIn", href: "" },
+  { icon: FaXTwitter, label: "X", href: "" },
+  { icon: FaYoutube, label: "YouTube", href: "" },
+  { icon: FaInstagram, label: "Instagram", href: "" },
+  { icon: FaFacebookF, label: "Facebook", href: "" },
+  { icon: FaTiktok, label: "TikTok", href: "" },
+  { icon: FaDiscord, label: "Discord", href: "" },
+  { icon: FaGithub, label: "GitHub", href: "https://github.com/iceccarelli" },
+  { icon: FaRedditAlien, label: "Reddit", href: "" },
+];
+
 export default function Footer() {
+  const activeSocials = socialLinks.filter((s) => s.href);
+
   return (
     <footer className="bg-primary text-primary-foreground border-t border-white/10">
-      <div className="mx-auto max-w-7xl px-6 pt-16 pb-12">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12">
+      <div className="mx-auto max-w-7xl px-6 pt-16 pb-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-6">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
@@ -50,7 +75,7 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Contact */}
+          {/* Connect */}
           <div>
             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Connect</div>
             <ul className="space-y-2.5 text-sm text-white/80">
@@ -62,23 +87,48 @@ export default function Footer() {
                   <Mail size={14} /> Email
                 </a>
               </li>
-              <li>
-                <a
-                  href="https://github.com/iceccarelli"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-white transition inline-flex items-center gap-2"
-                >
-                  <Github size={14} /> GitHub
-                </a>
-              </li>
+              {activeSocials.map((social) => {
+                const Icon = social.icon;
+                return (
+                  <li key={social.label}>
+                    <a
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-white transition inline-flex items-center gap-2"
+                    >
+                      <Icon size={14} /> {social.label}
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
           </div>
         </div>
 
-        <div className="mt-14 pt-8 border-t border-white/10 text-xs text-white/50 text-center md:text-left">
-          FloorForge is in active development. Pricing, specifications, and features
-          described on this site are design targets and are subject to change.
+        {/* Social icon bar + legal strip — AWS-style bottom band */}
+        <div className="mt-14 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-5">
+            {activeSocials.map((social) => {
+              const Icon = social.icon;
+              return (
+                <a
+                  key={social.label}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white/50 hover:text-white transition-colors p-1"
+                  aria-label={social.label}
+                >
+                  <Icon size={18} />
+                </a>
+              );
+            })}
+          </div>
+          <div className="text-xs text-white/50 text-center md:text-right max-w-xl">
+            FloorForge is in active development. Pricing, specifications, and features
+            described on this site are design targets and subject to change.
+          </div>
         </div>
       </div>
     </footer>

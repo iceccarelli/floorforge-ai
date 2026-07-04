@@ -9,6 +9,9 @@ import Footer from "@/components/Footer";
 import { authEnabled } from "@/lib/auth";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL ?? "https://floorforge-ai.vercel.app"
+  ),
   title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
   description:
     "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning, multi-grit sanding orchestration, dust and quality reporting. Join the pilot waitlist.",
