@@ -2,9 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Menu, X, ChevronDown } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+import { authEnabled } from "@/lib/auth";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
@@ -12,7 +13,7 @@ const navLinks = [
   { href: "#how-it-works", label: "How it Works" },
   { href: "#roi", label: "ROI" },
   { href: "#pricing", label: "Pricing" },
-  { href: "#resources", label: "Resources" },
+  { href: "#waitlist", label: "Pilot Program" },
 ];
 
 export default function Header() {
@@ -41,7 +42,7 @@ export default function Header() {
             </div>
             <div>
               <div className="font-semibold text-2xl tracking-[-1.2px] text-primary">FloorForge</div>
-              <div className="text-[10px] text-muted-foreground -mt-1.5">BY INTERIORFINISH OS</div>
+              <div className="text-[10px] text-muted-foreground -mt-1.5">EARLY ACCESS</div>
             </div>
           </Link>
 
@@ -60,33 +61,40 @@ export default function Header() {
 
           {/* Desktop CTAs */}
           <div className="hidden md:flex items-center gap-3">
-            <SignedOut>
-              <SignInButton mode="modal">
-                <Button variant="ghost" size="sm" className="font-medium">
-                  Sign in
-                </Button>
-              </SignInButton>
-            </SignedOut>
-            <SignedIn>
-              <Link href="/dashboard">
-                <Button variant="ghost" size="sm" className="font-medium">
-                  Dashboard
-                </Button>
-              </Link>
-              <UserButton 
-                appearance={{
-                  elements: {
-                    avatarBox: "h-8 w-8 rounded-full ring-1 ring-border"
-                  }
-                }}
-              />
-            </SignedIn>
-            
-            <Link href="#pricing">
-              <Button variant="accent" size="sm" className="font-semibold px-5">
-                Start free trial
-              </Button>
-            </Link>
+            {authEnabled && (
+              <>
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <Button variant="ghost" size="sm" className="font-medium">
+                      Sign in
+                    </Button>
+                  </SignInButton>
+                </SignedOut>
+                <SignedIn>
+                  <Link href="/dashboard">
+                    <Button variant="ghost" size="sm" className="font-medium">
+                      Dashboard
+                    </Button>
+                  </Link>
+                  <UserButton
+                    appearance={{
+                      elements: {
+                        avatarBox: "h-8 w-8 rounded-full ring-1 ring-border"
+                      }
+                    }}
+                  />
+                </SignedIn>
+              </>
+            )}
+
+            <Button
+              variant="accent"
+              size="sm"
+              className="font-semibold px-5"
+              onClick={() => scrollToSection("#waitlist")}
+            >
+              Join waitlist
+            </Button>
           </div>
 
           {/* Mobile Menu Button */}
@@ -120,19 +128,27 @@ export default function Header() {
                 </button>
               ))}
               <div className="pt-4 border-t flex flex-col gap-3">
-                <SignedOut>
-                  <SignInButton mode="modal">
-                    <Button variant="secondary" className="w-full justify-center">Sign in</Button>
-                  </SignInButton>
-                </SignedOut>
-                <SignedIn>
-                  <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
-                    <Button variant="secondary" className="w-full justify-center">Dashboard</Button>
-                  </Link>
-                </SignedIn>
-                <Link href="#pricing" onClick={() => setMobileMenuOpen(false)}>
-                  <Button variant="accent" className="w-full justify-center">Start free trial</Button>
-                </Link>
+                {authEnabled && (
+                  <>
+                    <SignedOut>
+                      <SignInButton mode="modal">
+                        <Button variant="secondary" className="w-full justify-center">Sign in</Button>
+                      </SignInButton>
+                    </SignedOut>
+                    <SignedIn>
+                      <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)}>
+                        <Button variant="secondary" className="w-full justify-center">Dashboard</Button>
+                      </Link>
+                    </SignedIn>
+                  </>
+                )}
+                <Button
+                  variant="accent"
+                  className="w-full justify-center"
+                  onClick={() => scrollToSection("#waitlist")}
+                >
+                  Join waitlist
+                </Button>
               </div>
             </div>
           </motion.div>

@@ -12,22 +12,24 @@ interface Message {
 }
 
 const quickReplies = [
-  "Show refinishing pricing",
+  "What is FloorForge?",
   "Grit sequencing explained",
-  "Dust containment on site",
-  "Commercial vs residential jobs",
-  "ROI for 12,000 sqft office refinish",
-  "How does it integrate with DryForge?",
+  "How does dust reporting work?",
+  "What's the planned pricing?",
+  "How does the ROI model work?",
+  "How do I join the pilot?",
 ];
 
+// Scripted demo responses. This assistant is explicitly labeled as a demo —
+// it makes no claims about deployed hardware or existing customers.
 const demoResponses: Record<string, string> = {
-  "pricing": "Our Professional tier starts at $799/mo base + $99 per robot/month. Essentials at $299 base. Enterprise is custom. All include full InteriorFinish OS access, HEPA dust systems, and quality reporting. Bundle with DryForge + PaintForge for 25% savings on the full suite. Want me to walk you through a custom quote?",
-  "grit": "Standard high-performance sequence for most North American hardwoods (oak, maple, ash): 36/40 grit aggressive stock removal → 60 grit → 80 grit → 120 grit → 150/180 grit final. FloorForge robots use real-time load sensing and species detection to auto-optimize pressure, feed rate, and pass overlap. Walnut and exotics often start at 60 grit to protect color. We log every pass for your quality report.",
-  "dust": "Our integrated HEPA-14 + cyclonic pre-separation system captures 99.97% of dust at source. On-site airborne readings average <15 µg/m³ even during aggressive 36-grit passes — well below OSHA and LEED limits. Negative air machines optional for sensitive environments. Post-job, we generate a full particulate report tied to the job record in InteriorFinish OS.",
-  "commercial": "Commercial jobs (offices, retail, schools) typically use 2–6 robots depending on sqft and timeline. We prioritize edge-to-edge consistency and schedule around occupancy. Residential focuses on single-family with faster setup/teardown and noise considerations. Both use the exact same software intelligence and hardware — workflow templates differ. Our edge-sensing tech shines in commercial with complex baseboards and transitions.",
-  "roi": "For a 12,000 sqft commercial office refinish: typical manual is ~140–160 labor hours. With FloorForge you’ll see ~58% time reduction (robots run parallel passes), 2–3 robots recommended, ~$9,800–12,400 labor savings per job at $75/hr blended rate, plus 19–24% margin lift from fewer callbacks and faster turnover. Many crews book 3–4 months out once they adopt. Shall I open the full ROI calculator for your numbers?",
-  "integrate": "FloorForge shares the exact same InteriorFinish OS layer as DryForge (walls) and PaintForge (ceilings). One job = one digital twin of the entire interior. Plan walls → ceilings → floors in sequence or parallel. Unified fleet dashboard, quality scoring across trades, and single source of truth for GCs and property managers. Cross-sell rate on existing DryForge/PaintForge customers is >70%.",
-  default: "Thanks for your question. FloorForge delivers unmatched consistency on every hardwood species and job type. Our robots handle multi-grit sanding, precision edging, and flawless finish application (T-bar or robotic spray) while containing dust to near-zero. Everything syncs to InteriorFinish OS for planning, live monitoring, and post-job analytics. What specific part of the workflow can I help clarify — or would you like pricing for your typical job size?"
+  what: "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning from a site scan, multi-grit sanding orchestration, edging assistance, finish application monitoring, and per-job dust and quality reporting. The hardware and software are in development — the pilot program is how refinishing crews get involved now.",
+  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Pilot participants get preferential launch pricing. Want to join the waitlist?",
+  grit: "A standard high-performance sequence for most North American hardwoods (oak, maple, ash) runs 36/40 grit for aggressive stock removal, then 60, 80, 120, and 150/180 for the final pass. Walnut and exotics often start at 60 grit to protect color. FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.",
+  dust: "The design pairs HEPA filtration with cyclonic pre-separation and logs airborne particulate readings throughout the job, so dust performance is documented in the job record rather than promised verbally. Final specs will be validated during the pilot program.",
+  roi: "The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a 62% baseline time-reduction target (adjusted by job type), a $78/hr blended labor rate, and a ~2,200 sqft/robot/day throughput target. Those are design assumptions, not measured field results — validating them is a core goal of the pilot.",
+  pilot: "Scroll to the waitlist section and drop your details, or use the button in the header. We're recruiting a small group of residential, commercial, and specialty refinishing operations to define requirements and test early workflows, in exchange for preferential launch terms.",
+  default: "I'm a scripted demo assistant for FloorForge, an early-stage autonomous floor refinishing platform. I can explain the concept, the planned workflow, grit sequencing, the transparent ROI model, planned pricing, or how to join the pilot program. What would you like to know?",
 };
 
 export default function Chatbot() {
@@ -36,10 +38,11 @@ export default function Chatbot() {
     {
       id: 1,
       type: "assistant",
-      content: "Hi, I'm the FloorForge Assistant. I specialize in autonomous hardwood refinishing workflows, grit sequencing, dust containment, commercial vs residential economics, and integration with the rest of the InteriorFinish OS suite. How can I help you today?",
+      content: "Hi — I'm a scripted demo assistant for FloorForge, an early-stage product in active development. I can explain what we're building, grit sequencing, dust reporting, the ROI model, planned pricing, and how to join the pilot program.",
     },
   ]);
   const [inputValue, setInputValue] = useState("");
+  const nextId = useRef(2);
   const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +55,7 @@ export default function Chatbot() {
   }, [messages, isOpen]);
 
   const addMessage = (type: "user" | "assistant", content: string) => {
-    const newMessage: Message = { id: Date.now(), type, content };
+    const newMessage: Message = { id: nextId.current++, type, content };
     setMessages((prev) => [...prev, newMessage]);
   };
 
@@ -60,10 +63,10 @@ export default function Chatbot() {
     const q = query.toLowerCase();
     if (q.includes("price") || q.includes("pricing") || q.includes("cost") || q.includes("tier")) return demoResponses.pricing;
     if (q.includes("grit") || q.includes("sequence") || q.includes("sand")) return demoResponses.grit;
-    if (q.includes("dust") || q.includes("hepa") || q.includes("containment")) return demoResponses.dust;
-    if (q.includes("commercial") || q.includes("residential") || q.includes("job type")) return demoResponses.commercial;
-    if (q.includes("roi") || q.includes("12,000") || q.includes("12000") || q.includes("office")) return demoResponses.roi;
-    if (q.includes("integrate") || q.includes("dryforge") || q.includes("paintforge") || q.includes("suite")) return demoResponses.integrate;
+    if (q.includes("dust") || q.includes("hepa") || q.includes("containment") || q.includes("report")) return demoResponses.dust;
+    if (q.includes("roi") || q.includes("model") || q.includes("calculat") || q.includes("economic")) return demoResponses.roi;
+    if (q.includes("pilot") || q.includes("waitlist") || q.includes("join") || q.includes("sign up")) return demoResponses.pilot;
+    if (q.includes("what is") || q.includes("about") || q.includes("floorforge")) return demoResponses.what;
     return demoResponses.default;
   };
 
@@ -112,8 +115,8 @@ export default function Chatbot() {
                 </div>
                 <div>
                   <div className="font-semibold text-base tracking-tight">FloorForge Assistant</div>
-                  <div className="text-xs text-success flex items-center gap-1.5">
-                    <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" /> Online • Specialized in hardwood
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <div className="h-1.5 w-1.5 rounded-full bg-accent" /> Scripted demo — not a live agent
                   </div>
                 </div>
               </div>

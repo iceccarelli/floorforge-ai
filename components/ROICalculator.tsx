@@ -2,14 +2,11 @@
 
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
 import { Calculator, TrendingUp, Clock, Users, Award, ArrowRight } from "lucide-react";
 
 interface ROIInputs {
   sqft: number;
   manualHours: number;
-  gritPasses: number;
-  finishCoats: number;
   jobType: "residential" | "commercial";
 }
 
@@ -17,13 +14,11 @@ export default function ROICalculator() {
   const [inputs, setInputs] = useState<ROIInputs>({
     sqft: 8500,
     manualHours: 95,
-    gritPasses: 5,
-    finishCoats: 3,
     jobType: "commercial",
   });
 
   const results = useMemo(() => {
-    const { sqft, manualHours, gritPasses, finishCoats, jobType } = inputs;
+    const { sqft, manualHours, jobType } = inputs;
     
     const complexityMultiplier = jobType === "commercial" ? 1.15 : 0.92;
     const baseRobotEfficiency = 0.38; // 62% time reduction baseline
@@ -40,21 +35,12 @@ export default function ROICalculator() {
     const blendedLaborRate = 78; // realistic crew blended
     const laborSaved = Math.round(timeSavedHours * blendedLaborRate);
     
-    // Margin improvement from consistency + speed + fewer callbacks
-    const baseMarginLift = jobType === "commercial" ? 22 : 18;
-    const marginImprovement = baseMarginLift + Math.floor(gritPasses / 2) + Math.floor(finishCoats / 2);
-    
-    // Suggested bundle path
-    const bundleDiscount = "25% when bundled with DryForge + PaintForge";
-    
     return {
       robotHours,
       timeSavedHours,
       timeSavedPercent,
       robotsRecommended,
       laborSaved,
-      marginImprovement: Math.min(marginImprovement, 29),
-      bundleDiscount,
       jobTypeLabel: jobType === "commercial" ? "Commercial" : "Residential",
     };
   }, [inputs]);
@@ -70,8 +56,8 @@ export default function ROICalculator() {
           <Calculator className="h-6 w-6" />
         </div>
         <div>
-          <div className="font-semibold text-2xl tracking-tight">Interactive ROI Calculator</div>
-          <div className="text-muted-foreground text-sm">See exactly how FloorForge transforms your hardwood refinishing economics</div>
+          <div className="font-semibold text-2xl tracking-tight">Interactive ROI Model</div>
+          <div className="text-muted-foreground text-sm">A transparent model of automation economics — estimates from the assumptions below, not measured results</div>
         </div>
       </div>
 
@@ -110,29 +96,6 @@ export default function ROICalculator() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">GRIT PASSES</label>
-              <select 
-                value={inputs.gritPasses} 
-                onChange={(e) => updateInput("gritPasses", parseInt(e.target.value))}
-                className="input h-11"
-              >
-                {[3,4,5,6,7].map(n => <option key={n} value={n}>{n} passes</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">FINISH COATS</label>
-              <select 
-                value={inputs.finishCoats} 
-                onChange={(e) => updateInput("finishCoats", parseInt(e.target.value))}
-                className="input h-11"
-              >
-                {[2,3,4,5].map(n => <option key={n} value={n}>{n} coats</option>)}
-              </select>
-            </div>
-          </div>
-
           <div>
             <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">JOB TYPE</label>
             <div className="flex gap-2">
@@ -155,7 +118,7 @@ export default function ROICalculator() {
         <div className="lg:col-span-3">
           <div className="bg-slate-950 text-white rounded-2xl p-7">
             <div className="uppercase text-xs tracking-[2px] text-white/50 mb-4 flex items-center gap-2">
-              PROJECTED OUTCOMES <div className="flex-1 h-px bg-white/20" />
+              MODELED ESTIMATES <div className="flex-1 h-px bg-white/20" />
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
@@ -185,22 +148,15 @@ export default function ROICalculator() {
 
               <div className="roi-result">
                 <div className="flex items-center gap-2 text-emerald-400 mb-1">
-                  <Award className="h-4 w-4" /> MARGIN LIFT
+                  <Award className="h-4 w-4" /> ROBOT HOURS
                 </div>
-                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">+{results.marginImprovement}<span className="text-3xl align-super">%</span></div>
-                <div className="text-sm text-white/60 mt-1">from consistency + speed</div>
+                <div className="text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotHours}</div>
+                <div className="text-sm text-white/60 mt-1">modeled machine time</div>
               </div>
             </div>
 
-            <div className="mt-7 pt-6 border-t border-white/10 text-sm">
-              <div className="flex items-start gap-3 text-white/90">
-                <div className="mt-1 text-accent">→</div>
-                <div>
-                  <span className="font-medium text-white">Recommended next step:</span> Deploy {results.robotsRecommended} robot{results.robotsRecommended > 1 ? "s" : ""} on {results.jobTypeLabel.toLowerCase()} workflows. 
-                  {" "}{results.bundleDiscount}. 
-                  Crews using FloorForge report being booked solid 3–5 months out.
-                </div>
-              </div>
+            <div className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
+              <span className="font-medium text-white/80">Model assumptions:</span> $78/hr blended labor rate; automation efficiency baseline of 62% time reduction adjusted by job type; ~2,200 sqft per robot per day throughput target for {results.jobTypeLabel.toLowerCase()} work. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -212,7 +168,7 @@ export default function ROICalculator() {
                   el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }}
               >
-                See Pricing &amp; Start Trial <ArrowRight className="ml-2 h-4 w-4" />
+                See planned pricing <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
               <Button 
                 variant="outline" 
@@ -226,7 +182,7 @@ export default function ROICalculator() {
                   }, 300);
                 }}
               >
-                Talk to specialist about this scenario
+                Ask the demo assistant about this scenario
               </Button>
             </div>
           </div>

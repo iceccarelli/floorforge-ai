@@ -3,11 +3,10 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { 
-  ArrowLeft, Users, Clock, TrendingUp, AlertCircle, CheckCircle, 
-  Zap, BarChart3 
+import {
+  ArrowLeft, Clock, TrendingUp,
+  Zap, BarChart3
 } from "lucide-react";
-import { motion } from "framer-motion";
 
 interface Job {
   id: string;
@@ -51,6 +50,10 @@ export default function FloorForgeDashboard() {
 
   return (
     <div className="min-h-screen bg-muted">
+      {/* DEMO banner — every number on this page is illustrative sample data */}
+      <div className="bg-accent text-white text-center text-xs font-semibold tracking-wider py-2 px-4">
+        PRODUCT PREVIEW — ALL DATA ON THIS PAGE IS SAMPLE DATA ILLUSTRATING THE PLANNED DASHBOARD
+      </div>
       {/* Dashboard Header - consistent with main but dashboard focused */}
       <div className="border-b bg-white sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -177,7 +180,7 @@ export default function FloorForgeDashboard() {
                 <div className="flex-1">
                   <div className="uppercase tracking-[2px] text-xs font-semibold text-accent mb-2">CROSS-PLATFORM OPPORTUNITY</div>
                   <div className="text-2xl font-semibold tracking-tight">This client has 42,000 sqft of walls & ceilings still untouched.</div>
-                  <p className="mt-2 text-muted-foreground">Add DryForge + PaintForge to this job for unified InteriorFinish OS reporting and 25% bundle discount. Estimated additional margin: $47k.</p>
+                  <p className="mt-2 text-muted-foreground">Future Forge products are planned to share this reporting layer for whole-interior jobs.</p>
                 </div>
                 <div>
                   <Button variant="accent" className="whitespace-nowrap">Start walls & ceilings quote in DryForge</Button>
@@ -209,7 +212,7 @@ export default function FloorForgeDashboard() {
                 <div className="text-xs">/100 across all coats • Target: 92</div>
               </div>
             </div>
-            <div className="mt-8 text-xs text-muted-foreground border-t pt-4">All metrics automatically logged to Supabase and available via API for your BI tools.</div>
+            <div className="mt-8 text-xs text-muted-foreground border-t pt-4">Sample data. In production, metrics will be logged per job and exposed via API.</div>
           </div>
         )}
 
