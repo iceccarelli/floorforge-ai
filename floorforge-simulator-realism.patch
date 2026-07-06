@@ -1,0 +1,732 @@
+diff --git a/components/simulator/FloorScene.tsx b/components/simulator/FloorScene.tsx
+index e9f9941..9564a85 100644
+--- a/components/simulator/FloorScene.tsx
++++ b/components/simulator/FloorScene.tsx
+@@ -7,9 +7,7 @@ import { OrbitControls } from "@react-three/drei";
+ import { getRobot } from "@/lib/robots";
+ import { planPath, pathLength, type Vec2 } from "@/lib/pathPlanning";
+ import { useSim } from "@/lib/simStore";
+-
+-const RAW = new THREE.Color("#cdb187");
+-const FINISHED = new THREE.Color("#7a4a22");
++import RobotMesh from "@/components/simulator/RobotMesh";
+ 
+ /** Point-to-segment distance on the XZ plane. */
+ function segDist(px: number, pz: number, a: Vec2, b: Vec2): number {
+@@ -21,6 +19,11 @@ function segDist(px: number, pz: number, a: Vec2, b: Vec2): number {
+   return Math.hypot(px - (a.x + t * dx), pz - (a.z + t * dz));
+ }
+ 
++// cell colour states
++const RAW = 0;
++const DONE = 1;
++const ACTIVE = 2;
++
+ export default function FloorScene() {
+   const selectedId = useSim((s) => s.selectedId);
+   const roomW = useSim((s) => s.roomW);
+@@ -63,64 +66,84 @@ export default function FloorScene() {
+ 
+   const meshRef = useRef<THREE.InstancedMesh>(null);
+   const robotRef = useRef<THREE.Group>(null);
++
++  // per-cell state + cached colours
+   const processed = useRef<Uint8Array>(new Uint8Array(grid.count));
++  const colorState = useRef<Uint8Array>(new Uint8Array(grid.count));
++  const baseColors = useRef<THREE.Color[]>([]);
++  const prevActive = useRef<number[]>([]);
+   const traveled = useRef(0);
+   const elapsed = useRef(0);
++  const prevTool = useRef<Vec2>({ x: 0, z: 0 });
+   const acc = useRef(0);
+-  const finishedColor = useMemo(
+-    () => FINISHED.clone().lerp(new THREE.Color(robot.color), 0.15),
+-    [robot.color]
+-  );
+ 
+-  // Initialise / reset instance matrices + colors.
++  const doneColor = useMemo(() => new THREE.Color(robot.floor.done), [robot.floor.done]);
++  const activeColor = useMemo(() => new THREE.Color(robot.floor.active), [robot.floor.active]);
++  const baseColor = useMemo(() => new THREE.Color(robot.floor.base), [robot.floor.base]);
++
++  // Initialise / reset instance matrices + colours (flat on the XZ plane).
+   useLayoutEffect(() => {
+     const mesh = meshRef.current;
+     if (!mesh) return;
+     const dummy = new THREE.Object3D();
+     processed.current = new Uint8Array(grid.count);
++    colorState.current = new Uint8Array(grid.count);
++    baseColors.current = new Array(grid.count);
++    prevActive.current = [];
+     traveled.current = 0;
+     elapsed.current = 0;
++
+     for (let i = 0; i < grid.count; i++) {
+       const p = grid.centers[i];
+-      dummy.position.set(p.x, 0, p.z);
+-      dummy.scale.set(grid.cw * 0.94, 1, grid.ch * 0.94);
++      // Lay each plane FLAT: rotate the instance -90deg about X so its
++      // local +Z normal points up (+Y). No mesh-level rotation, so the
++      // world XZ positions below are honoured exactly.
++      dummy.position.set(p.x, 0.011, p.z);
++      dummy.rotation.set(-Math.PI / 2, 0, 0);
++      dummy.scale.set(grid.cw * 0.96, grid.ch * 0.96, 1);
+       dummy.updateMatrix();
+       mesh.setMatrixAt(i, dummy.matrix);
+-      // subtle per-plank variance so it reads as wood, not a flat grid
+-      const v = (Math.sin(i * 12.9898) * 43758.5453) % 1;
+-      const shade = RAW.clone().offsetHSL(0, 0, (v - 0.5) * 0.06);
++
++      // subtle per-plank shade variance so it reads as wood, not a grid
++      const v = Math.abs((Math.sin((i + 1) * 12.9898) * 43758.5453) % 1);
++      const shade = baseColor.clone().offsetHSL(0, (v - 0.5) * 0.04, (v - 0.5) * 0.05);
++      baseColors.current[i] = shade;
+       mesh.setColorAt(i, shade);
++      colorState.current[i] = RAW;
+     }
+     mesh.instanceMatrix.needsUpdate = true;
+     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
++
+     if (robotRef.current && path.length) {
+       robotRef.current.position.set(path[0].x, 0, path[0].z);
++      prevTool.current = { x: path[0].x, z: path[0].z };
+     }
+     setMetrics({
+       coveragePct: 0,
+       elapsedSec: 0,
+       areaM2: roomW * roomL,
+-      jobEtaSec: (roomW * roomL) / robot.coverageM2PerHour * 3600,
++      jobEtaSec: ((roomW * roomL) / robot.coverageM2PerHour) * 3600,
+     });
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, [grid, path, resetToken, robot.id]);
+ 
+   useFrame((_, delta) => {
+     const { running, speed } = useSim.getState();
+-    if (!running || totalLen === 0) return;
+     const mesh = meshRef.current;
+     if (!mesh) return;
++    const dt = Math.min(delta, 0.05);
+ 
+-    const prev = traveled.current;
+-    const step = robot.speedMps * speed * Math.min(delta, 0.05);
+-    traveled.current = Math.min(totalLen, prev + step);
+-    elapsed.current += Math.min(delta, 0.05);
++    // advance travel only while running
++    if (running && totalLen > 0) {
++      traveled.current = Math.min(totalLen, traveled.current + robot.speedMps * speed * dt);
++      elapsed.current += dt;
++    }
+ 
+-    // locate robot position + the segment(s) covered this frame
++    // locate robot position + current segment
+     let d = 0;
+     let pos: Vec2 = path[0];
+     let segA: Vec2 = path[0];
+-    let segB: Vec2 = path[0];
++    let segB: Vec2 = path.length > 1 ? path[1] : path[0];
+     for (let i = 1; i < path.length; i++) {
+       const a = path[i - 1];
+       const b = path[i];
+@@ -135,38 +158,80 @@ export default function FloorScene() {
+       d += segLen;
+     }
+ 
+-    // orient + move robot
++    // heading + forward unit vector (direction of travel)
++    let fx = segB.x - segA.x;
++    let fz = segB.z - segA.z;
++    const flen = Math.hypot(fx, fz) || 1;
++    fx /= flen;
++    fz /= flen;
++    const heading = Math.atan2(fx, fz);
++
+     if (robotRef.current) {
+       robotRef.current.position.set(pos.x, 0, pos.z);
+-      const heading = Math.atan2(segB.x - segA.x, segB.z - segA.z);
+       robotRef.current.rotation.y = heading;
+     }
+ 
+-    // mark swath cells processed (distance to the just-travelled segment)
++    // the working head sits ahead of the robot centre
++    const tool: Vec2 = {
++      x: pos.x + fx * robot.toolOffsetM,
++      z: pos.z + fz * robot.toolOffsetM,
++    };
+     const half = robot.workingWidthM / 2 + Math.max(grid.cw, grid.ch) * 0.5;
+-    const swathA = pos;
+-    const swathB: Vec2 = { x: pos.x, z: pos.z }; // conservative: fill around pos
+-    // widen the fill to the segment span covered this frame for high speeds
+-    const covered = { a: segA, b: pos };
++    const activeR = robot.workingWidthM / 2 + Math.min(grid.cw, grid.ch) * 0.5;
++
+     let changed = false;
++
++    // 1) mark cells the tool has swept since last frame as processed
++    if (running) {
++      for (let i = 0; i < grid.count; i++) {
++        if (processed.current[i]) continue;
++        const p = grid.centers[i];
++        if (segDist(p.x, p.z, prevTool.current, tool) <= half) {
++          processed.current[i] = 1;
++        }
++      }
++    }
++
++    // 2) resolve colours: active patch (under tool) > done > raw.
++    //    Restore last frame's active cells first, then light the new ones.
++    for (const idx of prevActive.current) {
++      const want = processed.current[idx] ? DONE : RAW;
++      if (colorState.current[idx] !== want) {
++        mesh.setColorAt(idx, want === DONE ? doneColor : baseColors.current[idx]);
++        colorState.current[idx] = want;
++        changed = true;
++      }
++    }
++    prevActive.current = [];
++
+     for (let i = 0; i < grid.count; i++) {
+-      if (processed.current[i]) continue;
+       const p = grid.centers[i];
+-      if (
+-        segDist(p.x, p.z, covered.a, covered.b) <= half ||
+-        segDist(p.x, p.z, swathA, swathB) <= half
+-      ) {
+-        processed.current[i] = 1;
+-        mesh.setColorAt(i, finishedColor);
++      const underTool =
++        running && Math.hypot(p.x - tool.x, p.z - tool.z) <= activeR;
++      let want: number;
++      if (underTool) want = ACTIVE;
++      else if (processed.current[i]) want = DONE;
++      else want = RAW;
++
++      if (want === ACTIVE) prevActive.current.push(i);
++
++      if (colorState.current[i] !== want) {
++        mesh.setColorAt(
++          i,
++          want === ACTIVE ? activeColor : want === DONE ? doneColor : baseColors.current[i]
++        );
++        colorState.current[i] = want;
+         changed = true;
+       }
+     }
++
+     if (changed && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
++    prevTool.current = tool;
+ 
+-    // throttle metric pushes (~10hz)
++    // metrics (~10hz) + stop at completion
+     acc.current += delta;
+-    const done = traveled.current >= totalLen - 1e-3;
+-    if (acc.current >= 0.1 || done) {
++    const done = totalLen > 0 && traveled.current >= totalLen - 1e-3;
++    if (running && (acc.current >= 0.1 || done)) {
+       acc.current = 0;
+       let count = 0;
+       for (let i = 0; i < grid.count; i++) count += processed.current[i];
+@@ -180,61 +245,67 @@ export default function FloorScene() {
+ 
+   return (
+     <>
+-      <ambientLight intensity={0.6} />
++      <ambientLight intensity={0.55} />
+       <directionalLight
+-        position={[5, 8, 4]}
+-        intensity={1.5}
++        position={[5, 9, 4]}
++        intensity={1.4}
+         castShadow
+-        shadow-mapSize-width={1024}
+-        shadow-mapSize-height={1024}
++        shadow-mapSize-width={2048}
++        shadow-mapSize-height={2048}
+         shadow-camera-left={-8}
+         shadow-camera-right={8}
+         shadow-camera-top={8}
+         shadow-camera-bottom={-8}
++        shadow-bias={-0.0004}
+       />
+-      <hemisphereLight args={["#ffffff", "#8a7355", 0.4]} />
++      <hemisphereLight args={["#ffffff", "#6b5640", 0.5]} />
++
++      {/* dark subfloor so plank seams read as gaps, not holes */}
++      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
++        <planeGeometry args={[roomW + 0.2, roomL + 0.2]} />
++        <meshStandardMaterial color="#2c241d" roughness={0.95} />
++      </mesh>
+ 
+       {/* baseboards */}
+-      <mesh position={[0, 0.05, -roomL / 2]} receiveShadow>
+-        <boxGeometry args={[roomW + 0.1, 0.12, 0.06]} />
+-        <meshStandardMaterial color="#e5e7eb" roughness={0.9} />
++      <mesh position={[0, 0.06, -roomL / 2 - 0.03]} castShadow receiveShadow>
++        <boxGeometry args={[roomW + 0.12, 0.12, 0.05]} />
++        <meshStandardMaterial color="#eef0f2" roughness={0.9} />
++      </mesh>
++      <mesh position={[0, 0.06, roomL / 2 + 0.03]} castShadow receiveShadow>
++        <boxGeometry args={[roomW + 0.12, 0.12, 0.05]} />
++        <meshStandardMaterial color="#eef0f2" roughness={0.9} />
++      </mesh>
++      <mesh position={[-roomW / 2 - 0.03, 0.06, 0]} castShadow receiveShadow>
++        <boxGeometry args={[0.05, 0.12, roomL + 0.02]} />
++        <meshStandardMaterial color="#eef0f2" roughness={0.9} />
+       </mesh>
+-      <mesh position={[0, 0.05, roomL / 2]} receiveShadow>
+-        <boxGeometry args={[roomW + 0.1, 0.12, 0.06]} />
+-        <meshStandardMaterial color="#e5e7eb" roughness={0.9} />
++      <mesh position={[roomW / 2 + 0.03, 0.06, 0]} castShadow receiveShadow>
++        <boxGeometry args={[0.05, 0.12, roomL + 0.02]} />
++        <meshStandardMaterial color="#eef0f2" roughness={0.9} />
+       </mesh>
+ 
+-      {/* instanced plank floor */}
++      {/* instanced plank floor (flat, per-instance oriented) */}
+       <instancedMesh
+         ref={meshRef}
+         args={[undefined, undefined, grid.count]}
+         receiveShadow
+-        rotation={[-Math.PI / 2, 0, 0]}
+-        position={[0, 0.001, 0]}
+       >
+         <planeGeometry args={[1, 1]} />
+-        <meshStandardMaterial roughness={0.55} metalness={0.05} />
++        <meshStandardMaterial roughness={0.5} metalness={0.04} />
+       </instancedMesh>
+ 
+       <group ref={robotRef}>
+-        {/* robot mesh is injected by the parent via children slot below */}
+-        <RobotChild robotId={robot.id} />
++        <RobotMesh robot={robot} />
+       </group>
+ 
+       <OrbitControls
+         enablePan
+         enableZoom
+         minDistance={2}
+-        maxDistance={20}
+-        maxPolarAngle={Math.PI / 2.1}
++        maxDistance={22}
++        maxPolarAngle={Math.PI / 2.05}
+         target={[0, 0.2, 0]}
+       />
+     </>
+   );
+ }
+-
+-// Small wrapper so RobotMesh (which imports the spec) stays decoupled.
+-import RobotMesh from "@/components/simulator/RobotMesh";
+-function RobotChild({ robotId }: { robotId: string }) {
+-  return <RobotMesh robot={getRobot(robotId)} />;
+-}
+diff --git a/components/simulator/MetricsHUD.tsx b/components/simulator/MetricsHUD.tsx
+index 6378605..23c63b5 100644
+--- a/components/simulator/MetricsHUD.tsx
++++ b/components/simulator/MetricsHUD.tsx
+@@ -14,8 +14,18 @@ function fmtTime(sec: number): string {
+ export default function MetricsHUD() {
+   const metrics = useSim((s) => s.metrics);
+   const selectedId = useSim((s) => s.selectedId);
++  const running = useSim((s) => s.running);
+   const robot = getRobot(selectedId);
+ 
++  const done = metrics.coveragePct >= 99.5;
++  const status = running
++    ? `${robot.jobVerb}…`
++    : done
++    ? "Job complete"
++    : metrics.coveragePct > 0
++    ? "Paused"
++    : "Ready";
++
+   const coveredArea = (metrics.areaM2 * metrics.coveragePct) / 100;
+   const remainingJob = Math.max(
+     0,
+@@ -42,6 +52,18 @@ export default function MetricsHUD() {
+         <span className="text-xs font-semibold text-foreground">
+           {robot.name}
+         </span>
++        <span
++          className="ml-auto flex items-center gap-1 text-[10px] font-medium text-muted-foreground"
++          aria-live="polite"
++        >
++          <span
++            className={`inline-block h-1.5 w-1.5 rounded-full ${
++              running ? "animate-pulse" : ""
++            }`}
++            style={{ background: running ? robot.color : "#94a3b8" }}
++          />
++          {status}
++        </span>
+       </div>
+       <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+         {robot.toolLabel}
+diff --git a/components/simulator/RobotMesh.tsx b/components/simulator/RobotMesh.tsx
+index 878de75..b2edb1a 100644
+--- a/components/simulator/RobotMesh.tsx
++++ b/components/simulator/RobotMesh.tsx
+@@ -1,89 +1,164 @@
+ "use client";
+ 
+-import React from "react";
++import React, { useRef } from "react";
++import * as THREE from "three";
++import { useFrame } from "@react-three/fiber";
++import { useSim } from "@/lib/simStore";
+ import type { RobotSpec } from "@/lib/robots";
+ 
+ /**
+  * Procedural, low-poly robot bodies — no external GLB downloads, so the
+  * scene has no network dependency and no licensing risk. Each platform
+- * gets a distinct silhouette so it reads clearly from any camera angle.
++ * gets a distinct silhouette AND a moving tool head so it reads as a
++ * live machine, not a static prop.
+  */
++function Wheels({ width }: { width: number }) {
++  const offsets: [number, number][] = [
++    [-1, 1],
++    [1, 1],
++    [-1, -1],
++    [1, -1],
++  ];
++  return (
++    <>
++      {offsets.map(([sx, sz], i) => (
++        <mesh
++          key={i}
++          position={[sx * width * 0.4, 0.03, sz * 0.2]}
++          rotation={[0, 0, Math.PI / 2]}
++          castShadow
++        >
++          <cylinderGeometry args={[0.04, 0.04, 0.04, 14]} />
++          <meshStandardMaterial color="#111827" roughness={0.7} />
++        </mesh>
++      ))}
++    </>
++  );
++}
++
+ export default function RobotMesh({ robot }: { robot: RobotSpec }) {
+   const c = robot.color;
+   const dark = "#1f2937";
+   const width = robot.workingWidthM;
+ 
++  const drum = useRef<THREE.Mesh>(null);
++  const head = useRef<THREE.Mesh>(null);
++  const dome = useRef<THREE.Mesh>(null);
++  const gripper = useRef<THREE.Group>(null);
++  const light = useRef<THREE.MeshStandardMaterial>(null);
++  const nozzle = useRef<THREE.MeshStandardMaterial>(null);
++
++  useFrame((state, delta) => {
++    const running = useSim.getState().running;
++    const dt = Math.min(delta, 0.05);
++    const t = state.clock.elapsedTime;
++
++    // status light "breathes" faster while working
++    if (light.current) {
++      light.current.emissiveIntensity =
++        (running ? 1.6 : 0.6) + Math.sin(t * (running ? 8 : 2)) * 0.5;
++    }
++    if (!running) return;
++
++    if (drum.current) drum.current.rotation.y += dt * 26; // sanding drum
++    if (head.current) head.current.rotation.y += dt * 30; // edge head
++    if (dome.current) dome.current.rotation.y += dt * 3.2; // lidar sweep
++    if (gripper.current) gripper.current.position.y = 0.02 + Math.abs(Math.sin(t * 4)) * 0.06;
++    if (nozzle.current) nozzle.current.emissiveIntensity = 0.4 + Math.abs(Math.sin(t * 12)) * 0.9;
++  });
++
+   return (
+     <group>
+       {/* shared chassis */}
+-      <mesh position={[0, 0.14, 0]} castShadow>
++      <mesh position={[0, 0.15, 0]} castShadow>
+         <boxGeometry args={[width * 0.9, 0.16, 0.42]} />
+         <meshStandardMaterial color={c} metalness={0.5} roughness={0.4} />
+       </mesh>
+-      <mesh position={[0, 0.05, 0]} castShadow>
++      <mesh position={[0, 0.07, 0]} castShadow>
+         <boxGeometry args={[width * 0.95, 0.06, 0.5]} />
+         <meshStandardMaterial color={dark} metalness={0.7} roughness={0.35} />
+       </mesh>
+ 
++      {robot.id !== "lay" && <Wheels width={width} />}
++
+       {robot.id === "sand" && (
+-        <mesh position={[0, 0.06, 0.28]} rotation={[0, 0, Math.PI / 2]} castShadow>
+-          <cylinderGeometry args={[0.09, 0.09, width, 20]} />
+-          <meshStandardMaterial color={dark} metalness={0.6} roughness={0.5} />
+-        </mesh>
++        <group position={[0, 0.06, 0.28]} rotation={[0, 0, Math.PI / 2]}>
++          <mesh ref={drum} castShadow>
++            <cylinderGeometry args={[0.09, 0.09, width, 22]} />
++            <meshStandardMaterial color={dark} metalness={0.55} roughness={0.55} />
++          </mesh>
++          {/* abrasive stripes so the spin is visible */}
++          <mesh>
++            <cylinderGeometry args={[0.091, 0.091, width * 0.5, 22]} />
++            <meshStandardMaterial color="#4b5563" roughness={0.9} />
++          </mesh>
++        </group>
+       )}
+ 
+       {robot.id === "edge" && (
+-        <mesh position={[width * 0.4, 0.05, 0.24]} castShadow>
+-          <cylinderGeometry args={[0.06, 0.06, 0.08, 16]} />
+-          <meshStandardMaterial color={dark} metalness={0.6} roughness={0.5} />
++        <mesh ref={head} position={[width * 0.5, 0.05, 0.22]} castShadow>
++          <cylinderGeometry args={[0.06, 0.06, 0.07, 16]} />
++          <meshStandardMaterial color={dark} metalness={0.6} roughness={0.6} />
+         </mesh>
+       )}
+ 
+       {robot.id === "coat" && (
+-        <mesh position={[0, 0.2, 0.26]} rotation={[0, 0, Math.PI / 2]} castShadow>
+-          <boxGeometry args={[width, 0.05, 0.05]} />
+-          <meshStandardMaterial color="#e2e8f0" metalness={0.3} roughness={0.6} />
+-        </mesh>
++        <>
++          <mesh position={[0, 0.22, 0.26]} rotation={[0, 0, Math.PI / 2]} castShadow>
++            <boxGeometry args={[width, 0.05, 0.05]} />
++            <meshStandardMaterial color="#e2e8f0" metalness={0.3} roughness={0.6} />
++          </mesh>
++          <mesh position={[0, 0.16, 0.26]}>
++            <boxGeometry args={[width * 0.96, 0.02, 0.03]} />
++            <meshStandardMaterial ref={nozzle} color={c} emissive={c} emissiveIntensity={0.5} />
++          </mesh>
++        </>
+       )}
+ 
+       {robot.id === "lay" && (
+         <>
+-          <mesh position={[-width * 0.45, 0.32, 0]} castShadow>
+-            <boxGeometry args={[0.05, 0.45, 0.05]} />
++          <mesh position={[-width * 0.45, 0.34, 0]} castShadow>
++            <boxGeometry args={[0.05, 0.5, 0.05]} />
+             <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
+           </mesh>
+-          <mesh position={[width * 0.45, 0.32, 0]} castShadow>
+-            <boxGeometry args={[0.05, 0.45, 0.05]} />
++          <mesh position={[width * 0.45, 0.34, 0]} castShadow>
++            <boxGeometry args={[0.05, 0.5, 0.05]} />
+             <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
+           </mesh>
+-          <mesh position={[0, 0.54, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
++          <mesh position={[0, 0.58, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
+             <boxGeometry args={[0.05, width, 0.05]} />
+             <meshStandardMaterial color={c} metalness={0.5} roughness={0.4} />
+           </mesh>
+-          <mesh position={[0, 0.02, 0.24]} castShadow>
+-            <boxGeometry args={[width * 0.8, 0.03, 0.12]} />
+-            <meshStandardMaterial color="#a16207" roughness={0.7} />
+-          </mesh>
++          <group ref={gripper} position={[0, 0.02, 0.24]}>
++            <mesh castShadow>
++              <boxGeometry args={[width * 0.8, 0.04, 0.14]} />
++              <meshStandardMaterial color="#a16207" roughness={0.7} />
++            </mesh>
++          </group>
+         </>
+       )}
+ 
+       {robot.id === "scan" && (
+         <>
+-          <mesh position={[0, 0.42, 0]} castShadow>
++          <mesh position={[0, 0.44, 0]} castShadow>
+             <cylinderGeometry args={[0.03, 0.03, 0.5, 12]} />
+             <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
+           </mesh>
+-          <mesh position={[0, 0.68, 0]} castShadow>
+-            <sphereGeometry args={[0.08, 20, 20]} />
++          <mesh ref={dome} position={[0, 0.7, 0]} castShadow>
++            <cylinderGeometry args={[0.09, 0.09, 0.08, 20]} />
+             <meshStandardMaterial color={c} metalness={0.7} roughness={0.25} />
+           </mesh>
++          <mesh position={[0.09, 0.7, 0]}>
++            <boxGeometry args={[0.02, 0.03, 0.03]} />
++            <meshStandardMaterial color="#7fd8e6" emissive="#7fd8e6" emissiveIntensity={1.5} />
++          </mesh>
+         </>
+       )}
+ 
+-      {/* status light */}
+-      <mesh position={[0, 0.25, -0.18]}>
++      {/* status beacon */}
++      <mesh position={[0, 0.26, -0.18]}>
+         <sphereGeometry args={[0.03, 12, 12]} />
+-        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={1.4} />
++        <meshStandardMaterial ref={light} color={c} emissive={c} emissiveIntensity={1} />
+       </mesh>
+     </group>
+   );
+diff --git a/lib/robots.ts b/lib/robots.ts
+index 125c02f..89c85ca 100644
+--- a/lib/robots.ts
++++ b/lib/robots.ts
+@@ -11,26 +11,42 @@
+ 
+ export type PathPattern = "boustrophedon" | "perimeter";
+ 
++/**
++ * How a machine visibly transforms the floor as it works:
++ *  - base:   the floor's colour BEFORE this machine touches it
++ *  - done:   the colour it leaves BEHIND once a spot is finished
++ *  - active: the "hot" contact patch directly under the tool head right now
++ * Chosen per machine so each pass reads like its real job: sanding reveals
++ * fresh pale wood, coating lays a rich finish, install reveals planks over
++ * bare subfloor, scanning leaves a QA tint rather than refinishing.
++ */
++export interface FloorTransform {
++  base: string;
++  done: string;
++  active: string;
++}
++
+ export interface RobotSpec {
+   id: string;
+   name: string;
+   codename: string;
+   role: string;
+-  /** One-line description of the repetitive task it targets. */
+   task: string;
+-  /** Hex accent used for the robot body + processed-floor tint. */
++  /** Present-tense verb shown while the machine is running (HUD status). */
++  jobVerb: string;
++  /** Hex accent used for the robot body + UI dot. */
+   color: string;
++  floor: FloorTransform;
+   /** Effective working width in metres (drives coverage + before/after). */
+   workingWidthM: number;
++  /** Forward distance from robot centre to the working head, in metres. */
++  toolOffsetM: number;
+   /** Travel speed in metres/second (drives animation + job-time math). */
+   speedMps: number;
+   /** Target sustained coverage rate, in m^2 per hour. */
+   coverageM2PerHour: number;
+-  /** Coverage path the planner should generate for this platform. */
+   pattern: PathPattern;
+-  /** Short label for the active tool head shown in the HUD. */
+   toolLabel: string;
+-  /** 2-4 headline specs shown as chips. label + value already formatted. */
+   chips: { label: string; value: string }[];
+ }
+ 
+@@ -41,17 +57,20 @@ export const ROBOTS: RobotSpec[] = [
+     codename: "D1",
+     role: "Autonomous multi-grit sander",
+     task: "Full-floor abrasion in sequenced grit passes at consistent pressure.",
++    jobVerb: "Sanding",
+     color: "#b45309",
++    floor: { base: "#b39167", done: "#e7d4ac", active: "#fff3d2" },
+     workingWidthM: 0.5,
++    toolOffsetM: 0.28,
+     speedMps: 0.25,
+     coverageM2PerHour: 55,
+     pattern: "boustrophedon",
+-    toolLabel: "Planetary drum · 36→180 grit",
++    toolLabel: "Planetary drum \u00b7 36\u2192180 grit",
+     chips: [
+       { label: "Working width", value: "0.50 m" },
+-      { label: "Grit range", value: "36 → 180" },
++      { label: "Grit range", value: "36 \u2192 180" },
+       { label: "Dust capture (target)", value: "98% HEPA" },
+-      { label: "Coverage", value: "~55 m²/h" },
++      { label: "Coverage", value: "~55 m\u00b2/h" },
+     ],
+   },
+   {
+@@ -60,17 +79,20 @@ export const ROBOTS: RobotSpec[] = [
+     codename: "E1",
+     role: "Semi-autonomous edger",
+     task: "Perimeter and transition sanding where the drum can't reach.",
++    jobVerb: "Edging",
+     color: "#0ea5e9",
++    floor: { base: "#b39167", done: "#e7d4ac", active: "#e6f7ff" },
+     workingWidthM: 0.14,
++    toolOffsetM: 0.22,
+     speedMps: 0.15,
+     coverageM2PerHour: 18,
+     pattern: "perimeter",
+-    toolLabel: "Oscillating edge head · vision-guided",
++    toolLabel: "Oscillating edge head \u00b7 vision-guided",
+     chips: [
+       { label: "Working width", value: "0.14 m" },
+       { label: "Edge follow", value: "LiDAR + vision" },
+       { label: "Mode", value: "Human-oversight" },
+-      { label: "Coverage", value: "~18 m²/h" },
++      { label: "Coverage", value: "~18 m\u00b2/h" },
+     ],
+   },
+   {
+@@ -79,17 +101,20 @@ export const ROBOTS: RobotSpec[] = [
+     codename: "C1",
+     role: "Finish applicator",
+     task: "Even film-build application of stain / polyurethane across the field.",
++    jobVerb: "Coating",
+     color: "#15803d",
++    floor: { base: "#e7d4ac", done: "#6f4320", active: "#c2853a" },
+     workingWidthM: 0.6,
++    toolOffsetM: 0.26,
+     speedMps: 0.35,
+     coverageM2PerHour: 75,
+     pattern: "boustrophedon",
+-    toolLabel: "T-bar / spray · live viscosity monitor",
++    toolLabel: "T-bar / spray \u00b7 live viscosity monitor",
+     chips: [
+       { label: "Working width", value: "0.60 m" },
+-      { label: "Film build (target)", value: "±5%" },
++      { label: "Film build (target)", value: "\u00b15%" },
+       { label: "Modes", value: "T-bar / spray" },
+-      { label: "Coverage", value: "~75 m²/h" },
++      { label: "Coverage", value: "~75 m\u00b2/h" },
+     ],
+   },
+   {
+@@ -98,17 +123,20 @@ export const ROBOTS: RobotSpec[] = [
+     codename: "L1",
+     role: "Plank placement gantry",
+     task: "Pick, align, and set planks row-by-row with nail/staple indexing.",
++    jobVerb: "Installing",
+     color: "#7c3aed",
++    floor: { base: "#8f8b86", done: "#c4a06a", active: "#ffe1a6" },
+     workingWidthM: 0.45,
++    toolOffsetM: 0.24,
+     speedMps: 0.18,
+     coverageM2PerHour: 28,
+     pattern: "boustrophedon",
+-    toolLabel: "Gantry gripper · alignment vision",
++    toolLabel: "Gantry gripper \u00b7 alignment vision",
+     chips: [
+       { label: "Row pitch", value: "0.45 m" },
+       { label: "Alignment", value: "vision-indexed" },
+       { label: "Fastening", value: "nail / staple" },
+-      { label: "Coverage", value: "~28 m²/h" },
++      { label: "Coverage", value: "~28 m\u00b2/h" },
+     ],
+   },
+   {
+@@ -117,17 +145,20 @@ export const ROBOTS: RobotSpec[] = [
+     codename: "S1",
+     role: "Inspection & flatness scanner",
+     task: "Pre/post flatness mapping and coverage QA at survey speed.",
++    jobVerb: "Scanning",
+     color: "#0f172a",
++    floor: { base: "#cdb187", done: "#bcd4dc", active: "#7fd8e6" },
+     workingWidthM: 0.8,
++    toolOffsetM: 0.0,
+     speedMps: 0.6,
+     coverageM2PerHour: 220,
+     pattern: "boustrophedon",
+-    toolLabel: "LiDAR mast · flatness map",
++    toolLabel: "LiDAR mast \u00b7 flatness map",
+     chips: [
+       { label: "Sweep width", value: "0.80 m" },
+       { label: "Flatness res.", value: "sub-mm (target)" },
+       { label: "Output", value: "coverage QA map" },
+-      { label: "Coverage", value: "~220 m²/h" },
++      { label: "Coverage", value: "~220 m\u00b2/h" },
+     ],
+   },
+ ];
