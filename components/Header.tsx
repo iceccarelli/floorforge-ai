@@ -57,6 +57,15 @@ export default function Header() {
                 {link.label}
               </button>
             ))}
+            <Link
+              href="/simulator"
+              className="inline-flex items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+            >
+              Simulator
+              <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                3D
+              </span>
+            </Link>
           </nav>
 
           {/* Desktop CTAs */}
@@ -133,6 +142,13 @@ export default function Header() {
                   {link.label}
                 </button>
               ))}
+              <Link
+                href="/simulator"
+                onClick={() => setMobileMenuOpen(false)}
+                className="py-2 text-left font-medium text-accent hover:text-accent-hover"
+              >
+                Simulator (3D)
+              </Link>
               <div className="pt-4 border-t flex flex-col gap-3">
                 {authEnabled && (
                   <>
