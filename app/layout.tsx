@@ -6,6 +6,7 @@ import { ClerkProvider } from "@clerk/nextjs";
 import { Toaster } from "sonner";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
+import StructuredData from "@/components/StructuredData";
 import { authEnabled } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -43,8 +44,14 @@ export default function RootLayout({
       className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-white text-slate-900">
+        <a href="#main" className="skip-link">
+          Skip to content
+        </a>
+        <StructuredData />
         <Header />
-        <main className="flex-1">{children}</main>
+        <main id="main" className="flex-1">
+          {children}
+        </main>
         <Footer />
         <Toaster position="top-center" richColors closeButton />
       </body>
