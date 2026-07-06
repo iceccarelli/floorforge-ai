@@ -1,0 +1,1180 @@
+diff --git a/app/page.tsx b/app/page.tsx
+index 058c6b0..f6549ed 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -10,6 +10,8 @@ import ROICalculator from "@/components/ROICalculator";
+ import Chatbot from "@/components/Chatbot";
+ import WaitlistCTA from "@/components/WaitlistCTA";
+ import Reveal from "@/components/Reveal";
++import Link from "next/link";
++import { ROBOTS } from "@/lib/robots";
+ 
+ const scrollTo = (id: string) => {
+   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
+@@ -166,6 +168,49 @@ export default function FloorForgeLanding() {
+         </div>
+       </section>
+ 
++      {/* SIMULATOR TEASER */}
++      <section className="section border-b bg-muted py-16">
++        <div className="mx-auto max-w-6xl px-6">
++          <Reveal>
++            <div className="flex flex-col items-start gap-6 rounded-2xl border border-border bg-card p-8 md:flex-row md:items-center md:justify-between">
++              <div className="max-w-xl">
++                <span className="mb-3 inline-block rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
++                  Interactive concept demo
++                </span>
++                <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
++                  Drive the robots yourself — before they exist in your shop
++                </h2>
++                <p className="mt-3 text-muted-foreground">
++                  Pick a platform, size the room, and watch a live coverage pass
++                  fill the floor with real-time area and job-time estimates. A 3D
++                  way to explore how autonomous refinishing would run — figures
++                  are design targets, not completed-job records.
++                </p>
++                <div className="mt-4 flex flex-wrap gap-2">
++                  {ROBOTS.map((r) => (
++                    <span
++                      key={r.id}
++                      className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
++                    >
++                      <span
++                        className="inline-block h-2 w-2 rounded-full"
++                        style={{ background: r.color }}
++                      />
++                      {r.name}
++                    </span>
++                  ))}
++                </div>
++              </div>
++              <Button asChild variant="accent" size="lg" className="shrink-0">
++                <Link href="/simulator">
++                  Open the 3D simulator <ArrowRight className="h-5 w-5" />
++                </Link>
++              </Button>
++            </div>
++          </Reveal>
++        </div>
++      </section>
++
+       {/* FEATURES */}
+       <section id="features" className="section max-w-7xl mx-auto px-6 pt-20 pb-16">
+         <div className="text-center mb-14">
+diff --git a/app/simulator/page.tsx b/app/simulator/page.tsx
+new file mode 100644
+index 0000000..49cfe49
+--- /dev/null
++++ b/app/simulator/page.tsx
+@@ -0,0 +1,43 @@
++import type { Metadata } from "next";
++import Link from "next/link";
++import { ArrowLeft } from "lucide-react";
++import SimulatorLoader from "@/components/simulator/SimulatorLoader";
++import { ROBOTS } from "@/lib/robots";
++
++export const metadata: Metadata = {
++  title: "Robot Simulator | FloorForge — Interactive Concept Demo",
++  description:
++    "Drive FloorForge's concept flooring robots across a virtual room: pick a platform, run a boustrophedon coverage pass, and watch live coverage and job-time estimates. An interactive concept simulation.",
++  alternates: { canonical: "/simulator" },
++};
++
++export default function SimulatorPage() {
++  return (
++    <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
++      <Link
++        href="/"
++        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
++      >
++        <ArrowLeft className="h-4 w-4" /> Back to home
++      </Link>
++
++      <div className="mb-8 max-w-2xl">
++        <span className="mb-3 inline-block rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
++          Interactive concept simulation
++        </span>
++        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
++          Drive the robots across a virtual floor
++        </h1>
++        <p className="mt-3 text-base text-muted-foreground">
++          Pick one of {ROBOTS.length} FloorForge concept platforms, size the room,
++          and run the job. You&apos;ll see the coverage path fill in real time,
++          with live area and job-time estimates. These are design targets for
++          hardware in development — a way to explore the workflow, not a record of
++          completed jobs.
++        </p>
++      </div>
++
++      <SimulatorLoader />
++    </div>
++  );
++}
+diff --git a/components/Header.tsx b/components/Header.tsx
+index 6ac4960..59833a6 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -57,6 +57,15 @@ export default function Header() {
+                 {link.label}
+               </button>
+             ))}
++            <Link
++              href="/simulator"
++              className="inline-flex items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
++            >
++              Simulator
++              <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
++                3D
++              </span>
++            </Link>
+           </nav>
+ 
+           {/* Desktop CTAs */}
+@@ -133,6 +142,13 @@ export default function Header() {
+                   {link.label}
+                 </button>
+               ))}
++              <Link
++                href="/simulator"
++                onClick={() => setMobileMenuOpen(false)}
++                className="py-2 text-left font-medium text-accent hover:text-accent-hover"
++              >
++                Simulator (3D)
++              </Link>
+               <div className="pt-4 border-t flex flex-col gap-3">
+                 {authEnabled && (
+                   <>
+diff --git a/components/simulator/ControlPanel.tsx b/components/simulator/ControlPanel.tsx
+new file mode 100644
+index 0000000..50af22c
+--- /dev/null
++++ b/components/simulator/ControlPanel.tsx
+@@ -0,0 +1,143 @@
++"use client";
++
++import React from "react";
++import { Play, Pause, RotateCcw } from "lucide-react";
++import { ROBOTS, getRobot } from "@/lib/robots";
++import { useSim } from "@/lib/simStore";
++import { Button } from "@/components/ui/button";
++
++const ROOM_PRESETS: { label: string; w: number; l: number }[] = [
++  { label: "Small · 4×3 m", w: 4, l: 3 },
++  { label: "Room · 6×5 m", w: 6, l: 5 },
++  { label: "Great room · 9×7 m", w: 9, l: 7 },
++];
++
++export default function ControlPanel() {
++  const selectedId = useSim((s) => s.selectedId);
++  const running = useSim((s) => s.running);
++  const speed = useSim((s) => s.speed);
++  const roomW = useSim((s) => s.roomW);
++  const roomL = useSim((s) => s.roomL);
++  const select = useSim((s) => s.select);
++  const toggleRun = useSim((s) => s.toggleRun);
++  const reset = useSim((s) => s.reset);
++  const setSpeed = useSim((s) => s.setSpeed);
++  const setRoom = useSim((s) => s.setRoom);
++
++  const robot = getRobot(selectedId);
++
++  return (
++    <div className="flex flex-col gap-5">
++      {/* robot picker */}
++      <div>
++        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
++          Platform
++        </p>
++        <div className="grid grid-cols-1 gap-1.5">
++          {ROBOTS.map((r) => {
++            const active = r.id === selectedId;
++            return (
++              <button
++                key={r.id}
++                onClick={() => select(r.id)}
++                aria-pressed={active}
++                className={`flex items-center gap-3 rounded-lg border p-2.5 text-left transition-colors ${
++                  active
++                    ? "border-accent bg-accent-light"
++                    : "border-border bg-card hover:bg-muted"
++                }`}
++              >
++                <span
++                  className="mt-0.5 inline-block h-8 w-1.5 shrink-0 rounded-full"
++                  style={{ background: r.color }}
++                />
++                <span className="min-w-0">
++                  <span className="block text-sm font-semibold text-foreground">
++                    {r.name}
++                  </span>
++                  <span className="block truncate text-xs text-muted-foreground">
++                    {r.role}
++                  </span>
++                </span>
++              </button>
++            );
++          })}
++        </div>
++      </div>
++
++      {/* spec chips */}
++      <div className="flex flex-wrap gap-1.5">
++        {robot.chips.map((c) => (
++          <span
++            key={c.label}
++            className="rounded-md border border-border bg-muted px-2 py-1 text-[11px] text-muted-foreground"
++          >
++            <span className="text-muted-foreground">{c.label}: </span>
++            <span className="font-medium text-foreground">{c.value}</span>
++          </span>
++        ))}
++      </div>
++
++      {/* transport controls */}
++      <div className="flex gap-2">
++        <Button
++          variant={running ? "secondary" : "accent"}
++          className="flex-1"
++          onClick={toggleRun}
++        >
++          {running ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
++          {running ? "Pause" : "Run job"}
++        </Button>
++        <Button variant="outline" size="icon" onClick={reset} aria-label="Reset">
++          <RotateCcw className="h-4 w-4" />
++        </Button>
++      </div>
++
++      {/* speed */}
++      <div>
++        <div className="mb-1.5 flex items-center justify-between">
++          <label htmlFor="speed" className="text-xs font-semibold text-foreground">
++            Playback speed
++          </label>
++          <span className="font-mono text-xs text-muted-foreground">
++            {speed}×
++          </span>
++        </div>
++        <input
++          id="speed"
++          type="range"
++          min={1}
++          max={30}
++          step={1}
++          value={speed}
++          onChange={(e) => setSpeed(Number(e.target.value))}
++          className="w-full accent-[var(--accent)]"
++        />
++      </div>
++
++      {/* room size */}
++      <div>
++        <p className="mb-1.5 text-xs font-semibold text-foreground">Room size</p>
++        <div className="grid grid-cols-1 gap-1.5">
++          {ROOM_PRESETS.map((p) => {
++            const active = p.w === roomW && p.l === roomL;
++            return (
++              <button
++                key={p.label}
++                onClick={() => setRoom(p.w, p.l)}
++                aria-pressed={active}
++                className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
++                  active
++                    ? "border-accent bg-accent-light text-foreground"
++                    : "border-border bg-card text-muted-foreground hover:bg-muted"
++                }`}
++              >
++                {p.label}
++              </button>
++            );
++          })}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/simulator/FloorScene.tsx b/components/simulator/FloorScene.tsx
+new file mode 100644
+index 0000000..e9f9941
+--- /dev/null
++++ b/components/simulator/FloorScene.tsx
+@@ -0,0 +1,240 @@
++"use client";
++
++import React, { useMemo, useRef, useLayoutEffect } from "react";
++import * as THREE from "three";
++import { useFrame } from "@react-three/fiber";
++import { OrbitControls } from "@react-three/drei";
++import { getRobot } from "@/lib/robots";
++import { planPath, pathLength, type Vec2 } from "@/lib/pathPlanning";
++import { useSim } from "@/lib/simStore";
++
++const RAW = new THREE.Color("#cdb187");
++const FINISHED = new THREE.Color("#7a4a22");
++
++/** Point-to-segment distance on the XZ plane. */
++function segDist(px: number, pz: number, a: Vec2, b: Vec2): number {
++  const dx = b.x - a.x;
++  const dz = b.z - a.z;
++  const len2 = dx * dx + dz * dz;
++  let t = len2 === 0 ? 0 : ((px - a.x) * dx + (pz - a.z) * dz) / len2;
++  t = Math.max(0, Math.min(1, t));
++  return Math.hypot(px - (a.x + t * dx), pz - (a.z + t * dz));
++}
++
++export default function FloorScene() {
++  const selectedId = useSim((s) => s.selectedId);
++  const roomW = useSim((s) => s.roomW);
++  const roomL = useSim((s) => s.roomL);
++  const resetToken = useSim((s) => s.resetToken);
++  const setMetrics = useSim((s) => s.setMetrics);
++
++  const robot = getRobot(selectedId);
++
++  // --- floor grid (instanced) ---------------------------------------
++  const grid = useMemo(() => {
++    const target = 0.3; // ~30cm plank cells
++    const cols = Math.min(64, Math.max(6, Math.round(roomW / target)));
++    const rows = Math.min(64, Math.max(6, Math.round(roomL / target)));
++    const cw = roomW / cols;
++    const ch = roomL / rows;
++    const centers: Vec2[] = [];
++    for (let r = 0; r < rows; r++) {
++      for (let c = 0; c < cols; c++) {
++        centers.push({
++          x: -roomW / 2 + cw * (c + 0.5),
++          z: -roomL / 2 + ch * (r + 0.5),
++        });
++      }
++    }
++    return { cols, rows, cw, ch, centers, count: centers.length };
++  }, [roomW, roomL]);
++
++  const path = useMemo(
++    () =>
++      planPath({
++        roomW,
++        roomL,
++        workingWidthM: robot.workingWidthM,
++        pattern: robot.pattern,
++      }),
++    [roomW, roomL, robot.workingWidthM, robot.pattern]
++  );
++  const totalLen = useMemo(() => pathLength(path), [path]);
++
++  const meshRef = useRef<THREE.InstancedMesh>(null);
++  const robotRef = useRef<THREE.Group>(null);
++  const processed = useRef<Uint8Array>(new Uint8Array(grid.count));
++  const traveled = useRef(0);
++  const elapsed = useRef(0);
++  const acc = useRef(0);
++  const finishedColor = useMemo(
++    () => FINISHED.clone().lerp(new THREE.Color(robot.color), 0.15),
++    [robot.color]
++  );
++
++  // Initialise / reset instance matrices + colors.
++  useLayoutEffect(() => {
++    const mesh = meshRef.current;
++    if (!mesh) return;
++    const dummy = new THREE.Object3D();
++    processed.current = new Uint8Array(grid.count);
++    traveled.current = 0;
++    elapsed.current = 0;
++    for (let i = 0; i < grid.count; i++) {
++      const p = grid.centers[i];
++      dummy.position.set(p.x, 0, p.z);
++      dummy.scale.set(grid.cw * 0.94, 1, grid.ch * 0.94);
++      dummy.updateMatrix();
++      mesh.setMatrixAt(i, dummy.matrix);
++      // subtle per-plank variance so it reads as wood, not a flat grid
++      const v = (Math.sin(i * 12.9898) * 43758.5453) % 1;
++      const shade = RAW.clone().offsetHSL(0, 0, (v - 0.5) * 0.06);
++      mesh.setColorAt(i, shade);
++    }
++    mesh.instanceMatrix.needsUpdate = true;
++    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
++    if (robotRef.current && path.length) {
++      robotRef.current.position.set(path[0].x, 0, path[0].z);
++    }
++    setMetrics({
++      coveragePct: 0,
++      elapsedSec: 0,
++      areaM2: roomW * roomL,
++      jobEtaSec: (roomW * roomL) / robot.coverageM2PerHour * 3600,
++    });
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [grid, path, resetToken, robot.id]);
++
++  useFrame((_, delta) => {
++    const { running, speed } = useSim.getState();
++    if (!running || totalLen === 0) return;
++    const mesh = meshRef.current;
++    if (!mesh) return;
++
++    const prev = traveled.current;
++    const step = robot.speedMps * speed * Math.min(delta, 0.05);
++    traveled.current = Math.min(totalLen, prev + step);
++    elapsed.current += Math.min(delta, 0.05);
++
++    // locate robot position + the segment(s) covered this frame
++    let d = 0;
++    let pos: Vec2 = path[0];
++    let segA: Vec2 = path[0];
++    let segB: Vec2 = path[0];
++    for (let i = 1; i < path.length; i++) {
++      const a = path[i - 1];
++      const b = path[i];
++      const segLen = Math.hypot(b.x - a.x, b.z - a.z);
++      if (d + segLen >= traveled.current) {
++        const t = segLen === 0 ? 0 : (traveled.current - d) / segLen;
++        pos = { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t };
++        segA = a;
++        segB = b;
++        break;
++      }
++      d += segLen;
++    }
++
++    // orient + move robot
++    if (robotRef.current) {
++      robotRef.current.position.set(pos.x, 0, pos.z);
++      const heading = Math.atan2(segB.x - segA.x, segB.z - segA.z);
++      robotRef.current.rotation.y = heading;
++    }
++
++    // mark swath cells processed (distance to the just-travelled segment)
++    const half = robot.workingWidthM / 2 + Math.max(grid.cw, grid.ch) * 0.5;
++    const swathA = pos;
++    const swathB: Vec2 = { x: pos.x, z: pos.z }; // conservative: fill around pos
++    // widen the fill to the segment span covered this frame for high speeds
++    const covered = { a: segA, b: pos };
++    let changed = false;
++    for (let i = 0; i < grid.count; i++) {
++      if (processed.current[i]) continue;
++      const p = grid.centers[i];
++      if (
++        segDist(p.x, p.z, covered.a, covered.b) <= half ||
++        segDist(p.x, p.z, swathA, swathB) <= half
++      ) {
++        processed.current[i] = 1;
++        mesh.setColorAt(i, finishedColor);
++        changed = true;
++      }
++    }
++    if (changed && mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
++
++    // throttle metric pushes (~10hz)
++    acc.current += delta;
++    const done = traveled.current >= totalLen - 1e-3;
++    if (acc.current >= 0.1 || done) {
++      acc.current = 0;
++      let count = 0;
++      for (let i = 0; i < grid.count; i++) count += processed.current[i];
++      setMetrics({
++        coveragePct: (count / grid.count) * 100,
++        elapsedSec: elapsed.current,
++      });
++      if (done) useSim.setState({ running: false });
++    }
++  });
++
++  return (
++    <>
++      <ambientLight intensity={0.6} />
++      <directionalLight
++        position={[5, 8, 4]}
++        intensity={1.5}
++        castShadow
++        shadow-mapSize-width={1024}
++        shadow-mapSize-height={1024}
++        shadow-camera-left={-8}
++        shadow-camera-right={8}
++        shadow-camera-top={8}
++        shadow-camera-bottom={-8}
++      />
++      <hemisphereLight args={["#ffffff", "#8a7355", 0.4]} />
++
++      {/* baseboards */}
++      <mesh position={[0, 0.05, -roomL / 2]} receiveShadow>
++        <boxGeometry args={[roomW + 0.1, 0.12, 0.06]} />
++        <meshStandardMaterial color="#e5e7eb" roughness={0.9} />
++      </mesh>
++      <mesh position={[0, 0.05, roomL / 2]} receiveShadow>
++        <boxGeometry args={[roomW + 0.1, 0.12, 0.06]} />
++        <meshStandardMaterial color="#e5e7eb" roughness={0.9} />
++      </mesh>
++
++      {/* instanced plank floor */}
++      <instancedMesh
++        ref={meshRef}
++        args={[undefined, undefined, grid.count]}
++        receiveShadow
++        rotation={[-Math.PI / 2, 0, 0]}
++        position={[0, 0.001, 0]}
++      >
++        <planeGeometry args={[1, 1]} />
++        <meshStandardMaterial roughness={0.55} metalness={0.05} />
++      </instancedMesh>
++
++      <group ref={robotRef}>
++        {/* robot mesh is injected by the parent via children slot below */}
++        <RobotChild robotId={robot.id} />
++      </group>
++
++      <OrbitControls
++        enablePan
++        enableZoom
++        minDistance={2}
++        maxDistance={20}
++        maxPolarAngle={Math.PI / 2.1}
++        target={[0, 0.2, 0]}
++      />
++    </>
++  );
++}
++
++// Small wrapper so RobotMesh (which imports the spec) stays decoupled.
++import RobotMesh from "@/components/simulator/RobotMesh";
++function RobotChild({ robotId }: { robotId: string }) {
++  return <RobotMesh robot={getRobot(robotId)} />;
++}
+diff --git a/components/simulator/MetricsHUD.tsx b/components/simulator/MetricsHUD.tsx
+new file mode 100644
+index 0000000..6378605
+--- /dev/null
++++ b/components/simulator/MetricsHUD.tsx
+@@ -0,0 +1,74 @@
++"use client";
++
++import React from "react";
++import { useSim } from "@/lib/simStore";
++import { getRobot } from "@/lib/robots";
++
++function fmtTime(sec: number): string {
++  if (!isFinite(sec) || sec <= 0) return "0m";
++  const h = Math.floor(sec / 3600);
++  const m = Math.round((sec % 3600) / 60);
++  return h > 0 ? `${h}h ${m}m` : `${m}m`;
++}
++
++export default function MetricsHUD() {
++  const metrics = useSim((s) => s.metrics);
++  const selectedId = useSim((s) => s.selectedId);
++  const robot = getRobot(selectedId);
++
++  const coveredArea = (metrics.areaM2 * metrics.coveragePct) / 100;
++  const remainingJob = Math.max(
++    0,
++    metrics.jobEtaSec * (1 - metrics.coveragePct / 100)
++  );
++
++  const items = [
++    { label: "Coverage", value: `${metrics.coveragePct.toFixed(0)}%` },
++    {
++      label: "Area finished",
++      value: `${coveredArea.toFixed(1)} / ${metrics.areaM2.toFixed(0)} m²`,
++    },
++    { label: "Real-job estimate", value: fmtTime(metrics.jobEtaSec) },
++    { label: "Est. remaining", value: fmtTime(remainingJob) },
++  ];
++
++  return (
++    <div className="pointer-events-none absolute left-3 top-3 z-10 w-[210px] rounded-xl border border-border/70 bg-card/85 p-3 backdrop-blur-sm">
++      <div className="mb-2 flex items-center gap-2">
++        <span
++          className="inline-block h-2.5 w-2.5 rounded-full"
++          style={{ background: robot.color }}
++        />
++        <span className="text-xs font-semibold text-foreground">
++          {robot.name}
++        </span>
++      </div>
++      <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
++        {robot.toolLabel}
++      </p>
++      <div className="space-y-1.5">
++        {items.map((it) => (
++          <div key={it.label} className="flex items-baseline justify-between">
++            <span className="text-[11px] text-muted-foreground">{it.label}</span>
++            <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
++              {it.value}
++            </span>
++          </div>
++        ))}
++      </div>
++      {/* progress bar */}
++      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted">
++        <div
++          className="h-full rounded-full transition-[width] duration-100"
++          style={{
++            width: `${metrics.coveragePct}%`,
++            background: robot.color,
++          }}
++        />
++      </div>
++      <p className="mt-2 text-[9px] leading-tight text-muted-foreground">
++        Concept simulation. Figures are design targets, not measured results.
++      </p>
++    </div>
++  );
++}
+diff --git a/components/simulator/RobotMesh.tsx b/components/simulator/RobotMesh.tsx
+new file mode 100644
+index 0000000..878de75
+--- /dev/null
++++ b/components/simulator/RobotMesh.tsx
+@@ -0,0 +1,90 @@
++"use client";
++
++import React from "react";
++import type { RobotSpec } from "@/lib/robots";
++
++/**
++ * Procedural, low-poly robot bodies — no external GLB downloads, so the
++ * scene has no network dependency and no licensing risk. Each platform
++ * gets a distinct silhouette so it reads clearly from any camera angle.
++ */
++export default function RobotMesh({ robot }: { robot: RobotSpec }) {
++  const c = robot.color;
++  const dark = "#1f2937";
++  const width = robot.workingWidthM;
++
++  return (
++    <group>
++      {/* shared chassis */}
++      <mesh position={[0, 0.14, 0]} castShadow>
++        <boxGeometry args={[width * 0.9, 0.16, 0.42]} />
++        <meshStandardMaterial color={c} metalness={0.5} roughness={0.4} />
++      </mesh>
++      <mesh position={[0, 0.05, 0]} castShadow>
++        <boxGeometry args={[width * 0.95, 0.06, 0.5]} />
++        <meshStandardMaterial color={dark} metalness={0.7} roughness={0.35} />
++      </mesh>
++
++      {robot.id === "sand" && (
++        <mesh position={[0, 0.06, 0.28]} rotation={[0, 0, Math.PI / 2]} castShadow>
++          <cylinderGeometry args={[0.09, 0.09, width, 20]} />
++          <meshStandardMaterial color={dark} metalness={0.6} roughness={0.5} />
++        </mesh>
++      )}
++
++      {robot.id === "edge" && (
++        <mesh position={[width * 0.4, 0.05, 0.24]} castShadow>
++          <cylinderGeometry args={[0.06, 0.06, 0.08, 16]} />
++          <meshStandardMaterial color={dark} metalness={0.6} roughness={0.5} />
++        </mesh>
++      )}
++
++      {robot.id === "coat" && (
++        <mesh position={[0, 0.2, 0.26]} rotation={[0, 0, Math.PI / 2]} castShadow>
++          <boxGeometry args={[width, 0.05, 0.05]} />
++          <meshStandardMaterial color="#e2e8f0" metalness={0.3} roughness={0.6} />
++        </mesh>
++      )}
++
++      {robot.id === "lay" && (
++        <>
++          <mesh position={[-width * 0.45, 0.32, 0]} castShadow>
++            <boxGeometry args={[0.05, 0.45, 0.05]} />
++            <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
++          </mesh>
++          <mesh position={[width * 0.45, 0.32, 0]} castShadow>
++            <boxGeometry args={[0.05, 0.45, 0.05]} />
++            <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
++          </mesh>
++          <mesh position={[0, 0.54, 0]} rotation={[0, 0, Math.PI / 2]} castShadow>
++            <boxGeometry args={[0.05, width, 0.05]} />
++            <meshStandardMaterial color={c} metalness={0.5} roughness={0.4} />
++          </mesh>
++          <mesh position={[0, 0.02, 0.24]} castShadow>
++            <boxGeometry args={[width * 0.8, 0.03, 0.12]} />
++            <meshStandardMaterial color="#a16207" roughness={0.7} />
++          </mesh>
++        </>
++      )}
++
++      {robot.id === "scan" && (
++        <>
++          <mesh position={[0, 0.42, 0]} castShadow>
++            <cylinderGeometry args={[0.03, 0.03, 0.5, 12]} />
++            <meshStandardMaterial color={dark} metalness={0.6} roughness={0.4} />
++          </mesh>
++          <mesh position={[0, 0.68, 0]} castShadow>
++            <sphereGeometry args={[0.08, 20, 20]} />
++            <meshStandardMaterial color={c} metalness={0.7} roughness={0.25} />
++          </mesh>
++        </>
++      )}
++
++      {/* status light */}
++      <mesh position={[0, 0.25, -0.18]}>
++        <sphereGeometry args={[0.03, 12, 12]} />
++        <meshStandardMaterial color={c} emissive={c} emissiveIntensity={1.4} />
++      </mesh>
++    </group>
++  );
++}
+diff --git a/components/simulator/Simulator.tsx b/components/simulator/Simulator.tsx
+new file mode 100644
+index 0000000..4339544
+--- /dev/null
++++ b/components/simulator/Simulator.tsx
+@@ -0,0 +1,95 @@
++"use client";
++
++import React, { Suspense, useState } from "react";
++import Link from "next/link";
++import { Canvas } from "@react-three/fiber";
++import { ArrowRight } from "lucide-react";
++import FloorScene from "@/components/simulator/FloorScene";
++import ControlPanel from "@/components/simulator/ControlPanel";
++import MetricsHUD from "@/components/simulator/MetricsHUD";
++import { getRobot } from "@/lib/robots";
++import { useSim } from "@/lib/simStore";
++import { Button } from "@/components/ui/button";
++
++function hasWebGL(): boolean {
++  if (typeof window === "undefined") return true;
++  try {
++    const c = document.createElement("canvas");
++    return !!(c.getContext("webgl2") || c.getContext("webgl"));
++  } catch {
++    return false;
++  }
++}
++
++export default function Simulator() {
++  // Client-only component (loaded with ssr:false), so window is available
++  // at first render — lazy-init instead of a setState-in-effect.
++  const [webgl] = useState(hasWebGL);
++  const selectedId = useSim((s) => s.selectedId);
++  const robot = getRobot(selectedId);
++
++  return (
++    <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
++      {/* left: controls */}
++      <aside className="rounded-2xl border border-border bg-muted/40 p-4">
++        <ControlPanel />
++      </aside>
++
++      {/* right: canvas + hud */}
++      <div className="relative min-h-[440px] overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-[#f1f5f9] to-[#e2e8f0]">
++        {webgl ? (
++          <>
++            <MetricsHUD />
++            <Canvas
++              shadows
++              dpr={[1, 1.75]}
++              camera={{ position: [6, 6, 7], fov: 42 }}
++              className="h-full w-full"
++              aria-label={`3D simulation of the ${robot.name} covering a virtual hardwood floor`}
++            >
++              <color attach="background" args={["#eef2f6"]} />
++              <Suspense fallback={null}>
++                <FloorScene />
++              </Suspense>
++            </Canvas>
++            <p className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted-foreground">
++              Drag to orbit · scroll to zoom · right-drag to pan
++            </p>
++          </>
++        ) : (
++          <div className="flex h-full min-h-[440px] flex-col items-center justify-center p-8 text-center">
++            <p className="text-sm font-semibold text-foreground">
++              3D view needs WebGL
++            </p>
++            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
++              Your browser or device doesn&apos;t support the interactive canvas.
++              The {robot.name} runs a {robot.pattern} coverage path at{" "}
++              {robot.coverageM2PerHour} m²/h — reach out and we&apos;ll walk you
++              through it.
++            </p>
++          </div>
++        )}
++      </div>
++
++      {/* full-width honest CTA */}
++      <div className="lg:col-span-2">
++        <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-card p-5 sm:flex-row sm:items-center">
++          <div>
++            <p className="text-sm font-semibold text-foreground">
++              Want to see the {robot.name} concept applied to your real floor plan?
++            </p>
++            <p className="mt-0.5 text-sm text-muted-foreground">
++              We&apos;re selecting pilot partners now. Tell us your job volume and
++              we&apos;ll follow up — no automated sales pitch.
++            </p>
++          </div>
++          <Button asChild variant="accent" className="shrink-0">
++            <Link href={`/#waitlist?interest=${encodeURIComponent(robot.name)}`}>
++              Join the pilot program <ArrowRight className="h-4 w-4" />
++            </Link>
++          </Button>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/simulator/SimulatorLoader.tsx b/components/simulator/SimulatorLoader.tsx
+new file mode 100644
+index 0000000..97c44db
+--- /dev/null
++++ b/components/simulator/SimulatorLoader.tsx
+@@ -0,0 +1,21 @@
++"use client";
++
++import dynamic from "next/dynamic";
++
++const Simulator = dynamic(() => import("@/components/simulator/Simulator"), {
++  ssr: false,
++  loading: () => (
++    <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
++      <div className="h-[440px] animate-pulse rounded-2xl border border-border bg-muted/50" />
++      <div className="flex min-h-[440px] animate-pulse items-center justify-center rounded-2xl border border-border bg-muted/50">
++        <span className="text-sm text-muted-foreground">
++          Loading 3D simulator…
++        </span>
++      </div>
++    </div>
++  ),
++});
++
++export default function SimulatorLoader() {
++  return <Simulator />;
++}
+diff --git a/lib/pathPlanning.ts b/lib/pathPlanning.ts
+new file mode 100644
+index 0000000..fb72ec5
+--- /dev/null
++++ b/lib/pathPlanning.ts
+@@ -0,0 +1,80 @@
++/**
++ * Coverage path planning for the FloorForge simulator.
++ *
++ * Two real, textbook coverage strategies:
++ *  - boustrophedon ("ox-plough"): parallel back-and-forth lanes spaced by
++ *    the robot's working width. Standard for area coverage (sanding,
++ *    coating, scanning, plank rows).
++ *  - perimeter: concentric inward rings, used by the edger which only
++ *    services the room boundary + transitions.
++ *
++ * The floor is modelled on the XZ plane, centred at the origin, so a
++ * roomW x roomL room spans x in [-W/2, W/2], z in [-L/2, L/2].
++ */
++
++export type Vec2 = { x: number; z: number };
++
++export interface PlanInput {
++  roomW: number; // metres (X)
++  roomL: number; // metres (Z)
++  workingWidthM: number;
++  pattern: "boustrophedon" | "perimeter";
++}
++
++/** Total travel distance of a waypoint list, in metres. */
++export function pathLength(points: Vec2[]): number {
++  let d = 0;
++  for (let i = 1; i < points.length; i++) {
++    d += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
++  }
++  return d;
++}
++
++function boustrophedon(roomW: number, roomL: number, lane: number): Vec2[] {
++  const halfW = roomW / 2;
++  const halfL = roomL / 2;
++  const margin = lane / 2;
++  const usableW = Math.max(roomW - lane, 0);
++  const lanes = Math.max(1, Math.ceil(usableW / lane) + 1);
++  const pts: Vec2[] = [];
++  for (let i = 0; i < lanes; i++) {
++    const x = lanes === 1 ? 0 : -halfW + margin + (i * (roomW - lane)) / (lanes - 1);
++    const top = -halfL + margin;
++    const bottom = halfL - margin;
++    if (i % 2 === 0) {
++      pts.push({ x, z: top }, { x, z: bottom });
++    } else {
++      pts.push({ x, z: bottom }, { x, z: top });
++    }
++  }
++  return pts;
++}
++
++function perimeter(roomW: number, roomL: number, lane: number): Vec2[] {
++  const rings: Vec2[] = [];
++  const maxRings = Math.max(
++    1,
++    Math.floor(Math.min(roomW, roomL) / (2 * lane))
++  );
++  for (let r = 0; r < maxRings; r++) {
++    const inset = lane / 2 + r * lane;
++    const x = roomW / 2 - inset;
++    const z = roomL / 2 - inset;
++    if (x <= 0 || z <= 0) break;
++    rings.push(
++      { x: -x, z: -z },
++      { x, z: -z },
++      { x, z },
++      { x: -x, z },
++      { x: -x, z: -z }
++    );
++  }
++  return rings.length ? rings : [{ x: 0, z: 0 }];
++}
++
++export function planPath(input: PlanInput): Vec2[] {
++  const lane = Math.max(0.05, input.workingWidthM);
++  return input.pattern === "perimeter"
++    ? perimeter(input.roomW, input.roomL, lane)
++    : boustrophedon(input.roomW, input.roomL, lane);
++}
+diff --git a/lib/robots.ts b/lib/robots.ts
+new file mode 100644
+index 0000000..125c02f
+--- /dev/null
++++ b/lib/robots.ts
+@@ -0,0 +1,136 @@
++/**
++ * FloorForge concept robot platform definitions.
++ *
++ * IMPORTANT (honesty): these are *concept / pre-production* platform
++ * specs used to drive the interactive simulator. They describe the
++ * envelope FloorForge is designing toward, consistent with the
++ * "designed around / targeting" language used across the marketing
++ * site. They are NOT claims that finished, shipping hardware exists.
++ * The simulator UI labels them as concepts everywhere they appear.
++ */
++
++export type PathPattern = "boustrophedon" | "perimeter";
++
++export interface RobotSpec {
++  id: string;
++  name: string;
++  codename: string;
++  role: string;
++  /** One-line description of the repetitive task it targets. */
++  task: string;
++  /** Hex accent used for the robot body + processed-floor tint. */
++  color: string;
++  /** Effective working width in metres (drives coverage + before/after). */
++  workingWidthM: number;
++  /** Travel speed in metres/second (drives animation + job-time math). */
++  speedMps: number;
++  /** Target sustained coverage rate, in m^2 per hour. */
++  coverageM2PerHour: number;
++  /** Coverage path the planner should generate for this platform. */
++  pattern: PathPattern;
++  /** Short label for the active tool head shown in the HUD. */
++  toolLabel: string;
++  /** 2-4 headline specs shown as chips. label + value already formatted. */
++  chips: { label: string; value: string }[];
++}
++
++export const ROBOTS: RobotSpec[] = [
++  {
++    id: "sand",
++    name: "ForgeSand D1",
++    codename: "D1",
++    role: "Autonomous multi-grit sander",
++    task: "Full-floor abrasion in sequenced grit passes at consistent pressure.",
++    color: "#b45309",
++    workingWidthM: 0.5,
++    speedMps: 0.25,
++    coverageM2PerHour: 55,
++    pattern: "boustrophedon",
++    toolLabel: "Planetary drum · 36→180 grit",
++    chips: [
++      { label: "Working width", value: "0.50 m" },
++      { label: "Grit range", value: "36 → 180" },
++      { label: "Dust capture (target)", value: "98% HEPA" },
++      { label: "Coverage", value: "~55 m²/h" },
++    ],
++  },
++  {
++    id: "edge",
++    name: "ForgeEdge E1",
++    codename: "E1",
++    role: "Semi-autonomous edger",
++    task: "Perimeter and transition sanding where the drum can't reach.",
++    color: "#0ea5e9",
++    workingWidthM: 0.14,
++    speedMps: 0.15,
++    coverageM2PerHour: 18,
++    pattern: "perimeter",
++    toolLabel: "Oscillating edge head · vision-guided",
++    chips: [
++      { label: "Working width", value: "0.14 m" },
++      { label: "Edge follow", value: "LiDAR + vision" },
++      { label: "Mode", value: "Human-oversight" },
++      { label: "Coverage", value: "~18 m²/h" },
++    ],
++  },
++  {
++    id: "coat",
++    name: "ForgeCoat C1",
++    codename: "C1",
++    role: "Finish applicator",
++    task: "Even film-build application of stain / polyurethane across the field.",
++    color: "#15803d",
++    workingWidthM: 0.6,
++    speedMps: 0.35,
++    coverageM2PerHour: 75,
++    pattern: "boustrophedon",
++    toolLabel: "T-bar / spray · live viscosity monitor",
++    chips: [
++      { label: "Working width", value: "0.60 m" },
++      { label: "Film build (target)", value: "±5%" },
++      { label: "Modes", value: "T-bar / spray" },
++      { label: "Coverage", value: "~75 m²/h" },
++    ],
++  },
++  {
++    id: "lay",
++    name: "ForgeLay L1",
++    codename: "L1",
++    role: "Plank placement gantry",
++    task: "Pick, align, and set planks row-by-row with nail/staple indexing.",
++    color: "#7c3aed",
++    workingWidthM: 0.45,
++    speedMps: 0.18,
++    coverageM2PerHour: 28,
++    pattern: "boustrophedon",
++    toolLabel: "Gantry gripper · alignment vision",
++    chips: [
++      { label: "Row pitch", value: "0.45 m" },
++      { label: "Alignment", value: "vision-indexed" },
++      { label: "Fastening", value: "nail / staple" },
++      { label: "Coverage", value: "~28 m²/h" },
++    ],
++  },
++  {
++    id: "scan",
++    name: "ForgeScan S1",
++    codename: "S1",
++    role: "Inspection & flatness scanner",
++    task: "Pre/post flatness mapping and coverage QA at survey speed.",
++    color: "#0f172a",
++    workingWidthM: 0.8,
++    speedMps: 0.6,
++    coverageM2PerHour: 220,
++    pattern: "boustrophedon",
++    toolLabel: "LiDAR mast · flatness map",
++    chips: [
++      { label: "Sweep width", value: "0.80 m" },
++      { label: "Flatness res.", value: "sub-mm (target)" },
++      { label: "Output", value: "coverage QA map" },
++      { label: "Coverage", value: "~220 m²/h" },
++    ],
++  },
++];
++
++export const getRobot = (id: string): RobotSpec =>
++  ROBOTS.find((r) => r.id === id) ?? ROBOTS[0];
+diff --git a/lib/simStore.ts b/lib/simStore.ts
+new file mode 100644
+index 0000000..0fba898
+--- /dev/null
++++ b/lib/simStore.ts
+@@ -0,0 +1,70 @@
++"use client";
++
++import { create } from "zustand";
++import { ROBOTS } from "@/lib/robots";
++
++export interface SimMetrics {
++  coveragePct: number; // 0..100, cells processed
++  elapsedSec: number; // wall-clock seconds of the running sim
++  jobEtaSec: number; // realistic full-job estimate from coverage rate
++  areaM2: number; // room area
++}
++
++interface SimState {
++  selectedId: string;
++  roomW: number;
++  roomL: number;
++  running: boolean;
++  /** Playback multiplier: how many "sim seconds" pass per real second. */
++  speed: number;
++  metrics: SimMetrics;
++  /** Bump this to force the scene to rebuild the floor + replan. */
++  resetToken: number;
++
++  select: (id: string) => void;
++  setRoom: (w: number, l: number) => void;
++  setSpeed: (s: number) => void;
++  toggleRun: () => void;
++  reset: () => void;
++  setMetrics: (m: Partial<SimMetrics>) => void;
++}
++
++export const useSim = create<SimState>((set) => ({
++  selectedId: ROBOTS[0].id,
++  roomW: 6,
++  roomL: 5,
++  running: false,
++  speed: 8,
++  metrics: { coveragePct: 0, elapsedSec: 0, jobEtaSec: 0, areaM2: 30 },
++  resetToken: 0,
++
++  select: (id) =>
++    set((s) => ({
++      selectedId: id,
++      running: false,
++      resetToken: s.resetToken + 1,
++      metrics: { ...s.metrics, coveragePct: 0, elapsedSec: 0 },
++    })),
++  setRoom: (roomW, roomL) =>
++    set((s) => ({
++      roomW,
++      roomL,
++      running: false,
++      resetToken: s.resetToken + 1,
++      metrics: {
++        ...s.metrics,
++        areaM2: roomW * roomL,
++        coveragePct: 0,
++        elapsedSec: 0,
++      },
++    })),
++  setSpeed: (speed) => set({ speed }),
++  toggleRun: () => set((s) => ({ running: !s.running })),
++  reset: () =>
++    set((s) => ({
++      running: false,
++      resetToken: s.resetToken + 1,
++      metrics: { ...s.metrics, coveragePct: 0, elapsedSec: 0 },
++    })),
++  setMetrics: (m) => set((s) => ({ metrics: { ...s.metrics, ...m } })),
++}));
+diff --git a/package.json b/package.json
+index 668c70f..371b331 100644
+--- a/package.json
++++ b/package.json
+@@ -18,6 +18,8 @@
+     "@radix-ui/react-select": "^2.1.4",
+     "@radix-ui/react-slot": "^1.1.1",
+     "@radix-ui/react-tabs": "^1.1.2",
++    "@react-three/drei": "^10.0.0",
++    "@react-three/fiber": "^9.1.0",
+     "@supabase/supabase-js": "^2.47.10",
+     "class-variance-authority": "^0.7.1",
+     "clsx": "^2.1.1",
+@@ -31,13 +33,16 @@
+     "react-icons": "^5.7.0",
+     "sonner": "^1.7.1",
+     "tailwind-merge": "^2.6.0",
+-    "zod": "^3.24.1"
++    "three": "^0.171.0",
++    "zod": "^3.24.1",
++    "zustand": "^5.0.3"
+   },
+   "devDependencies": {
+     "@tailwindcss/postcss": "^4",
+     "@types/node": "^20",
+     "@types/react": "^19",
+     "@types/react-dom": "^19",
++    "@types/three": "^0.171.0",
+     "eslint": "^9",
+     "eslint-config-next": "16.2.10",
+     "tailwindcss": "^4",
