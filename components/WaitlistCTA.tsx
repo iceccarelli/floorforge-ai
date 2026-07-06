@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Mail, ArrowRight } from "lucide-react";
@@ -18,8 +18,18 @@ export default function WaitlistCTA() {
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
   const [volume, setVolume] = useState("");
+  const [interest, setInterest] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+
+  // Read ?interest=<platform> passed from the simulator CTA. Done via a
+  // client effect (not useSearchParams) so the homepage stays static.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get("interest");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (value) setInterest(value);
+  }, []);
 
   const handleSubmit = async () => {
     if (!email.trim() || !email.includes("@")) {
@@ -36,6 +46,7 @@ export default function WaitlistCTA() {
           email,
           company,
           monthly_sqft: volume,
+          interest: interest || "general",
           source: "floorforge-pilot-waitlist",
         }),
       });
@@ -79,6 +90,12 @@ export default function WaitlistCTA() {
 
   return (
     <div className="max-w-2xl mx-auto card p-8 md:p-10 bg-white border-2 border-slate-200">
+      {interest && (
+        <div className="mb-5 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent-light px-3 py-2 text-sm text-foreground">
+          <span className="font-semibold text-accent">Interested in:</span>
+          {interest}
+        </div>
+      )}
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
           <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">

@@ -30,13 +30,13 @@ export default function Simulator() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
-      {/* left: controls */}
-      <aside className="rounded-2xl border border-border bg-muted/40 p-4">
+      {/* left: controls (below the canvas on mobile, beside it on desktop) */}
+      <aside className="order-2 rounded-2xl border border-border bg-muted/40 p-4 lg:order-none">
         <ControlPanel />
       </aside>
 
       {/* right: canvas + hud */}
-      <div className="relative min-h-[440px] overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-[#f1f5f9] to-[#e2e8f0]">
+      <div className="relative order-1 min-h-[360px] overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-[#f1f5f9] to-[#e2e8f0] sm:min-h-[440px] lg:order-none">
         {webgl ? (
           <>
             <MetricsHUD />
@@ -57,7 +57,7 @@ export default function Simulator() {
             </p>
           </>
         ) : (
-          <div className="flex h-full min-h-[440px] flex-col items-center justify-center p-8 text-center">
+          <div className="flex h-full min-h-[360px] flex-col items-center justify-center p-8 text-center sm:min-h-[440px]">
             <p className="text-sm font-semibold text-foreground">
               3D view needs WebGL
             </p>
@@ -84,7 +84,7 @@ export default function Simulator() {
             </p>
           </div>
           <Button asChild variant="accent" className="shrink-0">
-            <Link href={`/#waitlist?interest=${encodeURIComponent(robot.name)}`}>
+            <Link href={`/?interest=${encodeURIComponent(robot.name)}#waitlist`}>
               Join the pilot program <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>

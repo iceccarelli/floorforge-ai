@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
@@ -18,17 +19,27 @@ const navLinks = [
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
 
-  const scrollToSection = (href: string) => {
-    const element = document.querySelector(href);
-    if (element) {
-      const offset = 80;
-      const bodyRect = document.body.getBoundingClientRect().top;
-      const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition - bodyRect - offset;
-      window.scrollTo({ top: offsetPosition, behavior: "smooth" });
-    }
+  // Route-aware section navigation: smooth-scroll when we're already on the
+  // homepage, otherwise navigate to /#section so the link works from every
+  // page (e.g. /simulator, /dashboard) instead of being a dead button.
+  const goToSection = (hash: string) => {
     setMobileMenuOpen(false);
+    if (pathname === "/") {
+      const el = document.querySelector(hash);
+      if (el) {
+        const offset = 80;
+        const top =
+          el.getBoundingClientRect().top -
+          document.body.getBoundingClientRect().top -
+          offset;
+        window.scrollTo({ top, behavior: "smooth" });
+      }
+    } else {
+      router.push(`/${hash}`);
+    }
   };
 
   return (
@@ -51,7 +62,7 @@ export default function Header() {
             {navLinks.map((link) => (
               <button
                 key={link.href}
-                onClick={() => scrollToSection(link.href)}
+                onClick={() => goToSection(link.href)}
                 className="text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
               >
                 {link.label}
@@ -106,7 +117,7 @@ export default function Header() {
               variant="accent"
               size="sm"
               className="font-semibold px-5"
-              onClick={() => scrollToSection("#waitlist")}
+              onClick={() => goToSection("#waitlist")}
             >
               Join waitlist
             </Button>
@@ -136,7 +147,7 @@ export default function Header() {
               {navLinks.map((link) => (
                 <button
                   key={link.href}
-                  onClick={() => scrollToSection(link.href)}
+                  onClick={() => goToSection(link.href)}
                   className="text-left py-2 text-muted-foreground hover:text-foreground font-medium"
                 >
                   {link.label}
@@ -167,7 +178,7 @@ export default function Header() {
                 <Button
                   variant="accent"
                   className="w-full justify-center"
-                  onClick={() => scrollToSection("#waitlist")}
+                  onClick={() => goToSection("#waitlist")}
                 >
                   Join waitlist
                 </Button>

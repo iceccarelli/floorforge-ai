@@ -55,6 +55,7 @@ export default function Footer() {
             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Product</div>
             <ul className="space-y-2.5 text-sm text-white/80">
               <li><Link href="/#features" className="hover:text-white transition">Features</Link></li>
+              <li><Link href="/simulator" className="hover:text-white transition">3D Simulator</Link></li>
               <li><Link href="/#how-it-works" className="hover:text-white transition">How it Works</Link></li>
               <li><Link href="/#roi" className="hover:text-white transition">ROI Model</Link></li>
               <li><Link href="/#pricing" className="hover:text-white transition">Planned Pricing</Link></li>
