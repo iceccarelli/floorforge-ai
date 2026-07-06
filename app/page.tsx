@@ -10,6 +10,8 @@ import ROICalculator from "@/components/ROICalculator";
 import Chatbot from "@/components/Chatbot";
 import WaitlistCTA from "@/components/WaitlistCTA";
 import Reveal from "@/components/Reveal";
+import Link from "next/link";
+import { ROBOTS } from "@/lib/robots";
 
 const scrollTo = (id: string) => {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -163,6 +165,49 @@ export default function FloorForgeLanding() {
             <div>DUST REPORTING</div>
             <div>UNIFIED FLEET OS</div>
           </div>
+        </div>
+      </section>
+
+      {/* SIMULATOR TEASER */}
+      <section className="section border-b bg-muted py-16">
+        <div className="mx-auto max-w-6xl px-6">
+          <Reveal>
+            <div className="flex flex-col items-start gap-6 rounded-2xl border border-border bg-card p-8 md:flex-row md:items-center md:justify-between">
+              <div className="max-w-xl">
+                <span className="mb-3 inline-block rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+                  Interactive concept demo
+                </span>
+                <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                  Drive the robots yourself — before they exist in your shop
+                </h2>
+                <p className="mt-3 text-muted-foreground">
+                  Pick a platform, size the room, and watch a live coverage pass
+                  fill the floor with real-time area and job-time estimates. A 3D
+                  way to explore how autonomous refinishing would run — figures
+                  are design targets, not completed-job records.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {ROBOTS.map((r) => (
+                    <span
+                      key={r.id}
+                      className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-xs text-muted-foreground"
+                    >
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ background: r.color }}
+                      />
+                      {r.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <Button asChild variant="accent" size="lg" className="shrink-0">
+                <Link href="/simulator">
+                  Open the 3D simulator <ArrowRight className="h-5 w-5" />
+                </Link>
+              </Button>
+            </div>
+          </Reveal>
         </div>
       </section>
 
