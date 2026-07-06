@@ -14,7 +14,17 @@ function fmtTime(sec: number): string {
 export default function MetricsHUD() {
   const metrics = useSim((s) => s.metrics);
   const selectedId = useSim((s) => s.selectedId);
+  const running = useSim((s) => s.running);
   const robot = getRobot(selectedId);
+
+  const done = metrics.coveragePct >= 99.5;
+  const status = running
+    ? `${robot.jobVerb}…`
+    : done
+    ? "Job complete"
+    : metrics.coveragePct > 0
+    ? "Paused"
+    : "Ready";
 
   const coveredArea = (metrics.areaM2 * metrics.coveragePct) / 100;
   const remainingJob = Math.max(
@@ -41,6 +51,18 @@ export default function MetricsHUD() {
         />
         <span className="text-xs font-semibold text-foreground">
           {robot.name}
+        </span>
+        <span
+          className="ml-auto flex items-center gap-1 text-[10px] font-medium text-muted-foreground"
+          aria-live="polite"
+        >
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${
+              running ? "animate-pulse" : ""
+            }`}
+            style={{ background: running ? robot.color : "#94a3b8" }}
+          />
+          {status}
         </span>
       </div>
       <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
