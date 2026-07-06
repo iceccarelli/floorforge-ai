@@ -319,3 +319,24 @@ a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .chat-launcher { animation: none; }
 }
+
+
+/* Skip link — visible only on keyboard focus, for a11y */
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -48px;
+  z-index: 100;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 12px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

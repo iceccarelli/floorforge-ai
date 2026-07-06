@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import ROICalculator from "@/components/ROICalculator";
 import Chatbot from "@/components/Chatbot";
 import WaitlistCTA from "@/components/WaitlistCTA";
+import Reveal from "@/components/Reveal";
 
 const scrollTo = (id: string) => {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
@@ -180,13 +181,15 @@ export default function FloorForgeLanding() {
           {features.map((feature, index) => {
             const Icon = feature.icon;
             return (
-              <div key={index} className="card p-8 group">
+              <Reveal key={index} delay={index * 0.06}>
+              <div className="card p-8 group">
                 <div className="feature-icon mb-6 group-hover:scale-105 transition-transform">
                   <Icon className="h-6 w-6" />
                 </div>
                 <h3 className="font-semibold text-2xl tracking-tight mb-3">{feature.title}</h3>
                 <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
               </div>
+              </Reveal>
             );
           })}
         </div>
@@ -208,13 +211,15 @@ export default function FloorForgeLanding() {
 
           <div className="space-y-4">
             {howItWorks.map((step, index) => (
-              <div key={index} className="card p-8 md:p-9 flex flex-col md:flex-row gap-8 md:gap-12 items-start group">
+              <Reveal key={index} delay={index * 0.06}>
+              <div className="card p-8 md:p-9 flex flex-col md:flex-row gap-8 md:gap-12 items-start group">
                 <div className="font-mono text-6xl font-semibold text-accent/70 tracking-[-3px] w-20 flex-shrink-0">{step.step}</div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-2xl tracking-tight mb-3 group-hover:text-accent transition-colors">{step.title}</h3>
                   <p className="text-lg text-muted-foreground leading-relaxed">{step.desc}</p>
                 </div>
               </div>
+              </Reveal>
             ))}
           </div>
         </div>
