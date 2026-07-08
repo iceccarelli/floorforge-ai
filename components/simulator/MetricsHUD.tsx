@@ -17,12 +17,14 @@ export default function MetricsHUD() {
   const running = useSim((s) => s.running);
   const robot = getRobot(selectedId);
 
-  const done = metrics.coveragePct >= 99.5;
+  const multiPass = metrics.passCount > 1;
+  const finalPass = metrics.pass >= metrics.passCount;
+  const done = finalPass && metrics.coveragePct >= 99.5;
   const status = running
     ? `${robot.jobVerb}…`
     : done
     ? "Job complete"
-    : metrics.coveragePct > 0
+    : metrics.coveragePct > 0 || metrics.pass > 1
     ? "Paused"
     : "Ready";
 
@@ -68,6 +70,34 @@ export default function MetricsHUD() {
       <p className="mb-2 text-[10px] uppercase tracking-wide text-muted-foreground">
         {robot.toolLabel}
       </p>
+
+      {/* pass sequence */}
+      {multiPass && (
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[11px] text-muted-foreground">
+            Pass {metrics.pass}/{metrics.passCount}
+            {metrics.passTag ? ` · ${metrics.passTag}` : ""}
+          </span>
+          <span className="flex gap-1">
+            {Array.from({ length: metrics.passCount }).map((_, i) => (
+              <span
+                key={i}
+                className="h-1.5 w-1.5 rounded-full"
+                style={{
+                  background:
+                    i < metrics.pass - 1
+                      ? robot.color
+                      : i === metrics.pass - 1
+                      ? robot.color
+                      : "#cbd5e1",
+                  opacity: i < metrics.pass ? 1 : 0.5,
+                }}
+              />
+            ))}
+          </span>
+        </div>
+      )}
+
       <div className="space-y-1.5">
         {items.map((it) => (
           <div key={it.label} className="flex items-baseline justify-between">
