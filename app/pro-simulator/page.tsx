@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Download, Info } from "lucide-react";
+import { ArrowLeft, Info, Monitor } from "lucide-react";
 import { getRobot } from "@/lib/robots";
+import ProTeardownLoader from "@/components/simulator/ProTeardownLoader";
 
 export const metadata: Metadata = {
   title: "Pro Simulator | FloorForge — High-Fidelity Mechanical Inspection",
@@ -10,11 +11,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/pro-simulator" },
   robots: { index: false }, // gated tool; keep out of the index
 };
-
-// The Godot 4 web build (single-threaded, so NO COOP/COEP headers needed) is
-// exported into /public/pro-sim/. Same-origin iframe => Godot reads its own
-// query string via JavaScriptBridge (see JobParams.gd).
-const GODOT_BUILD = "/pro-sim/index.html";
 
 type SP = Record<string, string | string[] | undefined>;
 const first = (v: string | string[] | undefined) =>
@@ -30,14 +26,6 @@ export default async function ProSimulatorPage({
   const roomW = first(sp.roomW) ?? "6";
   const roomL = first(sp.roomL) ?? "5";
   const robot = getRobot(robotId);
-
-  const frameParams = new URLSearchParams({
-    robot: robotId,
-    roomW,
-    roomL,
-    target: "web",
-  });
-  const frameSrc = `${GODOT_BUILD}?${frameParams.toString()}`;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
@@ -66,58 +54,33 @@ export default async function ProSimulatorPage({
         is designed to work — not telemetry from shipping hardware.
       </p>
 
-      {/* Godot web player (single-threaded build => no special headers) */}
-      <div className="relative mt-6 aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
-        <iframe
-          src={frameSrc}
-          title={`FloorForge Pro Simulator — ${robot.name}`}
-          className="h-full w-full"
-          allow="autoplay; fullscreen; cross-origin-isolated"
-          // sandbox kept permissive enough for WASM + pointer lock; tighten as needed
-          sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-fullscreen"
-        />
+      {/* live in-browser teardown (WebGL, no plugin, no download) */}
+      <div className="mt-6">
+        <ProTeardownLoader robotId={robotId} roomW={roomW} roomL={roomL} />
       </div>
 
-      {/* desktop downloads */}
+      {/* honest context — no dead links */}
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Download className="h-4 w-4" /> Desktop build (max fidelity)
+            <Monitor className="h-4 w-4" /> Renders live in your browser
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Native executables run heavier physics and higher-poly internals than
-            the browser build.
+            This teardown runs on the same WebGL engine as the simulator — no
+            plugin, no download. Drag to orbit, pull the exploded slider, and
+            toggle the cutaway to see the drum, motor rotor and reduction gears.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <a
-              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
-              href="/pro-sim/downloads/floorforge-pro-sim-win.zip"
-            >
-              Windows (.zip)
-            </a>
-            <a
-              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
-              href="/pro-sim/downloads/floorforge-pro-sim-linux.zip"
-            >
-              Linux (.zip)
-            </a>
-            <a
-              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
-              href="/pro-sim/downloads/floorforge-pro-sim-mac.zip"
-            >
-              macOS (.zip)
-            </a>
-          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <Info className="h-4 w-4" /> Setup note
+            <Info className="h-4 w-4" /> What you&apos;re looking at
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            The player loads from <code>/public/pro-sim/</code>. Export the Godot
-            project (single-threaded web preset) there and this page goes live —
-            no server header changes required.
+            The geometry reflects how the {robot.name} is designed to operate.
+            Dimensions, grit sequence and coverage figures are engineering
+            targets for hardware in development — a way to inspect the mechanism,
+            not a record of a completed job.
           </p>
         </div>
       </div>

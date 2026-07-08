@@ -7,9 +7,9 @@ import { useSim } from "@/lib/simStore";
 import { Button } from "@/components/ui/button";
 
 /**
- * Premium upsell: launches the high-fidelity Godot "Pro Simulator" and passes
- * the current job parameters through the URL. The Godot build reads these via
- * JavaScriptBridge (see the Godot project's JobParams.gd).
+ * Premium upsell: opens the high-fidelity Pro teardown and passes the current
+ * job parameters through the URL (robot, roomW, roomL). The Pro page reads them
+ * to load the right machine and job size.
  *
  * Positioning (honest): the Pro Simulator is a high-fidelity *concept*
  * teardown + inspection tool for pre-production hardware — not a telemetry
@@ -27,14 +27,12 @@ export default function LaunchProSimulator({
   const roomW = useSim((s) => s.roomW);
   const roomL = useSim((s) => s.roomL);
 
-  // Job params handed to the Godot build. Keep keys stable — JobParams.gd
-  // parses exactly these.
+  // Job params handed to the Pro teardown page. Keep keys stable — the page
+  // reads exactly these to pick the machine and job size.
   const params = new URLSearchParams({
     robot: selectedId,
     roomW: String(roomW),
     roomL: String(roomL),
-    // "web" | "desktop" hint so the Godot UI can adapt density of controls
-    target: "web",
   });
   const href = `/pro-simulator?${params.toString()}`;
 
@@ -52,9 +50,9 @@ export default function LaunchProSimulator({
             </span>
           </p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Full mechanical teardown of this platform — every gear, motor rotor,
-            drum, belt and the dust path — with exploded views, cutaway cameras
-            and realistic multi-grit passes. Opens with your current job loaded.
+            Full mechanical teardown of this platform — motor rotor, reduction
+            gears, drum and the dust path — with exploded views, cutaway cameras
+            and a turntable inspection view. Opens with your current job loaded.
           </p>
         </div>
       </div>

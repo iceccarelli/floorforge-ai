@@ -126,7 +126,13 @@ function Wheels({ width }: { width: number }) {
   );
 }
 
-export default function RobotMesh({ robot }: { robot: RobotSpec }) {
+export default function RobotMesh({
+  robot,
+  animate = false,
+}: {
+  robot: RobotSpec;
+  animate?: boolean;
+}) {
   const m = useMats(robot.color);
   const width = robot.workingWidthM;
   const bodyW = Math.max(0.42, width * 0.95);
@@ -153,7 +159,7 @@ export default function RobotMesh({ robot }: { robot: RobotSpec }) {
   }, [bodyW]);
 
   useFrame((state, delta) => {
-    const running = useSim.getState().running;
+    const running = animate || useSim.getState().running;
     const dt = Math.min(delta, 0.05);
     const t = state.clock.elapsedTime;
 
