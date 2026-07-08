@@ -23,6 +23,10 @@ export default function ControlPanel() {
   const reset = useSim((s) => s.reset);
   const setSpeed = useSim((s) => s.setSpeed);
   const setRoom = useSim((s) => s.setRoom);
+  const exploded = useSim((s) => s.exploded);
+  const cutaway = useSim((s) => s.cutaway);
+  const setExploded = useSim((s) => s.setExploded);
+  const toggleCutaway = useSim((s) => s.toggleCutaway);
 
   const robot = getRobot(selectedId);
 
@@ -113,6 +117,46 @@ export default function ControlPanel() {
           onChange={(e) => setSpeed(Number(e.target.value))}
           className="w-full accent-[var(--accent)]"
         />
+      </div>
+
+      {/* inspection: exploded view + cutaway */}
+      <div className="rounded-lg border border-border bg-card p-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Inspect machine
+        </p>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label htmlFor="explode" className="text-xs font-semibold text-foreground">
+            Exploded view
+          </label>
+          <span className="font-mono text-xs text-muted-foreground">
+            {Math.round(exploded * 100)}%
+          </span>
+        </div>
+        <input
+          id="explode"
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={exploded}
+          onChange={(e) => setExploded(Number(e.target.value))}
+          className="w-full accent-[var(--accent)]"
+        />
+        <button
+          onClick={toggleCutaway}
+          aria-pressed={cutaway}
+          className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
+            cutaway
+              ? "border-accent bg-accent-light text-foreground"
+              : "border-border bg-card text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          {cutaway ? "Cutaway: internals visible" : "Cutaway: show internals"}
+        </button>
+        <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+          Quick web preview. For the full mechanical teardown — every gear, rotor,
+          belt and the dust path — launch the Pro Simulator below.
+        </p>
       </div>
 
       {/* room size */}

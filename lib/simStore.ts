@@ -21,12 +21,19 @@ interface SimState {
   /** Bump this to force the scene to rebuild the floor + replan. */
   resetToken: number;
 
+  /** 0 = assembled, 1 = fully exploded. Drives the web inspection view. */
+  exploded: number;
+  /** Show the chassis as a cutaway (hide the top shell) to reveal internals. */
+  cutaway: boolean;
+
   select: (id: string) => void;
   setRoom: (w: number, l: number) => void;
   setSpeed: (s: number) => void;
   toggleRun: () => void;
   reset: () => void;
   setMetrics: (m: Partial<SimMetrics>) => void;
+  setExploded: (v: number) => void;
+  toggleCutaway: () => void;
 }
 
 export const useSim = create<SimState>((set) => ({
@@ -37,6 +44,8 @@ export const useSim = create<SimState>((set) => ({
   speed: 8,
   metrics: { coveragePct: 0, elapsedSec: 0, jobEtaSec: 0, areaM2: 30 },
   resetToken: 0,
+  exploded: 0,
+  cutaway: false,
 
   select: (id) =>
     set((s) => ({
@@ -60,6 +69,8 @@ export const useSim = create<SimState>((set) => ({
     })),
   setSpeed: (speed) => set({ speed }),
   toggleRun: () => set((s) => ({ running: !s.running })),
+  setExploded: (exploded) => set({ exploded: Math.max(0, Math.min(1, exploded)) }),
+  toggleCutaway: () => set((s) => ({ cutaway: !s.cutaway })),
   reset: () =>
     set((s) => ({
       running: false,

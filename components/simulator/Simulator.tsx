@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import FloorScene from "@/components/simulator/FloorScene";
 import ControlPanel from "@/components/simulator/ControlPanel";
 import MetricsHUD from "@/components/simulator/MetricsHUD";
+import LaunchProSimulator from "@/components/simulator/LaunchProSimulator";
 import { getRobot } from "@/lib/robots";
 import { useSim } from "@/lib/simStore";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,11 @@ export default function Simulator() {
             </p>
           </div>
         )}
+      </div>
+
+      {/* full-width premium upsell */}
+      <div className="lg:col-span-2">
+        <LaunchProSimulator />
       </div>
 
       {/* full-width honest CTA */}

@@ -3,7 +3,7 @@
 import React, { useMemo, useRef, useLayoutEffect } from "react";
 import * as THREE from "three";
 import { useFrame } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { OrbitControls, Environment, Lightformer } from "@react-three/drei";
 import { getRobot } from "@/lib/robots";
 import { planPath, pathLength, type Vec2 } from "@/lib/pathPlanning";
 import { useSim } from "@/lib/simStore";
@@ -259,6 +259,15 @@ export default function FloorScene() {
         shadow-bias={-0.0004}
       />
       <hemisphereLight args={["#ffffff", "#6b5640", 0.5]} />
+
+      {/* Procedural PBR reflection environment — generated in-engine from
+          Lightformers, so metals/clearcoat read correctly with NO network
+          fetch (keeps the scene fully offline-safe). */}
+      <Environment resolution={128} frames={1}>
+        <Lightformer intensity={2} position={[0, 4, 2]} scale={[6, 3, 1]} color="#fff6e8" />
+        <Lightformer intensity={1.2} position={[4, 2, -3]} scale={[3, 3, 1]} color="#dce8ff" />
+        <Lightformer intensity={0.8} position={[-4, 1, 2]} scale={[3, 3, 1]} color="#ffffff" />
+      </Environment>
 
       {/* dark subfloor so plank seams read as gaps, not holes */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
