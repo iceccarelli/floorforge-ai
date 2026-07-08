@@ -26,6 +26,22 @@ export interface FloorTransform {
   active: string;
 }
 
+/**
+ * A single work pass over the field. Real refinishing is never one pass:
+ * a drum sander steps through coarse→fine grit, a finisher lays seal then
+ * topcoat. Each pass leaves the floor a slightly different colour, so the
+ * surface visibly refines every lap. `leaves` is the colour a spot holds
+ * AFTER this pass completes; the final pass should equal `floor.done`.
+ */
+export interface WorkPass {
+  /** HUD label, e.g. "36 grit · strip" or "Seal coat". */
+  label: string;
+  /** Short tag for the pass dots, e.g. "36", "80", "Seal". */
+  tag: string;
+  /** Colour the floor holds after this pass finishes. */
+  leaves: string;
+}
+
 export interface RobotSpec {
   id: string;
   name: string;
@@ -48,6 +64,14 @@ export interface RobotSpec {
   pattern: PathPattern;
   toolLabel: string;
   chips: { label: string; value: string }[];
+  /**
+   * Ordered work passes. If omitted, the machine does a single pass that
+   * leaves `floor.done`. Multi-pass machines (sander, finisher) refine the
+   * surface a little more each lap.
+   */
+  passes?: WorkPass[];
+  /** Does this machine throw dust while it works? (drives the particle jet) */
+  emitsDust?: boolean;
 }
 
 export const ROBOTS: RobotSpec[] = [
@@ -66,6 +90,12 @@ export const ROBOTS: RobotSpec[] = [
     coverageM2PerHour: 55,
     pattern: "boustrophedon",
     toolLabel: "Planetary drum \u00b7 36\u2192180 grit",
+    emitsDust: true,
+    passes: [
+      { label: "36 grit \u00b7 strip old finish", tag: "36", leaves: "#c9b083" },
+      { label: "80 grit \u00b7 level & smooth", tag: "80", leaves: "#dcc79a" },
+      { label: "120 grit \u00b7 finish sand", tag: "120", leaves: "#e7d4ac" },
+    ],
     chips: [
       { label: "Working width", value: "0.50 m" },
       { label: "Grit range", value: "36 \u2192 180" },
@@ -88,6 +118,7 @@ export const ROBOTS: RobotSpec[] = [
     coverageM2PerHour: 18,
     pattern: "perimeter",
     toolLabel: "Oscillating edge head \u00b7 vision-guided",
+    emitsDust: true,
     chips: [
       { label: "Working width", value: "0.14 m" },
       { label: "Edge follow", value: "LiDAR + vision" },
@@ -110,6 +141,10 @@ export const ROBOTS: RobotSpec[] = [
     coverageM2PerHour: 75,
     pattern: "boustrophedon",
     toolLabel: "T-bar / spray \u00b7 live viscosity monitor",
+    passes: [
+      { label: "Seal coat \u00b7 wets the grain", tag: "Seal", leaves: "#8a5a2c" },
+      { label: "Finish coat \u00b7 builds the film", tag: "Finish", leaves: "#6f4320" },
+    ],
     chips: [
       { label: "Working width", value: "0.60 m" },
       { label: "Film build (target)", value: "\u00b15%" },

@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { Play, Pause, RotateCcw, Orbit, Video, SquareStack } from "lucide-react";
+import type { CameraMode } from "@/lib/simStore";
 import { ROBOTS, getRobot } from "@/lib/robots";
 import { useSim } from "@/lib/simStore";
 import { Button } from "@/components/ui/button";
@@ -27,8 +28,16 @@ export default function ControlPanel() {
   const cutaway = useSim((s) => s.cutaway);
   const setExploded = useSim((s) => s.setExploded);
   const toggleCutaway = useSim((s) => s.toggleCutaway);
+  const cameraMode = useSim((s) => s.cameraMode);
+  const setCameraMode = useSim((s) => s.setCameraMode);
 
   const robot = getRobot(selectedId);
+
+  const CAMERAS: { mode: CameraMode; label: string; Icon: typeof Orbit }[] = [
+    { mode: "orbit", label: "Orbit", Icon: Orbit },
+    { mode: "follow", label: "Follow", Icon: Video },
+    { mode: "top", label: "Top", Icon: SquareStack },
+  ];
 
   return (
     <div className="flex flex-col gap-5">
@@ -95,6 +104,31 @@ export default function ControlPanel() {
         <Button variant="outline" size="icon" onClick={reset} aria-label="Reset">
           <RotateCcw className="h-4 w-4" />
         </Button>
+      </div>
+
+      {/* camera mode */}
+      <div>
+        <p className="mb-1.5 text-xs font-semibold text-foreground">Camera</p>
+        <div className="grid grid-cols-3 gap-1.5">
+          {CAMERAS.map(({ mode, label, Icon }) => {
+            const active = cameraMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => setCameraMode(mode)}
+                aria-pressed={active}
+                className={`flex flex-col items-center gap-1 rounded-lg border px-2 py-2 text-xs transition-colors ${
+                  active
+                    ? "border-accent bg-accent-light text-foreground"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* speed */}
