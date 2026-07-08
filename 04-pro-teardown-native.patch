@@ -1,0 +1,536 @@
+diff --git a/app/pro-simulator/page.tsx b/app/pro-simulator/page.tsx
+index c6910ab..60a9eb4 100644
+--- a/app/pro-simulator/page.tsx
++++ b/app/pro-simulator/page.tsx
+@@ -1,7 +1,8 @@
+ import type { Metadata } from "next";
+ import Link from "next/link";
+-import { ArrowLeft, Download, Info } from "lucide-react";
++import { ArrowLeft, Info, Monitor } from "lucide-react";
+ import { getRobot } from "@/lib/robots";
++import ProTeardownLoader from "@/components/simulator/ProTeardownLoader";
+ 
+ export const metadata: Metadata = {
+   title: "Pro Simulator | FloorForge — High-Fidelity Mechanical Inspection",
+@@ -11,11 +12,6 @@ export const metadata: Metadata = {
+   robots: { index: false }, // gated tool; keep out of the index
+ };
+ 
+-// The Godot 4 web build (single-threaded, so NO COOP/COEP headers needed) is
+-// exported into /public/pro-sim/. Same-origin iframe => Godot reads its own
+-// query string via JavaScriptBridge (see JobParams.gd).
+-const GODOT_BUILD = "/pro-sim/index.html";
+-
+ type SP = Record<string, string | string[] | undefined>;
+ const first = (v: string | string[] | undefined) =>
+   Array.isArray(v) ? v[0] : v;
+@@ -31,14 +27,6 @@ export default async function ProSimulatorPage({
+   const roomL = first(sp.roomL) ?? "5";
+   const robot = getRobot(robotId);
+ 
+-  const frameParams = new URLSearchParams({
+-    robot: robotId,
+-    roomW,
+-    roomL,
+-    target: "web",
+-  });
+-  const frameSrc = `${GODOT_BUILD}?${frameParams.toString()}`;
+-
+   return (
+     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
+       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+@@ -66,58 +54,33 @@ export default async function ProSimulatorPage({
+         is designed to work — not telemetry from shipping hardware.
+       </p>
+ 
+-      {/* Godot web player (single-threaded build => no special headers) */}
+-      <div className="relative mt-6 aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
+-        <iframe
+-          src={frameSrc}
+-          title={`FloorForge Pro Simulator — ${robot.name}`}
+-          className="h-full w-full"
+-          allow="autoplay; fullscreen; cross-origin-isolated"
+-          // sandbox kept permissive enough for WASM + pointer lock; tighten as needed
+-          sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-fullscreen"
+-        />
++      {/* live in-browser teardown (WebGL, no plugin, no download) */}
++      <div className="mt-6">
++        <ProTeardownLoader robotId={robotId} roomW={roomW} roomL={roomL} />
+       </div>
+ 
+-      {/* desktop downloads */}
++      {/* honest context — no dead links */}
+       <div className="mt-6 grid gap-3 sm:grid-cols-2">
+         <div className="rounded-xl border border-border bg-card p-4">
+           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+-            <Download className="h-4 w-4" /> Desktop build (max fidelity)
++            <Monitor className="h-4 w-4" /> Renders live in your browser
+           </p>
+           <p className="mt-1 text-sm text-muted-foreground">
+-            Native executables run heavier physics and higher-poly internals than
+-            the browser build.
++            This teardown runs on the same WebGL engine as the simulator — no
++            plugin, no download. Drag to orbit, pull the exploded slider, and
++            toggle the cutaway to see the drum, motor rotor and reduction gears.
+           </p>
+-          <div className="mt-3 flex flex-wrap gap-2">
+-            <a
+-              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
+-              href="/pro-sim/downloads/floorforge-pro-sim-win.zip"
+-            >
+-              Windows (.zip)
+-            </a>
+-            <a
+-              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
+-              href="/pro-sim/downloads/floorforge-pro-sim-linux.zip"
+-            >
+-              Linux (.zip)
+-            </a>
+-            <a
+-              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
+-              href="/pro-sim/downloads/floorforge-pro-sim-mac.zip"
+-            >
+-              macOS (.zip)
+-            </a>
+-          </div>
+         </div>
+ 
+         <div className="rounded-xl border border-border bg-card p-4">
+           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+-            <Info className="h-4 w-4" /> Setup note
++            <Info className="h-4 w-4" /> What you&apos;re looking at
+           </p>
+           <p className="mt-1 text-sm text-muted-foreground">
+-            The player loads from <code>/public/pro-sim/</code>. Export the Godot
+-            project (single-threaded web preset) there and this page goes live —
+-            no server header changes required.
++            The geometry reflects how the {robot.name} is designed to operate.
++            Dimensions, grit sequence and coverage figures are engineering
++            targets for hardware in development — a way to inspect the mechanism,
++            not a record of a completed job.
+           </p>
+         </div>
+       </div>
+diff --git a/components/simulator/LaunchProSimulator.tsx b/components/simulator/LaunchProSimulator.tsx
+index e86368c..d0aa62e 100644
+--- a/components/simulator/LaunchProSimulator.tsx
++++ b/components/simulator/LaunchProSimulator.tsx
+@@ -7,9 +7,9 @@ import { useSim } from "@/lib/simStore";
+ import { Button } from "@/components/ui/button";
+ 
+ /**
+- * Premium upsell: launches the high-fidelity Godot "Pro Simulator" and passes
+- * the current job parameters through the URL. The Godot build reads these via
+- * JavaScriptBridge (see the Godot project's JobParams.gd).
++ * Premium upsell: opens the high-fidelity Pro teardown and passes the current
++ * job parameters through the URL (robot, roomW, roomL). The Pro page reads them
++ * to load the right machine and job size.
+  *
+  * Positioning (honest): the Pro Simulator is a high-fidelity *concept*
+  * teardown + inspection tool for pre-production hardware — not a telemetry
+@@ -27,14 +27,12 @@ export default function LaunchProSimulator({
+   const roomW = useSim((s) => s.roomW);
+   const roomL = useSim((s) => s.roomL);
+ 
+-  // Job params handed to the Godot build. Keep keys stable — JobParams.gd
+-  // parses exactly these.
++  // Job params handed to the Pro teardown page. Keep keys stable — the page
++  // reads exactly these to pick the machine and job size.
+   const params = new URLSearchParams({
+     robot: selectedId,
+     roomW: String(roomW),
+     roomL: String(roomL),
+-    // "web" | "desktop" hint so the Godot UI can adapt density of controls
+-    target: "web",
+   });
+   const href = `/pro-simulator?${params.toString()}`;
+ 
+@@ -52,9 +50,9 @@ export default function LaunchProSimulator({
+             </span>
+           </p>
+           <p className="mt-0.5 text-sm text-muted-foreground">
+-            Full mechanical teardown of this platform — every gear, motor rotor,
+-            drum, belt and the dust path — with exploded views, cutaway cameras
+-            and realistic multi-grit passes. Opens with your current job loaded.
++            Full mechanical teardown of this platform — motor rotor, reduction
++            gears, drum and the dust path — with exploded views, cutaway cameras
++            and a turntable inspection view. Opens with your current job loaded.
+           </p>
+         </div>
+       </div>
+diff --git a/components/simulator/ProTeardown.tsx b/components/simulator/ProTeardown.tsx
+new file mode 100644
+index 0000000..a0c48ab
+--- /dev/null
++++ b/components/simulator/ProTeardown.tsx
+@@ -0,0 +1,269 @@
++"use client";
++
++import React, { useEffect, useState, Suspense } from "react";
++import { Canvas } from "@react-three/fiber";
++import {
++  OrbitControls,
++  Environment,
++  Lightformer,
++  ContactShadows,
++} from "@react-three/drei";
++import {
++  Boxes,
++  Layers,
++  RotateCw,
++  RefreshCw,
++  ScanLine,
++} from "lucide-react";
++import { getRobot, type RobotSpec } from "@/lib/robots";
++import { useSim } from "@/lib/simStore";
++import RobotMesh from "@/components/simulator/RobotMesh";
++
++/** Honest, concept-level descriptions of the internals the model actually
++ *  renders for each platform — used for the annotated parts legend. */
++function partsFor(id: string): { label: string; note: string }[] {
++  switch (id) {
++    case "sand":
++      return [
++        { label: "Planetary drum", note: "ribbed abrasive · 36→120 grit" },
++        { label: "Brushless motor + rotor", note: "revealed in cutaway" },
++        { label: "Reduction gear pair", note: "meshing spur gears" },
++        { label: "Dust shroud + hose", note: "routes to HEPA canister" },
++      ];
++    case "edge":
++      return [
++        { label: "Oscillating disc head", note: "edge & transition sanding" },
++        { label: "Offset follow arm", note: "reaches the wall line" },
++        { label: "Guard skirt", note: "contains debris" },
++      ];
++    case "coat":
++      return [
++        { label: "Fluid tank", note: "stain / poly reservoir" },
++        { label: "Feed line", note: "to the applicator" },
++        { label: "Applicator bar", note: "even film build" },
++        { label: "Wet-film sheen", note: "freshly laid finish" },
++      ];
++    case "lay":
++      return [
++        { label: "Gantry + gripper", note: "picks & sets each plank" },
++        { label: "Plank magazine", note: "staged material feed" },
++        { label: "Alignment head", note: "vision-indexed rows" },
++      ];
++    case "scan":
++      return [
++        { label: "LiDAR dome", note: "rotating flatness sweep" },
++        { label: "Scan emitter ring", note: "active while surveying" },
++        { label: "Forward camera pods", note: "coverage QA" },
++        { label: "Sensor mast", note: "elevated vantage" },
++      ];
++    default:
++      return [];
++  }
++}
++
++function Scene({ robot, autoRotate }: { robot: RobotSpec; autoRotate: boolean }) {
++  return (
++    <>
++      <ambientLight intensity={0.4} />
++      <directionalLight position={[4, 6, 3]} intensity={1.6} castShadow />
++      <directionalLight position={[-5, 3, -4]} intensity={0.5} color="#bcd0ff" />
++
++      {/* in-engine reflections — no network fetch, offline-safe */}
++      <Environment resolution={128} frames={1}>
++        <Lightformer intensity={2.2} position={[0, 4, 2]} scale={[6, 3, 1]} color="#fff6e8" />
++        <Lightformer intensity={1.4} position={[4, 2, -3]} scale={[3, 3, 1]} color="#dce8ff" />
++        <Lightformer intensity={1} position={[-4, 1, 2]} scale={[3, 3, 1]} color="#ffffff" />
++      </Environment>
++
++      {/* turntable pedestal */}
++      <mesh position={[0, -0.006, 0]} rotation={[0, 0, 0]}>
++        <cylinderGeometry args={[1.15, 1.2, 0.012, 64]} />
++        <meshStandardMaterial color="#12161f" metalness={0.6} roughness={0.35} envMapIntensity={0.6} />
++      </mesh>
++      <mesh position={[0, 0.002, 0]}>
++        <torusGeometry args={[1.15, 0.006, 8, 80]} />
++        <meshStandardMaterial color={robot.color} emissive={robot.color} emissiveIntensity={0.5} />
++      </mesh>
++
++      <ContactShadows position={[0, 0.001, 0]} opacity={0.5} scale={5} blur={2.4} far={2} />
++
++      <group position={[0, 0, 0]}>
++        <RobotMesh robot={robot} animate />
++      </group>
++
++      <OrbitControls
++        enablePan={false}
++        autoRotate={autoRotate}
++        autoRotateSpeed={0.9}
++        minDistance={1.4}
++        maxDistance={6}
++        maxPolarAngle={Math.PI / 1.9}
++        target={[0, 0.3, 0]}
++        enableDamping
++      />
++    </>
++  );
++}
++
++export default function ProTeardown({
++  robotId,
++  roomW,
++  roomL,
++}: {
++  robotId: string;
++  roomW: string;
++  roomL: string;
++}) {
++  const robot = getRobot(robotId);
++  const exploded = useSim((s) => s.exploded);
++  const cutaway = useSim((s) => s.cutaway);
++  const setExploded = useSim((s) => s.setExploded);
++  const toggleCutaway = useSim((s) => s.toggleCutaway);
++  const [autoRotate, setAutoRotate] = useState(true);
++
++  // Enter with a clean, assembled machine; leave the store tidy on exit so
++  // navigating back to /simulator doesn't inherit teardown inspection state.
++  useEffect(() => {
++    useSim.setState({ exploded: 0, cutaway: false });
++    return () => useSim.setState({ exploded: 0, cutaway: false });
++  }, [robotId]);
++
++  const reset = () => {
++    setExploded(0);
++    if (cutaway) toggleCutaway();
++  };
++
++  const parts = partsFor(robot.id);
++
++  return (
++    <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-[#0b0e14]">
++      {/* subtle studio vignette */}
++      <div
++        className="pointer-events-none absolute inset-0 z-[1]"
++        style={{
++          background:
++            "radial-gradient(120% 90% at 50% 12%, rgba(255,255,255,0.06), transparent 55%)",
++        }}
++      />
++
++      <Canvas
++        shadows
++        dpr={[1, 1.75]}
++        camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
++        className="h-full w-full"
++        aria-label={`High-fidelity 3D teardown of the ${robot.name}`}
++      >
++        <color attach="background" args={["#0b0e14"]} />
++        <Suspense fallback={null}>
++          <Scene robot={robot} autoRotate={autoRotate} />
++        </Suspense>
++      </Canvas>
++
++      {/* title chip */}
++      <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-sm">
++        <p className="flex items-center gap-2 text-sm font-semibold text-white">
++          <span
++            className="inline-block h-2.5 w-2.5 rounded-full"
++            style={{ background: robot.color }}
++          />
++          {robot.name}
++        </p>
++        <p className="text-[11px] text-white/60">{robot.role}</p>
++      </div>
++
++      {/* parts legend */}
++      {parts.length > 0 && (
++        <div className="pointer-events-none absolute right-3 top-3 z-10 hidden w-[210px] rounded-xl border border-white/10 bg-black/40 p-3 backdrop-blur-sm sm:block">
++          <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/70">
++            <ScanLine className="h-3.5 w-3.5" /> Internals
++          </p>
++          <ul className="space-y-1.5">
++            {parts.map((p) => (
++              <li key={p.label} className="flex gap-2">
++                <span
++                  className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
++                  style={{ background: robot.color }}
++                />
++                <span className="min-w-0">
++                  <span className="block text-[12px] font-medium text-white">
++                    {p.label}
++                  </span>
++                  <span className="block text-[10px] leading-tight text-white/55">
++                    {p.note}
++                  </span>
++                </span>
++              </li>
++            ))}
++          </ul>
++        </div>
++      )}
++
++      {/* control dock */}
++      <div className="absolute inset-x-3 bottom-3 z-10 rounded-xl border border-white/10 bg-black/45 p-3 backdrop-blur-md">
++        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
++          {/* exploded */}
++          <div className="min-w-0 flex-1">
++            <div className="mb-1 flex items-center justify-between">
++              <label
++                htmlFor="pt-explode"
++                className="flex items-center gap-1.5 text-[11px] font-semibold text-white"
++              >
++                <Boxes className="h-3.5 w-3.5" /> Exploded view
++              </label>
++              <span className="font-mono text-[11px] text-white/60">
++                {Math.round(exploded * 100)}%
++              </span>
++            </div>
++            <input
++              id="pt-explode"
++              type="range"
++              min={0}
++              max={1}
++              step={0.01}
++              value={exploded}
++              onChange={(e) => setExploded(Number(e.target.value))}
++              className="w-full accent-[var(--accent)]"
++            />
++          </div>
++
++          {/* buttons */}
++          <div className="flex shrink-0 gap-2">
++            <button
++              onClick={toggleCutaway}
++              aria-pressed={cutaway}
++              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
++                cutaway
++                  ? "border-accent bg-accent text-white"
++                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
++              }`}
++            >
++              <Layers className="h-3.5 w-3.5" /> Cutaway
++            </button>
++            <button
++              onClick={() => setAutoRotate((v) => !v)}
++              aria-pressed={autoRotate}
++              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
++                autoRotate
++                  ? "border-accent bg-accent text-white"
++                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
++              }`}
++            >
++              <RotateCw className="h-3.5 w-3.5" /> Spin
++            </button>
++            <button
++              onClick={reset}
++              className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/10"
++            >
++              <RefreshCw className="h-3.5 w-3.5" /> Reset
++            </button>
++          </div>
++        </div>
++        <p className="mt-2 text-[10px] leading-tight text-white/45">
++          Concept teardown for a {roomW}×{roomL} m job · drag to orbit · scroll to
++          zoom. Geometry shows how the machine is designed to work — not telemetry
++          from shipping hardware.
++        </p>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/simulator/ProTeardownLoader.tsx b/components/simulator/ProTeardownLoader.tsx
+new file mode 100644
+index 0000000..21d76c1
+--- /dev/null
++++ b/components/simulator/ProTeardownLoader.tsx
+@@ -0,0 +1,23 @@
++"use client";
++
++import dynamic from "next/dynamic";
++
++const ProTeardown = dynamic(
++  () => import("@/components/simulator/ProTeardown"),
++  {
++    ssr: false,
++    loading: () => (
++      <div className="flex aspect-video w-full animate-pulse items-center justify-center rounded-2xl border border-border bg-[#0b0e14]">
++        <span className="text-sm text-white/50">Loading teardown…</span>
++      </div>
++    ),
++  }
++);
++
++export default function ProTeardownLoader(props: {
++  robotId: string;
++  roomW: string;
++  roomL: string;
++}) {
++  return <ProTeardown {...props} />;
++}
+diff --git a/components/simulator/RobotMesh.tsx b/components/simulator/RobotMesh.tsx
+index 0691023..d0ebb9c 100644
+--- a/components/simulator/RobotMesh.tsx
++++ b/components/simulator/RobotMesh.tsx
+@@ -126,7 +126,13 @@ function Wheels({ width }: { width: number }) {
+   );
+ }
+ 
+-export default function RobotMesh({ robot }: { robot: RobotSpec }) {
++export default function RobotMesh({
++  robot,
++  animate = false,
++}: {
++  robot: RobotSpec;
++  animate?: boolean;
++}) {
+   const m = useMats(robot.color);
+   const width = robot.workingWidthM;
+   const bodyW = Math.max(0.42, width * 0.95);
+@@ -153,7 +159,7 @@ export default function RobotMesh({ robot }: { robot: RobotSpec }) {
+   }, [bodyW]);
+ 
+   useFrame((state, delta) => {
+-    const running = useSim.getState().running;
++    const running = animate || useSim.getState().running;
+     const dt = Math.min(delta, 0.05);
+     const t = state.clock.elapsedTime;
+ 
+diff --git a/next.config.ts b/next.config.ts
+index b440c31..b460b5e 100644
+--- a/next.config.ts
++++ b/next.config.ts
+@@ -1,33 +1,12 @@
+ import type { NextConfig } from "next";
+ 
+ /**
+- * Pro Simulator (Godot) hosting:
+- *
+- * The recommended Godot web export is SINGLE-THREADED (Godot 4.3+). That mode
+- * needs NO special HTTP headers, so leave PRO_SIM_THREADS = false and nothing
+- * else is required — it just works on Vercel.
+- *
+- * ONLY flip this to true if you deliberately export a MULTI-THREADED Godot
+- * build (SharedArrayBuffer). Then these two headers are required on the pages
+- * that host the player. They are scoped to /pro-simulator and /pro-sim/* ONLY
+- * — never apply COEP: require-corp globally, or it will break cross-origin
+- * subresources across the whole site (Clerk, Supabase images, fonts, etc.).
++ * The Pro Simulator teardown now renders natively in-browser via WebGL
++ * (see components/simulator/ProTeardown.tsx) — there is no embedded Godot
++ * player, so NO special cross-origin isolation headers are required. Keep
++ * this config minimal; never apply COEP: require-corp globally or it will
++ * break cross-origin subresources (Clerk, Supabase images, fonts, etc.).
+  */
+-const PRO_SIM_THREADS = false;
+-
+-const crossOriginIsolation = [
+-  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+-  { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+-];
+-
+-const nextConfig: NextConfig = {
+-  async headers() {
+-    if (!PRO_SIM_THREADS) return [];
+-    return [
+-      { source: "/pro-simulator", headers: crossOriginIsolation },
+-      { source: "/pro-sim/:path*", headers: crossOriginIsolation },
+-    ];
+-  },
+-};
++const nextConfig: NextConfig = {};
+ 
+ export default nextConfig;
