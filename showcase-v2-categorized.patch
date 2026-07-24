@@ -1,0 +1,1001 @@
+diff --git a/components/ShowcaseCarousel.tsx b/components/ShowcaseCarousel.tsx
+index a0c5f26..9795557 100644
+--- a/components/ShowcaseCarousel.tsx
++++ b/components/ShowcaseCarousel.tsx
+@@ -7,9 +7,18 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+ import { ChevronLeft, ChevronRight, X, ArrowUpRight, Cpu } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { cn } from "@/lib/utils";
+-import { SHOWCASE, similarTo, type ShowcaseItem } from "@/lib/showcase";
+-
+-/* Every frame is a fixed 784×1168 render; cards and the lightbox use
++import {
++  CATEGORIES,
++  FEATURED,
++  FRAMES,
++  type CatKey,
++  categoryOf,
++  frameById,
++  frameSrc,
++  framesInCat,
++} from "@/lib/showcase";
++
++/* Every frame is a fixed 784×1168 WebP; cards and the lightbox use
+    fixed-aspect-ratio boxes with next/image `fill`, so layout is reserved
+    before the image loads and the section never shifts (zero CLS). */
+ 
+@@ -18,27 +27,29 @@ import { SHOWCASE, similarTo, type ShowcaseItem } from "@/lib/showcase";
+ /* ------------------------------------------------------------------ */
+ 
+ function Lightbox({
++  list,
+   index,
+   onIndexChange,
+   onClose,
+ }: {
++  list: string[];
+   index: number;
+   onIndexChange: (i: number) => void;
+   onClose: () => void;
+ }) {
+   const reduce = useReducedMotion();
+-  const item = SHOWCASE[index];
+-  const similar = similarTo(item);
++  const id = list[index];
++  const frame = frameById(id);
++  const cat = categoryOf(frame ? frame.cat : "sand");
++  const similar = framesInCat(cat.key)
++    .filter((f) => f.id !== id)
++    .slice(0, 6);
+ 
+   const go = useCallback(
+-    (dir: 1 | -1) => {
+-      const next = (index + dir + SHOWCASE.length) % SHOWCASE.length;
+-      onIndexChange(next);
+-    },
+-    [index, onIndexChange]
++    (dir: 1 | -1) => onIndexChange((index + dir + list.length) % list.length),
++    [index, list.length, onIndexChange]
+   );
+ 
+-  // Arrow-key navigation between all frames (Esc is handled by Radix).
+   useEffect(() => {
+     const onKey = (e: KeyboardEvent) => {
+       if (e.key === "ArrowRight") go(1);
+@@ -72,7 +83,7 @@ function Lightbox({
+       <Dialog.Content
+         asChild
+         forceMount
+-        aria-describedby={`sc-desc-${item.id}`}
++        aria-describedby={`sc-desc-${cat.key}`}
+         onOpenAutoFocus={(e) => e.preventDefault()}
+       >
+         <motion.div
+@@ -80,7 +91,6 @@ function Lightbox({
+           className="fixed inset-0 z-[61] flex items-stretch justify-center p-0 sm:p-6 md:p-10"
+         >
+           <div className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-card shadow-2xl sm:rounded-2xl md:flex-row">
+-            {/* Close */}
+             <Dialog.Close asChild>
+               <button
+                 aria-label="Close"
+@@ -90,28 +100,12 @@ function Lightbox({
+               </button>
+             </Dialog.Close>
+ 
+-            {/* Prev / Next across all frames */}
+-            <button
+-              aria-label="Previous view"
+-              onClick={() => go(-1)}
+-              className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:flex"
+-            >
+-              <ChevronLeft className="h-5 w-5" />
+-            </button>
+-            <button
+-              aria-label="Next view"
+-              onClick={() => go(1)}
+-              className="absolute left-3 top-[calc(50%+3.25rem)] z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:hidden"
+-            >
+-              <ChevronRight className="h-5 w-5" />
+-            </button>
+-
+             {/* Image panel */}
+             <div className="relative w-full shrink-0 bg-slate-950 md:w-[52%]">
+               <div className="relative mx-auto aspect-[4/5] w-full sm:aspect-[3/4] md:h-full md:aspect-auto">
+                 <AnimatePresence mode="wait">
+                   <motion.div
+-                    key={item.id}
++                    key={id}
+                     className="absolute inset-0"
+                     initial={reduce ? undefined : { opacity: 0 }}
+                     animate={reduce ? undefined : { opacity: 1 }}
+@@ -119,8 +113,8 @@ function Lightbox({
+                     transition={{ duration: 0.18 }}
+                   >
+                     <Image
+-                      src={item.src}
+-                      alt={`${item.platform} — ${item.title} (concept render)`}
++                      src={frameSrc(id)}
++                      alt={`${cat.platform} — ${cat.label} (concept render ${id})`}
+                       fill
+                       sizes="(max-width: 768px) 100vw, 52vw"
+                       className="object-contain"
+@@ -129,15 +123,21 @@ function Lightbox({
+                   </motion.div>
+                 </AnimatePresence>
+                 <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-white/90">
+-                  Concept render
++                  Concept render · {id}
+                 </span>
+               </div>
+ 
+-              {/* Desktop next button */}
++              <button
++                aria-label="Previous view"
++                onClick={() => go(-1)}
++                className="absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white"
++              >
++                <ChevronLeft className="h-5 w-5" />
++              </button>
+               <button
+                 aria-label="Next view"
+                 onClick={() => go(1)}
+-                className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:flex"
++                className="absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white"
+               >
+                 <ChevronRight className="h-5 w-5" />
+               </button>
+@@ -146,32 +146,31 @@ function Lightbox({
+             {/* Detail panel */}
+             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:p-8">
+               <div className="text-xs font-semibold uppercase tracking-[2px] text-accent">
+-                {item.groupLabel}
++                {cat.eyebrow}
+               </div>
+               <Dialog.Title className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+-                {item.title}
++                {cat.label}
+               </Dialog.Title>
+               <div className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
+                 <Cpu className="h-4 w-4 text-accent" />
+-                <span className="font-medium text-foreground">{item.platform}</span>
++                <span className="font-medium text-foreground">{cat.platform}</span>
+                 <span className="text-border">·</span>
+                 <span>concept platform</span>
+               </div>
+ 
+               <Dialog.Description
+-                id={`sc-desc-${item.id}`}
++                id={`sc-desc-${cat.key}`}
+                 className="mt-5 text-[15px] leading-relaxed text-muted-foreground"
+               >
+-                {item.detail}
++                {cat.blurb}
+               </Dialog.Description>
+ 
+-              {/* Precise measurements */}
+               <div className="mt-6">
+                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                   Measurements
+                 </div>
+                 <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border">
+-                  {item.specs.map((s) => (
++                  {cat.specs.map((s) => (
+                     <div key={s.label} className="bg-card p-4">
+                       <dt className="text-xs text-muted-foreground">{s.label}</dt>
+                       <dd className="mt-0.5 font-mono text-base font-semibold tracking-tight text-foreground">
+@@ -182,19 +181,18 @@ function Lightbox({
+                 </dl>
+               </div>
+ 
+-              {/* Grit / pass sequence */}
+-              {item.sequence && (
++              {cat.sequence && (
+                 <div className="mt-5">
+                   <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                     Pass sequence
+                   </div>
+                   <div className="flex flex-wrap items-center gap-2">
+-                    {item.sequence.map((seq, i) => (
++                    {cat.sequence.map((seq, i) => (
+                       <React.Fragment key={seq}>
+                         <span className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-xs text-foreground">
+                           {seq}
+                         </span>
+-                        {i < item.sequence!.length - 1 && (
++                        {i < cat.sequence!.length - 1 && (
+                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                         )}
+                       </React.Fragment>
+@@ -203,33 +201,32 @@ function Lightbox({
+                 </div>
+               )}
+ 
+-              {/* Similar Views */}
+               {similar.length > 0 && (
+                 <div className="mt-7 border-t border-border pt-5">
+                   <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+-                    Similar views
++                    Similar views · {cat.label}
+                   </div>
+                   <div className="grid grid-cols-3 gap-3">
+                     {similar.map((s) => {
+-                      const target = SHOWCASE.findIndex((x) => x.id === s.id);
++                      const target = list.indexOf(s.id);
+                       return (
+                         <button
+                           key={s.id}
+-                          onClick={() => onIndexChange(target)}
++                          onClick={() =>
++                            target >= 0 ? onIndexChange(target) : undefined
++                          }
+                           className="group text-left"
++                          disabled={target < 0}
+                         >
+                           <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg border border-border bg-muted">
+                             <Image
+-                              src={s.src}
+-                              alt={`${s.platform} — ${s.title}`}
++                              src={frameSrc(s.id)}
++                              alt={`${cat.platform} — ${s.id}`}
+                               fill
+                               sizes="140px"
+                               className="object-cover transition-transform duration-300 group-hover:scale-105"
+                             />
+                           </div>
+-                          <div className="mt-1.5 line-clamp-1 text-xs font-medium text-foreground">
+-                            {s.title}
+-                          </div>
+                         </button>
+                       );
+                     })}
+@@ -243,7 +240,6 @@ function Lightbox({
+                   className="w-full sm:w-auto"
+                   onClick={() => {
+                     onClose();
+-                    // hand off to the pilot form
+                     requestAnimationFrame(() => {
+                       document
+                         .getElementById("waitlist")
+@@ -264,81 +260,11 @@ function Lightbox({
+ }
+ 
+ /* ------------------------------------------------------------------ */
+-/*  Card                                                               */
++/*  Featured swipe rail                                                */
+ /* ------------------------------------------------------------------ */
+ 
+-function Card({
+-  item,
+-  onOpen,
+-}: {
+-  item: ShowcaseItem;
+-  onOpen: () => void;
+-}) {
+-  return (
+-    <button
+-      onClick={onOpen}
+-      className="group snap-start shrink-0 basis-[82%] text-left sm:basis-[360px] lg:basis-[384px]"
+-      aria-label={`${item.title} — open details`}
+-    >
+-      <div className="card overflow-hidden p-0">
+-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
+-          <Image
+-            src={item.src}
+-            alt={`${item.platform} — ${item.title} (concept render)`}
+-            fill
+-            sizes="(max-width: 640px) 82vw, 384px"
+-            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+-          />
+-          {/* legibility gradient */}
+-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/5 to-transparent" />
+-
+-          <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+-            {item.groupLabel}
+-          </span>
+-
+-          <div className="absolute inset-x-0 bottom-0 p-4">
+-            <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+-              {item.platform}
+-            </div>
+-            <div className="mt-0.5 text-lg font-semibold leading-tight tracking-tight text-white">
+-              {item.title}
+-            </div>
+-            <div className="mt-1 line-clamp-1 text-[13px] text-white/75">
+-              {item.tagline}
+-            </div>
+-          </div>
+-        </div>
+-
+-        {/* spec strip */}
+-        <div className="flex items-center justify-between gap-3 px-4 py-3">
+-          <div className="flex min-w-0 gap-4">
+-            {item.specs.slice(0, 2).map((s) => (
+-              <div key={s.label} className="min-w-0">
+-                <div className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+-                  {s.label}
+-                </div>
+-                <div className="font-mono text-sm font-semibold tracking-tight text-foreground">
+-                  {s.value}
+-                </div>
+-              </div>
+-            ))}
+-          </div>
+-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground transition group-hover:border-accent group-hover:bg-accent-light group-hover:text-accent">
+-            <ArrowUpRight className="h-4 w-4" />
+-          </span>
+-        </div>
+-      </div>
+-    </button>
+-  );
+-}
+-
+-/* ------------------------------------------------------------------ */
+-/*  Section                                                            */
+-/* ------------------------------------------------------------------ */
+-
+-export default function ShowcaseCarousel() {
++function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
+   const scrollerRef = useRef<HTMLDivElement>(null);
+-  const [active, setActive] = useState<number | null>(null);
+   const [atStart, setAtStart] = useState(true);
+   const [atEnd, setAtEnd] = useState(false);
+ 
+@@ -370,108 +296,266 @@ export default function ShowcaseCarousel() {
+   };
+ 
+   return (
+-    <section
+-      id="showcase"
+-      className="section border-b bg-white py-20 md:py-24"
+-      aria-labelledby="showcase-heading"
+-    >
+-      <div className="mx-auto max-w-7xl px-6">
+-        {/* Header row */}
+-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+-          <div className="max-w-2xl">
+-            <div className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-accent">
+-              Autonomous floor refinishing systems
+-            </div>
+-            <h2
+-              id="showcase-heading"
+-              className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl lg:text-5xl"
+-            >
+-              The machines, working the floor on their own.
+-            </h2>
+-            <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
+-              Concept renders of the Forge platforms operating independently on
+-              hardwood — sanding, edging, dust capture, finishing, and QA. Swipe
+-              the rail, open any card for measurements and the technical detail.
+-            </p>
+-          </div>
++    <div className="relative mt-10">
++      <div
++        className={cn(
++          "pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white to-transparent transition-opacity",
++          atStart ? "opacity-0" : "opacity-100"
++        )}
++      />
++      <div
++        className={cn(
++          "pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity",
++          atEnd ? "opacity-0" : "opacity-100"
++        )}
++      />
++
++      <button
++        aria-label="Scroll left"
++        onClick={() => nudge(-1)}
++        disabled={atStart}
++        className={cn(
++          "absolute -left-3 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition md:flex",
++          atStart ? "cursor-not-allowed opacity-0" : "hover:border-accent hover:text-accent"
++        )}
++      >
++        <ChevronLeft className="h-5 w-5" />
++      </button>
++      <button
++        aria-label="Scroll right"
++        onClick={() => nudge(1)}
++        disabled={atEnd}
++        className={cn(
++          "absolute -right-3 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition md:flex",
++          atEnd ? "cursor-not-allowed opacity-0" : "hover:border-accent hover:text-accent"
++        )}
++      >
++        <ChevronRight className="h-5 w-5" />
++      </button>
+ 
+-          {/* Desktop arrows */}
+-          <div className="hidden shrink-0 items-center gap-2 md:flex">
++      <div
++        ref={scrollerRef}
++        className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2"
++        style={{ scrollbarWidth: "none" }}
++      >
++        {FEATURED.map((id) => {
++          const frame = frameById(id);
++          const cat = categoryOf(frame ? frame.cat : "sand");
++          return (
+             <button
+-              aria-label="Scroll left"
+-              onClick={() => nudge(-1)}
+-              disabled={atStart}
+-              className={cn(
+-                "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition",
+-                atStart
+-                  ? "cursor-not-allowed opacity-40"
+-                  : "hover:border-accent hover:text-accent"
+-              )}
++              data-card
++              key={id}
++              onClick={() => onOpen(id)}
++              className="group snap-start shrink-0 basis-[82%] text-left sm:basis-[360px] lg:basis-[384px]"
++              aria-label={`${cat.label} — open details`}
+             >
+-              <ChevronLeft className="h-5 w-5" />
++              <div className="card overflow-hidden p-0">
++                <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
++                  <Image
++                    src={frameSrc(id)}
++                    alt={`${cat.platform} — ${cat.label} (concept render ${id})`}
++                    fill
++                    sizes="(max-width: 640px) 82vw, 384px"
++                    className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
++                  />
++                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/5 to-transparent" />
++                  <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
++                    {cat.label}
++                  </span>
++                  <div className="absolute inset-x-0 bottom-0 p-4">
++                    <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
++                      {cat.platform}
++                    </div>
++                    <div className="mt-0.5 text-lg font-semibold leading-tight tracking-tight text-white">
++                      {cat.eyebrow}
++                    </div>
++                  </div>
++                </div>
++                <div className="flex items-center justify-between gap-3 px-4 py-3">
++                  <div className="flex min-w-0 gap-4">
++                    {cat.specs.slice(0, 2).map((s) => (
++                      <div key={s.label} className="min-w-0">
++                        <div className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
++                          {s.label}
++                        </div>
++                        <div className="font-mono text-sm font-semibold tracking-tight text-foreground">
++                          {s.value}
++                        </div>
++                      </div>
++                    ))}
++                  </div>
++                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground transition group-hover:border-accent group-hover:bg-accent-light group-hover:text-accent">
++                    <ArrowUpRight className="h-4 w-4" />
++                  </span>
++                </div>
++              </div>
+             </button>
++          );
++        })}
++      </div>
++    </div>
++  );
++}
++
++/* ------------------------------------------------------------------ */
++/*  Category gallery                                                   */
++/* ------------------------------------------------------------------ */
++
++function Gallery({
++  activeCat,
++  onCat,
++  onOpen,
++}: {
++  activeCat: CatKey;
++  onCat: (k: CatKey) => void;
++  onOpen: (list: string[], idx: number) => void;
++}) {
++  const frames = framesInCat(activeCat);
++  const cat = categoryOf(activeCat);
++  const list = frames.map((f) => f.id);
++
++  return (
++    <div className="mt-16">
++      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
++        <div>
++          <div className="mb-2 text-xs font-semibold uppercase tracking-[3px] text-accent">
++            The full system library
++          </div>
++          <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">
++            Every view, sorted by what the machine is doing.
++          </h3>
++        </div>
++        <div className="text-sm text-muted-foreground">
++          {FRAMES.length} concept renders · {CATEGORIES.length} platforms
++        </div>
++      </div>
++
++      {/* Tabs */}
++      <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto pb-1">
++        {CATEGORIES.map((c) => {
++          const count = framesInCat(c.key).length;
++          const on = c.key === activeCat;
++          return (
+             <button
+-              aria-label="Scroll right"
+-              onClick={() => nudge(1)}
+-              disabled={atEnd}
++              key={c.key}
++              onClick={() => onCat(c.key)}
+               className={cn(
+-                "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition",
+-                atEnd
+-                  ? "cursor-not-allowed opacity-40"
+-                  : "hover:border-accent hover:text-accent"
++                "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition",
++                on
++                  ? "border-accent bg-accent text-white"
++                  : "border-border bg-white text-muted-foreground hover:border-accent hover:text-accent"
+               )}
+             >
+-              <ChevronRight className="h-5 w-5" />
++              {c.label}
++              <span
++                className={cn(
++                  "ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
++                  on ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
++                )}
++              >
++                {count}
++              </span>
+             </button>
+-          </div>
+-        </div>
++          );
++        })}
++      </div>
++
++      {/* Active category description */}
++      <div className="mt-6 flex items-start gap-3">
++        <Cpu className="mt-1 h-5 w-5 shrink-0 text-accent" />
++        <p className="max-w-3xl text-[15px] leading-relaxed text-muted-foreground">
++          <span className="font-medium text-foreground">{cat.platform}</span> —{" "}
++          {cat.blurb}
++        </p>
++      </div>
+ 
+-        {/* Rail */}
+-        <div className="relative mt-10">
+-          {/* edge fades */}
+-          <div
+-            className={cn(
+-              "pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white to-transparent transition-opacity",
+-              atStart ? "opacity-0" : "opacity-100"
+-            )}
+-          />
+-          <div
+-            className={cn(
+-              "pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity",
+-              atEnd ? "opacity-0" : "opacity-100"
+-            )}
+-          />
+-
+-          <div
+-            ref={scrollerRef}
+-            className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2"
+-            style={{ scrollbarWidth: "none" }}
++      {/* Grid */}
++      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
++        {frames.map((f, i) => (
++          <button
++            key={f.id}
++            onClick={() => onOpen(list, i)}
++            className="group relative aspect-[4/5] overflow-hidden rounded-xl border border-border bg-slate-950 text-left"
++            aria-label={`${cat.label} — ${f.id}, open details`}
+           >
+-            {SHOWCASE.map((item, i) => (
+-              <div data-card key={item.id} className="flex">
+-                <Card item={item} onOpen={() => setActive(i)} />
+-              </div>
+-            ))}
++            <Image
++              src={frameSrc(f.id)}
++              alt={`${cat.platform} — ${cat.label} (concept render ${f.id})`}
++              fill
++              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
++              className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
++            />
++            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
++            <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-foreground opacity-0 transition group-hover:opacity-100">
++              <ArrowUpRight className="h-3.5 w-3.5" />
++            </span>
++          </button>
++        ))}
++      </div>
++    </div>
++  );
++}
++
++/* ------------------------------------------------------------------ */
++/*  Section                                                            */
++/* ------------------------------------------------------------------ */
++
++export default function ShowcaseCarousel() {
++  const [activeCat, setActiveCat] = useState<CatKey>("sand");
++  const [box, setBox] = useState<{ list: string[]; idx: number } | null>(null);
++
++  const openById = (id: string) => {
++    const f = frameById(id);
++    const list = framesInCat(f ? f.cat : "sand").map((x) => x.id);
++    setBox({ list, idx: Math.max(0, list.indexOf(id)) });
++  };
++
++  return (
++    <section
++      id="showcase"
++      className="section border-b bg-white py-20 md:py-24"
++      aria-labelledby="showcase-heading"
++    >
++      <div className="mx-auto max-w-7xl px-6">
++        <div className="max-w-2xl">
++          <div className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-accent">
++            Autonomous floor refinishing systems
+           </div>
++          <h2
++            id="showcase-heading"
++            className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl lg:text-5xl"
++          >
++            The machines, working the floor on their own.
++          </h2>
++          <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
++            Concept renders of the Forge platforms operating independently on
++            hardwood — sanding, edging, dust capture, finishing, and QA. Swipe
++            the featured rail, or open the full library below by platform.
++          </p>
+         </div>
+ 
+-        <p className="mt-6 text-xs text-muted-foreground">
++        <FeaturedRail onOpen={openById} />
++
++        <Gallery
++          activeCat={activeCat}
++          onCat={setActiveCat}
++          onOpen={(list, idx) => setBox({ list, idx })}
++        />
++
++        <p className="mt-8 text-xs text-muted-foreground">
+           Renders depict concept platforms; all figures are design targets, not
+           measured specifications of shipping hardware.
+         </p>
+       </div>
+ 
+-      {/* Lightbox */}
+-      <Dialog.Root
+-        open={active !== null}
+-        onOpenChange={(o) => !o && setActive(null)}
+-      >
++      <Dialog.Root open={box !== null} onOpenChange={(o) => !o && setBox(null)}>
+         <AnimatePresence>
+-          {active !== null && (
++          {box !== null && (
+             <Lightbox
+-              index={active}
+-              onIndexChange={setActive}
+-              onClose={() => setActive(null)}
++              list={box.list}
++              index={box.idx}
++              onIndexChange={(idx) => setBox((b) => (b ? { ...b, idx } : b))}
++              onClose={() => setBox(null)}
+             />
+           )}
+         </AnimatePresence>
+diff --git a/lib/showcase.ts b/lib/showcase.ts
+index b5bf360..2de285c 100644
+--- a/lib/showcase.ts
++++ b/lib/showcase.ts
+@@ -1,223 +1,95 @@
+ /**
+- * Data for the "Autonomous Floor Refinishing Systems" showcase section.
++ * Autonomous Floor Refinishing Systems — showcase data (v2, categorized).
+  *
+- * HONESTY NOTE (consistent with lib/robots.ts): every figure below is a
+- * *design target* for FloorForge's concept platforms, not a measured spec
+- * of shipping hardware. Numbers are kept in lockstep with ROBOTS in
+- * lib/robots.ts so the showcase, the simulator, and the marketing copy all
+- * tell the same story. The imagery shows the concept platforms operating
+- * independently on hardwood; the UI labels them as concept renders.
++ * The full uploaded render library (78 usable frames across the eight source
++ * batches; 2 corrupt frames dropped) is optimized to WebP and sorted into the
++ * five FloorForge concept platforms. The `cat` on each frame is the ONLY thing
++ * that decides where it appears — it is auto-derived from image analytics
++ * (gloss / machine-mass / sharpness) plus directly-inspected frames, and is
++ * meant to be adjusted by hand freely: to re-file a frame, change its `cat`.
+  *
+- * Images live in /public/showcase/01.png … 10.png (see the prepare step in
+- * the deploy notes — they are unpacked from the committed
+- * floorforge-ai_10_images.zip so they never bloat the git history twice).
++ * HONESTY NOTE (matches lib/robots.ts): all figures are DESIGN TARGETS for
++ * concept platforms, not measured specs of shipping hardware. Images are
++ * concept renders. Assets live in /public/showcase/gallery/<id>.webp.
+  */
+ 
+-export interface ShowcaseSpec {
+-  label: string;
+-  value: string;
+-}
++export type CatKey = "sand" | "edge" | "dust" | "finish" | "qa";
+ 
+-export interface ShowcaseItem {
+-  /** Stable id, also used for deep-grouping "Similar Views". */
+-  id: string;
+-  /** 1-indexed source frame → /showcase/0X.png */
+-  src: string;
+-  /** Card + modal heading. */
+-  title: string;
+-  /** Which concept platform is pictured (matches ROBOTS[].name). */
++export interface ShowcaseSpec { label: string; value: string; }
++
++export interface ShowcaseCategory {
++  key: CatKey;
++  label: string;
+   platform: string;
+-  /** Group key — drives the "Similar Views" row in the lightbox. */
+-  group: "field-sanding" | "edge-detail" | "dust" | "finish" | "qa";
+-  /** Human label for the group (shown as the card eyebrow). */
+-  groupLabel: string;
+-  /** One-line card subtitle. */
+-  tagline: string;
+-  /** Precise, at-a-glance measurements (design targets). */
++  eyebrow: string;
++  blurb: string;
+   specs: ShowcaseSpec[];
+-  /** Longer technical explanation shown in the lightbox. */
+-  detail: string;
+-  /** Optional ordered grit / pass sequence chips for the lightbox. */
+   sequence?: string[];
+ }
+ 
+-export const SHOWCASE: ShowcaseItem[] = [
+-  {
+-    id: "field-open",
+-    src: "/showcase/01.png",
+-    title: "Autonomous field sanding",
+-    platform: "ForgeSand D1",
+-    group: "field-sanding",
+-    groupLabel: "Field sanding",
+-    tagline: "Open-floor abrasion, no operator on the drum.",
+-    specs: [
+-      { label: "Sanding width", value: "0.50 m" },
+-      { label: "Grit sequence", value: "36 → 180" },
+-      { label: "Dust capture", value: "98% HEPA (target)" },
+-      { label: "Coverage", value: "~55 m²/h" },
+-    ],
+-    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"],
+-    detail:
+-      "The D1 runs a boustrophedon field pass end-to-end on its own: load-sensing drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so there are no witness lines where one lane meets the next.",
+-  },
+-  {
+-    id: "field-midcut",
+-    src: "/showcase/02.png",
+-    title: "Grit-sequence pass · mid-cut",
+-    platform: "ForgeSand D1",
+-    group: "field-sanding",
+-    groupLabel: "Field sanding",
+-    tagline: "Sequenced 36→180 abrasion at constant pressure.",
+-    specs: [
+-      { label: "Sanding width", value: "0.50 m" },
+-      { label: "Grit sequence", value: "36 → 180" },
+-      { label: "Pressure control", value: "closed-loop" },
+-      { label: "Coverage", value: "~55 m²/h" },
+-    ],
+-    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"],
+-    detail:
+-      "Between coarse strip and finish sand, the planetary head steps through the grit ladder without an operator swapping paper. Real-time load feedback trims speed on hard grain and dense knots so the surface leaves each lap a shade smoother than the last.",
+-  },
+-  {
+-    id: "field-clearance",
+-    src: "/showcase/03.png",
+-    title: "Low-profile door clearance",
+-    platform: "ForgeSand D1",
+-    group: "field-sanding",
+-    groupLabel: "Field sanding",
+-    tagline: "Sub-8″ envelope, designed to clear doorways.",
+-    specs: [
+-      { label: "Height envelope", value: "< 8 in (target)" },
+-      { label: "Sanding width", value: "0.50 m" },
+-      { label: "Turn radius", value: "in-place" },
+-      { label: "Coverage", value: "~55 m²/h" },
+-    ],
+-    detail:
+-      "The platform is designed to slip under a standard door slab and pivot in place, so a single machine covers connected rooms without being lifted or reset. The low body keeps the centre of mass over the drum for even contact on cupped boards.",
+-  },
+-  {
+-    id: "edge-perimeter",
+-    src: "/showcase/04.png",
+-    title: "Perimeter edge detail",
+-    platform: "ForgeEdge E1",
+-    group: "edge-detail",
+-    groupLabel: "Edge & detail",
+-    tagline: "Vision-guided edging where the drum can't reach.",
+-    specs: [
+-      { label: "Working width", value: "0.14 m" },
+-      { label: "Edge follow", value: "LiDAR + vision" },
+-      { label: "Mode", value: "human-oversight" },
+-      { label: "Coverage", value: "~18 m²/h" },
+-    ],
+-    detail:
+-      "The E1 hugs baseboards and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs semi-autonomously with a human-oversight mode for complex perimeters, minimising the hand-scraping that usually eats the schedule.",
+-  },
+-  {
+-    id: "edge-transition",
+-    src: "/showcase/05.png",
+-    title: "Transition & doorway edging",
+-    platform: "ForgeEdge E1",
+-    group: "edge-detail",
+-    groupLabel: "Edge & detail",
+-    tagline: "Thresholds, vents, and built-ins without rework.",
+-    specs: [
+-      { label: "Working width", value: "0.14 m" },
+-      { label: "Follow error", value: "sub-mm (target)" },
+-      { label: "Mode", value: "human-oversight" },
+-      { label: "Coverage", value: "~18 m²/h" },
+-    ],
+-    detail:
+-      "At thresholds and around vents the edge head slows and shortens its stroke, blending the perimeter cut into the field pass so the two never leave a step. The oversight operator confirms tricky details on-screen rather than kneeling on the floor.",
+-  },
+-  {
+-    id: "dust-head",
+-    src: "/showcase/06.png",
+-    title: "Cyclonic capture at the head",
+-    platform: "ForgeSand D1",
+-    group: "dust",
+-    groupLabel: "Dust containment",
+-    tagline: "Shrouded drum pulls dust at the point of cut.",
+-    specs: [
+-      { label: "Capture point", value: "at the drum" },
+-      { label: "Pre-separation", value: "cyclonic" },
+-      { label: "Filtration", value: "HEPA" },
+-      { label: "Capture (target)", value: "98%" },
+-    ],
+-    detail:
+-      "Dust is pulled at the point of contact by a shrouded head, then spun through cyclonic pre-separation before the HEPA stage so the fine filter loads slowly. The goal is a floor that can be sanded inside an occupied home without sheeting the furniture.",
+-  },
+-  {
+-    id: "dust-hepa",
+-    src: "/showcase/07.png",
+-    title: "HEPA extraction module",
+-    platform: "ForgeSand D1",
+-    group: "dust",
+-    groupLabel: "Dust containment",
+-    tagline: "Per-job airborne particulate, logged not promised.",
+-    specs: [
+-      { label: "Filtration", value: "HEPA" },
+-      { label: "Capture (target)", value: "98%" },
+-      { label: "Logging", value: "per-job PM" },
+-      { label: "Report", value: "airborne µg/m³" },
+-    ],
+-    detail:
+-      "The onboard module logs airborne particulate for the whole job, so dust performance shows up as a number on the report instead of a claim. That record is what lets a crew bid occupied-space work the competition has to turn down.",
+-  },
+-  {
+-    id: "finish-apply",
+-    src: "/showcase/08.png",
+-    title: "Finish application pass",
+-    platform: "ForgeCoat C1",
+-    group: "finish",
+-    groupLabel: "Finish application",
+-    tagline: "Even film build across the whole field.",
+-    specs: [
+-      { label: "Working width", value: "0.60 m" },
+-      { label: "Film build", value: "±5% (target)" },
+-      { label: "Modes", value: "T-bar / spray" },
+-      { label: "Coverage", value: "~75 m²/h" },
+-    ],
+-    sequence: ["Seal · wets grain", "Finish · builds film"],
+-    detail:
+-      "The C1 lays stain or polyurethane at a metered rate with live viscosity and ambient monitoring, targeting uniform sheen and film thickness edge-to-edge. Consistent wet-edge timing across the field is what removes the lap marks a rushed hand application leaves behind.",
+-  },
+-  {
+-    id: "finish-filmbuild",
+-    src: "/showcase/09.png",
+-    title: "Seal-to-topcoat film build",
+-    platform: "ForgeCoat C1",
+-    group: "finish",
+-    groupLabel: "Finish application",
+-    tagline: "Seal coat then topcoat, monitored for cure.",
+-    specs: [
+-      { label: "Working width", value: "0.60 m" },
+-      { label: "Passes", value: "seal + finish" },
+-      { label: "Sensing", value: "viscosity + ambient" },
+-      { label: "Coverage", value: "~75 m²/h" },
+-    ],
+-    sequence: ["Seal · wets grain", "Finish · builds film"],
+-    detail:
+-      "First a seal coat wets the grain, then the finish coat builds the film to target thickness while environmental sensors watch temperature and humidity against the coating's cure window. The result is a controlled build rather than a best-guess flood.",
+-  },
+-  {
+-    id: "qa-scan",
+-    src: "/showcase/10.png",
+-    title: "Flatness & coverage QA scan",
+-    platform: "ForgeScan S1",
+-    group: "qa",
+-    groupLabel: "Inspection & QA",
+-    tagline: "Sub-mm flatness map, before and after.",
+-    specs: [
+-      { label: "Sweep width", value: "0.80 m" },
+-      { label: "Flatness res.", value: "sub-mm (target)" },
+-      { label: "Output", value: "coverage QA map" },
+-      { label: "Coverage", value: "~220 m²/h" },
+-    ],
+-    detail:
+-      "At survey speed the S1 maps flatness before and after the job and confirms coverage, producing the QA map that ships with the finish and dust logs. That digital record is the sign-off a GC or property manager can file — proof the floor met spec, not a promise it did.",
+-  },
++export interface Frame {
++  /** stable id = <set>-<frame>, e.g. "s04-07" -> /showcase/gallery/s04-07.webp */
++  id: string;
++  cat: CatKey;
++}
++
++export const CATEGORIES: ShowcaseCategory[] = [
++  { key: "sand", label: "Field Sanding", platform: "ForgeSand D1", eyebrow: "Autonomous multi-grit sanding",
++    blurb: "The flagship platform runs a full boustrophedon field pass on its own — load-sensing planetary drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so no witness lines are left where lanes meet.",
++    specs: [{ label: "Sanding width", value: "0.50 m" }, { label: "Grit sequence", value: "36 → 180" }, { label: "Dust capture", value: "98% HEPA (target)" }, { label: "Coverage", value: "~55 m²/h" }],
++    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"] },
++  { key: "edge", label: "Edge & Perimeter", platform: "ForgeEdge E1", eyebrow: "Semi-autonomous edging",
++    blurb: "Where the drum can't reach, the E1 hugs baseboards, thresholds and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs with a human-oversight mode for complex perimeters, cutting the hand-scraping that eats the schedule.",
++    specs: [{ label: "Working width", value: "0.14 m" }, { label: "Edge follow", value: "LiDAR + vision" }, { label: "Mode", value: "human-oversight" }, { label: "Coverage", value: "~18 m²/h" }] },
++  { key: "dust", label: "Dust Containment", platform: "ForgeSand D1", eyebrow: "Cyclonic + HEPA extraction",
++    blurb: "Dust is pulled at the point of contact by a shrouded head, spun through cyclonic pre-separation, then held by the HEPA stage so the fine filter loads slowly. Per-job airborne particulate is logged — dust performance shows up as a number on the report, not a promise.",
++    specs: [{ label: "Pre-separation", value: "cyclonic" }, { label: "Filtration", value: "HEPA" }, { label: "Capture (target)", value: "98%" }, { label: "Logging", value: "per-job PM" }] },
++  { key: "finish", label: "Finish Application", platform: "ForgeCoat C1", eyebrow: "Even film-build coating",
++    blurb: "The C1 lays stain or polyurethane at a metered rate with live viscosity and ambient monitoring — a seal coat wets the grain, then the finish coat builds the film to target thickness while sensors watch the cure window. Consistent wet-edge timing removes the lap marks a rushed hand pass leaves behind.",
++    specs: [{ label: "Working width", value: "0.60 m" }, { label: "Film build", value: "±5% (target)" }, { label: "Modes", value: "T-bar / spray" }, { label: "Coverage", value: "~75 m²/h" }],
++    sequence: ["Seal · wets grain", "Finish · builds film"] },
++  { key: "qa", label: "Inspection & Result", platform: "ForgeScan S1", eyebrow: "Flatness & coverage QA",
++    blurb: "At survey speed the S1 maps flatness before and after and confirms coverage, producing the QA map that ships with the finish and dust logs. The empty, evenly-lit floor is the deliverable a GC or property manager signs off — proof the floor met spec.",
++    specs: [{ label: "Sweep width", value: "0.80 m" }, { label: "Flatness res.", value: "sub-mm (target)" }, { label: "Output", value: "coverage QA map" }, { label: "Coverage", value: "~220 m²/h" }] },
++];
++
++export const FRAMES: Frame[] = [
++  { id: "s04-06", cat: "sand" }, { id: "s02-04", cat: "sand" }, { id: "s07-06", cat: "sand" },
++  { id: "s05-04", cat: "sand" }, { id: "s08-03", cat: "sand" }, { id: "s03-02", cat: "sand" },
++  { id: "s03-04", cat: "sand" }, { id: "s03-01", cat: "sand" }, { id: "s05-06", cat: "sand" },
++  { id: "s02-01", cat: "sand" }, { id: "s08-07", cat: "sand" }, { id: "s01-02", cat: "sand" },
++  { id: "s01-01", cat: "sand" }, { id: "s07-03", cat: "sand" }, { id: "s03-08", cat: "sand" },
++  { id: "s04-02", cat: "sand" }, { id: "s04-01", cat: "sand" }, { id: "s07-04", cat: "sand" },
++  { id: "s05-01", cat: "sand" }, { id: "s01-08", cat: "sand" }, { id: "s07-02", cat: "sand" },
++  { id: "s02-09", cat: "sand" }, { id: "s02-03", cat: "sand" }, { id: "s02-10", cat: "sand" },
++  { id: "s04-10", cat: "sand" }, { id: "s05-02", cat: "sand" }, { id: "s05-10", cat: "sand" },
++  { id: "s01-10", cat: "sand" }, { id: "s06-10", cat: "sand" }, { id: "s08-08", cat: "sand" },
++  { id: "s03-09", cat: "sand" }, { id: "s07-09", cat: "sand" }, { id: "s08-10", cat: "sand" },
++  { id: "s03-03", cat: "edge" }, { id: "s05-08", cat: "edge" }, { id: "s08-01", cat: "edge" },
++  { id: "s04-08", cat: "edge" }, { id: "s06-01", cat: "edge" }, { id: "s03-10", cat: "edge" },
++  { id: "s07-10", cat: "edge" }, { id: "s05-03", cat: "dust" }, { id: "s03-06", cat: "dust" },
++  { id: "s01-04", cat: "dust" }, { id: "s02-02", cat: "dust" }, { id: "s06-05", cat: "dust" },
++  { id: "s04-03", cat: "dust" }, { id: "s07-01", cat: "dust" }, { id: "s01-09", cat: "dust" },
++  { id: "s06-04", cat: "dust" }, { id: "s02-07", cat: "dust" }, { id: "s08-09", cat: "dust" },
++  { id: "s06-09", cat: "dust" }, { id: "s08-06", cat: "finish" }, { id: "s08-05", cat: "finish" },
++  { id: "s08-04", cat: "finish" }, { id: "s02-06", cat: "finish" }, { id: "s06-06", cat: "finish" },
++  { id: "s04-05", cat: "finish" }, { id: "s04-04", cat: "finish" }, { id: "s04-07", cat: "finish" },
++  { id: "s07-05", cat: "finish" }, { id: "s03-07", cat: "finish" }, { id: "s05-07", cat: "finish" },
++  { id: "s07-07", cat: "finish" }, { id: "s02-08", cat: "finish" }, { id: "s01-06", cat: "qa" },
++  { id: "s02-05", cat: "qa" }, { id: "s05-05", cat: "qa" }, { id: "s01-07", cat: "qa" },
++  { id: "s03-05", cat: "qa" }, { id: "s01-03", cat: "qa" }, { id: "s01-05", cat: "qa" },
++  { id: "s05-09", cat: "qa" }, { id: "s08-02", cat: "qa" }, { id: "s04-09", cat: "qa" },
++  { id: "s06-07", cat: "qa" }, { id: "s07-08", cat: "qa" }, { id: "s06-08", cat: "qa" },
+ ];
+ 
+-/** Items sharing a group, excluding the given id (for "Similar Views"). */
+-export const similarTo = (item: ShowcaseItem): ShowcaseItem[] =>
+-  SHOWCASE.filter((s) => s.group === item.group && s.id !== item.id);
++/** Frames chosen for the top "featured" swipe rail (sharpest, spread across categories). */
++export const FEATURED: string[] = ["s04-06", "s03-03", "s05-03", "s08-06", "s01-06", "s02-04", "s05-08", "s03-06", "s08-05", "s02-05"];
++
++export const frameSrc = (id: string): string => `/showcase/gallery/${id}.webp`;
++export const categoryOf = (key: CatKey): ShowcaseCategory =>
++  CATEGORIES.find((c) => c.key === key) ?? CATEGORIES[0];
++export const framesInCat = (key: CatKey): Frame[] =>
++  FRAMES.filter((f) => f.cat === key);
++export const frameById = (id: string): Frame | undefined =>
++  FRAMES.find((f) => f.id === id);
++
