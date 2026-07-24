@@ -10,6 +10,7 @@ import ROICalculator from "@/components/ROICalculator";
 import Chatbot from "@/components/Chatbot";
 import WaitlistCTA from "@/components/WaitlistCTA";
 import Reveal from "@/components/Reveal";
+import ShowcaseCarousel from "@/components/ShowcaseCarousel";
 import Link from "next/link";
 import { ROBOTS } from "@/lib/robots";
 
@@ -167,6 +168,9 @@ export default function FloorForgeLanding() {
           </div>
         </div>
       </section>
+
+      {/* AUTONOMOUS FLOOR REFINISHING SYSTEMS — product showcase */}
+      <ShowcaseCarousel />
 
       {/* SIMULATOR TEASER */}
       <section className="section border-b bg-muted py-16">

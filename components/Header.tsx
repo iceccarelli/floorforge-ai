@@ -10,6 +10,7 @@ import { authEnabled } from "@/lib/auth";
 import { motion, AnimatePresence } from "framer-motion";
 
 const navLinks = [
+  { href: "#showcase", label: "Systems" },
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How it Works" },
   { href: "#roi", label: "ROI" },

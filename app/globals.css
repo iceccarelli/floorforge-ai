@@ -321,6 +321,16 @@ a:focus-visible {
 }
 
 
+/* Hide scrollbar on the Autonomous Refinishing showcase rail while keeping
+   native horizontal scroll / swipe + scroll-snap intact. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Skip link — visible only on keyboard focus, for a11y */
 .skip-link {
   position: absolute;
