@@ -1,28 +1,24 @@
 /**
- * GET /api/applications/[id] - Get single application
- * PATCH /api/applications/[id] - Update application
+ * PATCH /api/applications/[id] - Update pilot application status
+ * GET /api/applications/[id] - Fetch single application
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db/client";
-import * as validators from "@/lib/validators";
 import * as types from "@/lib/types";
 
-// ============================================================================
-// GET /api/applications/[id]
-// ============================================================================
+interface RouteParams {
+  params: {
+    id: string;
+  };
+}
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id } = await params;
-
-    // TODO: Add auth check - user must be admin or own the application
-    // For now, this is open for demo purposes.
-
-    const application = await db.getPilotApplicationById(id);
+    const application = await db.getPilotApplicationById(params.id);
 
     return NextResponse.json(
       {
@@ -31,83 +27,48 @@ export async function GET(
       { status: 200 }
     );
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Failed to fetch")) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "Application not found",
-          },
-        } as types.ApiResponse<never>,
-        { status: 404 }
-      );
-    }
-
     console.error("GET /api/applications/[id] error:", error);
     return NextResponse.json(
       {
         error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: error instanceof Error ? error.message : "Unknown error",
+          code: "NOT_FOUND",
+          message: error instanceof Error ? error.message : "Application not found",
         },
       } as types.ApiResponse<never>,
-      { status: 500 }
+      { status: 404 }
     );
   }
 }
 
-// ============================================================================
-// PATCH /api/applications/[id]
-// ============================================================================
-
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const { id } = await params;
     const body = await req.json();
 
-    // TODO: Add auth check - only admin can update
-    // For now, this is open for demo purposes.
+    // Only allow updating status, status_reason, and internal_notes
+    const allowedUpdates: Partial<types.PilotApplication> = {};
 
-    // Validate updates
-    const validation = validators.validatePilotApplicationUpdate(body);
-    if (!validation.valid) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Invalid input",
-            details: { errors: validation.errors },
-          },
-        } as types.ApiResponse<never>,
-        { status: 400 }
-      );
+    if ("status" in body && body.status) {
+      allowedUpdates.status = body.status;
+    }
+    if ("status_reason" in body) {
+      allowedUpdates.status_reason = body.status_reason;
+    }
+    if ("internal_notes" in body) {
+      allowedUpdates.internal_notes = body.internal_notes;
     }
 
-    // Update application
-    const application = await db.updatePilotApplication(id, validation.data!);
+    const updated = await db.updatePilotApplication(params.id, allowedUpdates);
 
     return NextResponse.json(
       {
-        data: application,
+        data: updated,
       } as types.ApiResponse<types.PilotApplication>,
       { status: 200 }
     );
   } catch (error) {
-    if (error instanceof Error && error.message.includes("Failed to fetch")) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "NOT_FOUND",
-            message: "Application not found",
-          },
-        } as types.ApiResponse<never>,
-        { status: 404 }
-      );
-    }
-
     console.error("PATCH /api/applications/[id] error:", error);
     return NextResponse.json(
       {
