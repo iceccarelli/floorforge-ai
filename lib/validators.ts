@@ -83,7 +83,7 @@ export function validatePilotApplicationInput(
       segment: (input.segment as types.CustomerSegment) || undefined,
       state: input.state ? String(input.state).trim() : undefined,
       phone: input.phone ? String(input.phone).trim() : undefined,
-      robot_interest: input.robot_interest as string | null | undefined,
+      robot_interest: input.robot_interest as types.PilotApplication["robot_interest"],
       challenge: input.challenge ? String(input.challenge).trim() : undefined,
       source: input.source as "floorforge-site" | "ecowoods-referral" | "partner" | "direct",
       source_details: input.source_details ? String(input.source_details).trim() : undefined,

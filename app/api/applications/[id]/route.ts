@@ -8,9 +8,9 @@ import * as db from "@/lib/db/client";
 import * as types from "@/lib/types";
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function GET(
@@ -18,7 +18,8 @@ export async function GET(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const application = await db.getPilotApplicationById(params.id);
+    const { id } = await params;
+    const application = await db.getPilotApplicationById(id);
 
     return NextResponse.json(
       {
@@ -45,6 +46,7 @@ export async function PATCH(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
+    const { id } = await params;
     const body = await req.json();
 
     // Only allow updating status, status_reason, and internal_notes
@@ -60,7 +62,7 @@ export async function PATCH(
       allowedUpdates.internal_notes = body.internal_notes;
     }
 
-    const updated = await db.updatePilotApplication(params.id, allowedUpdates);
+    const updated = await db.updatePilotApplication(id, allowedUpdates);
 
     return NextResponse.json(
       {

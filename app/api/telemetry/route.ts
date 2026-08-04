@@ -32,7 +32,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     // Validate all events
     const validatedEvents: Omit<types.TelemetryEvent, "id" | "received_at" | "created_at">[] = [];
-    const errors: Array<{ index: number; errors: types.ValidationError[] }> = [];
+    const errors: Array<{ index: number; errors: validators.ValidationError[] }> = [];
 
     for (let i = 0; i < events.length; i++) {
       const validation = validators.validateTelemetryEvent(events[i]);

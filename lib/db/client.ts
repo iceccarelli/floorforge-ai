@@ -16,7 +16,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const resolvedSupabaseUrl = supabaseUrl || "https://example.supabase.co";
+const resolvedSupabaseAnonKey = supabaseAnonKey || "placeholder-anon-key";
+
+export const supabase = createClient(resolvedSupabaseUrl, resolvedSupabaseAnonKey);
 
 // ============================================================================
 // PILOT APPLICATIONS

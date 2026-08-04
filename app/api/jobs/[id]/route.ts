@@ -8,9 +8,9 @@ import * as db from "@/lib/db/client";
 import * as types from "@/lib/types";
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function GET(
@@ -18,7 +18,8 @@ export async function GET(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
-    const job = await db.getJobById(params.id);
+    const { id } = await params;
+    const job = await db.getJobById(id);
 
     return NextResponse.json(
       {
@@ -45,6 +46,7 @@ export async function PATCH(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
+    const { id } = await params;
     const body = await req.json();
 
     // Only allow updating status, coverage, and time fields
@@ -66,7 +68,7 @@ export async function PATCH(
       allowedUpdates.approval_score = body.approval_score;
     }
 
-    const updated = await db.updateJob(params.id, allowedUpdates);
+    const updated = await db.updateJob(id, allowedUpdates);
 
     return NextResponse.json(
       {
