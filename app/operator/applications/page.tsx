@@ -46,36 +46,59 @@ export default function ApplicationsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Fetch applications
+  // Fetch applications.
+  //
+  // The fetch is inlined into the effect rather than declared below it. The old
+  // shape — `useEffect(() => { fetchApplications() }, [filterStatus])` with
+  // `async function fetchApplications()` declared afterwards — tripped three
+  // React 19 hook rules at once: the function was read before its declaration,
+  // the dependency list omitted it, and `setLoading(true)` ran synchronously
+  // inside the effect body. See audit/FINDINGS.md P0-6.
+  //
+  // Two behavioural notes:
+  //   • The refetch trigger is unchanged: still exactly filterStatus.
+  //   • `active` is new. Previously a fast filter switch could let a slow
+  //     earlier response overwrite a newer one; that race is now closed.
   useEffect(() => {
-    fetchApplications();
-  }, [filterStatus]);
+    let active = true;
 
-  async function fetchApplications() {
-    try {
+    void (async () => {
+      // Awaiting first means no state update happens synchronously in the
+      // effect body — React has committed the render before anything lands.
+      await Promise.resolve();
+      if (!active) return;
+
       setLoading(true);
-      const query =
-        filterStatus === "all"
-          ? "/api/applications"
-          : `/api/applications?status=${filterStatus}`;
-      const response = await fetch(query);
-      const json = (await response.json()) as types.ApiResponse<
-        types.PaginatedResponse<types.PilotApplication>
-      >;
+      try {
+        const query =
+          filterStatus === "all"
+            ? "/api/applications"
+            : `/api/applications?status=${filterStatus}`;
+        const response = await fetch(query);
+        const json = (await response.json()) as types.ApiResponse<
+          types.PaginatedResponse<types.PilotApplication>
+        >;
+        if (!active) return;
 
-      if (json.error) {
-        setError(json.error.message);
-        return;
+        if (json.error) {
+          setError(json.error.message);
+          return;
+        }
+
+        setApplications(json.data?.data || []);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to fetch applications");
+      } finally {
+        if (active) setLoading(false);
       }
+    })();
 
-      setApplications(json.data?.data || []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch applications");
-    } finally {
-      setLoading(false);
-    }
-  }
+    return () => {
+      active = false;
+    };
+  }, [filterStatus]);
 
   async function updateApplicationStatus(
     id: string,

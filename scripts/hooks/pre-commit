@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# FloorForge pre-commit guard. Install with: scripts/hooks/install.sh
+#
+# Blocks the two things that have actually broken this project's repos:
+#   - a delivery *.patch committed instead of applied
+#   - a multi-megabyte binary committed instead of stored outside the repo
+#
+# NOTE: a local hook cannot see a GitHub web upload. The Actions job in
+# .github/workflows/verify.yml is what catches those. Both are wired to the
+# same script so they cannot disagree.
+set -euo pipefail
+exec node "$(git rev-parse --show-toplevel)/scripts/check-repo-hygiene.mjs" --staged

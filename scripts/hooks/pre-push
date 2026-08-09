@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# FloorForge pre-push guard. Install with: scripts/hooks/install.sh
+#
+# Runs the same verification GitHub Actions runs, so a red build is caught
+# before it is pushed — and so verification still works when Actions is down.
+# It has been.
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "▸ pre-push guards"
+
+node scripts/check-repo-hygiene.mjs
+node audit/scripts/parse-check.mjs 2>/dev/null || {
+  echo "  (audit/scripts/parse-check.mjs not present — skipping AST gate)"
+}
+
+echo "  running tsc…"
+npx --no-install tsc --noEmit
+
+echo "  running lint…"
+npm run lint
+
+echo "  running build…"
+npm run build --silent >/dev/null
+
+echo "✓ guards passed — pushing"

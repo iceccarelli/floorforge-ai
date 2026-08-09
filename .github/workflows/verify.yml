@@ -1,0 +1,83 @@
+name: verify
+
+# There was no CI on this repository at all before this workflow. Nothing ran on
+# any push, which is why `npm run lint` has been red on `main` unnoticed and why
+# a delivery patch file reached `main` twice through the GitHub web UI.
+#
+# This gate is deliberately small and secret-free: npm ci -> tsc -> lint ->
+# build, plus two dependency-free audit scripts. Browser-based checks
+# (Playwright, axe-core) are deliberately NOT here — a Playwright outage must
+# never block a deploy. See audit/DEFERRED.md D-1.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # `next build` needs no environment variables on this project: .env.example
+    # documents every variable as OPTIONAL, proxy.ts degrades Clerk to a
+    # pass-through without keys, and layout.tsx only mounts ClerkProvider when
+    # configured. The build is expected to log "Supabase credentials missing" —
+    # that is the documented keyless path, not a failure.
+    #
+    # If a placeholder here ever has to become a real secret for the build to
+    # pass, that is a bug worth reporting, not a secret worth adding.
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # npm, not pnpm. package-lock.json is the lockfile.
+      - name: install
+        run: npm ci
+
+      - name: repo hygiene — no committed patches, no large binaries
+        run: node scripts/check-repo-hygiene.mjs
+
+      - name: AST parse gate — no literal \n, no stranded ${...}
+        run: |
+          if [ -f audit/scripts/parse-check.mjs ]; then
+            node audit/scripts/parse-check.mjs
+          else
+            echo "audit/scripts/parse-check.mjs not present — skipping"
+          fi
+
+      - name: typecheck
+        run: npx tsc --noEmit
+
+      # A real gate, not a warning. `npm run lint` exited 1 on `main` before
+      # this patch (audit/FINDINGS.md P0-6); the two react-hooks errors in
+      # app/operator/** are fixed in this same patch precisely so this step can
+      # be blocking from the day it lands. A gate that is allowed to fail
+      # teaches the team to ignore it.
+      - name: lint
+        run: npm run lint
+
+      - name: build
+        run: npm run build
+
+      - name: token contrast table
+        run: |
+          if [ -f audit/scripts/token-contrast.mjs ]; then
+            node audit/scripts/token-contrast.mjs || \
+              echo "::warning::token pairs below WCAG AA — see audit/DESIGN_SYSTEM.md section 4"
+          fi

@@ -46,43 +46,67 @@ export default function JobsPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
 
-  // Fetch jobs
+  // Fetch jobs.
+  //
+  // The fetch is inlined into the effect rather than declared below it. The old
+  // shape — `useEffect(() => { fetchJobs() }, [filterStatus, selectedTenantId])`
+  // with `async function fetchJobs()` declared afterwards — tripped three React
+  // 19 hook rules at once: the function was read before its declaration, the
+  // dependency list omitted it, and `setLoading(true)` ran synchronously inside
+  // the effect body. See audit/FINDINGS.md P0-6.
+  //
+  // Two behavioural notes:
+  //   • The refetch triggers are unchanged: still exactly filterStatus and
+  //     selectedTenantId.
+  //   • `active` is new. Previously a fast filter switch could let a slow
+  //     earlier response overwrite a newer one; that race is now closed.
   useEffect(() => {
-    fetchJobs();
-  }, [filterStatus, selectedTenantId]);
+    let active = true;
 
-  async function fetchJobs() {
-    try {
-      setLoading(true);
+    void (async () => {
+      // Awaiting first means no state update happens synchronously in the
+      // effect body — React has committed the render before anything lands.
+      await Promise.resolve();
+      if (!active) return;
+
       if (!selectedTenantId) {
         setJobs([]);
         setLoading(false);
         return;
       }
 
-      const query =
-        filterStatus === "all"
-          ? `/api/jobs?tenant_id=${selectedTenantId}`
-          : `/api/jobs?tenant_id=${selectedTenantId}&status=${filterStatus}`;
+      setLoading(true);
+      try {
+        const query =
+          filterStatus === "all"
+            ? `/api/jobs?tenant_id=${selectedTenantId}`
+            : `/api/jobs?tenant_id=${selectedTenantId}&status=${filterStatus}`;
 
-      const response = await fetch(query);
-      const json = (await response.json()) as types.ApiResponse<
-        types.PaginatedResponse<types.Job>
-      >;
+        const response = await fetch(query);
+        const json = (await response.json()) as types.ApiResponse<
+          types.PaginatedResponse<types.Job>
+        >;
+        if (!active) return;
 
-      if (json.error) {
-        setError(json.error.message);
-        return;
+        if (json.error) {
+          setError(json.error.message);
+          return;
+        }
+
+        setJobs(json.data?.data || []);
+        setError(null);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Failed to fetch jobs");
+      } finally {
+        if (active) setLoading(false);
       }
+    })();
 
-      setJobs(json.data?.data || []);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch jobs");
-    } finally {
-      setLoading(false);
-    }
-  }
+    return () => {
+      active = false;
+    };
+  }, [filterStatus, selectedTenantId]);
 
   async function updateJobStatus(
     id: string,
