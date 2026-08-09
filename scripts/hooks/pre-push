@@ -16,7 +16,8 @@ node audit/scripts/parse-check.mjs 2>/dev/null || {
 }
 
 echo "  running tsc…"
-npx --no-install tsc --noEmit
+test -x node_modules/.bin/tsc || { echo "  node_modules is missing or incomplete — run: npm ci"; exit 1; }
+node_modules/.bin/tsc --noEmit
 
 echo "  running lint…"
 npm run lint
