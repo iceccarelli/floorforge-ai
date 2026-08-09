@@ -1,0 +1,2593 @@
+diff --git a/.gitignore b/.gitignore
+index 02ce6d3abf04..20d6077e8f9d 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -43,3 +43,14 @@ next-env.d.ts
+ 
+ # delivery patch artifacts — apply, never commit
+ *.patch
++
++# Source archives and generated indexes — object storage, not git.
++# Untracked by scripts/untrack-binaries.sh; rationale in that file and in
++# audit/FINDINGS.md P3-1. The blobs remain in history: `.git` is ~67 MB and a
++# fresh clone still pays for them. Reclaiming that needs git filter-repo or BFG
++# plus a force-push — see audit/DEFERRED.md D-7.
++showcase-assets.zip
++floorforge-image-library-ALL-78.png
++
++# Local tool state, not source.
++openclaw-workspace-state.json
+diff --git a/04-pro-teardown-native.patch b/04-pro-teardown-native.patch
+deleted file mode 100644
+index c4b77627c9c8..000000000000
+--- a/04-pro-teardown-native.patch
++++ /dev/null
+@@ -1,536 +0,0 @@
+-diff --git a/app/pro-simulator/page.tsx b/app/pro-simulator/page.tsx
+-index c6910ab..60a9eb4 100644
+---- a/app/pro-simulator/page.tsx
+-+++ b/app/pro-simulator/page.tsx
+-@@ -1,7 +1,8 @@
+- import type { Metadata } from "next";
+- import Link from "next/link";
+--import { ArrowLeft, Download, Info } from "lucide-react";
+-+import { ArrowLeft, Info, Monitor } from "lucide-react";
+- import { getRobot } from "@/lib/robots";
+-+import ProTeardownLoader from "@/components/simulator/ProTeardownLoader";
+- 
+- export const metadata: Metadata = {
+-   title: "Pro Simulator | FloorForge — High-Fidelity Mechanical Inspection",
+-@@ -11,11 +12,6 @@ export const metadata: Metadata = {
+-   robots: { index: false }, // gated tool; keep out of the index
+- };
+- 
+--// The Godot 4 web build (single-threaded, so NO COOP/COEP headers needed) is
+--// exported into /public/pro-sim/. Same-origin iframe => Godot reads its own
+--// query string via JavaScriptBridge (see JobParams.gd).
+--const GODOT_BUILD = "/pro-sim/index.html";
+--
+- type SP = Record<string, string | string[] | undefined>;
+- const first = (v: string | string[] | undefined) =>
+-   Array.isArray(v) ? v[0] : v;
+-@@ -31,14 +27,6 @@ export default async function ProSimulatorPage({
+-   const roomL = first(sp.roomL) ?? "5";
+-   const robot = getRobot(robotId);
+- 
+--  const frameParams = new URLSearchParams({
+--    robot: robotId,
+--    roomW,
+--    roomL,
+--    target: "web",
+--  });
+--  const frameSrc = `${GODOT_BUILD}?${frameParams.toString()}`;
+--
+-   return (
+-     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
+-       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+-@@ -66,58 +54,33 @@ export default async function ProSimulatorPage({
+-         is designed to work — not telemetry from shipping hardware.
+-       </p>
+- 
+--      {/* Godot web player (single-threaded build => no special headers) */}
+--      <div className="relative mt-6 aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
+--        <iframe
+--          src={frameSrc}
+--          title={`FloorForge Pro Simulator — ${robot.name}`}
+--          className="h-full w-full"
+--          allow="autoplay; fullscreen; cross-origin-isolated"
+--          // sandbox kept permissive enough for WASM + pointer lock; tighten as needed
+--          sandbox="allow-scripts allow-same-origin allow-pointer-lock allow-fullscreen"
+--        />
+-+      {/* live in-browser teardown (WebGL, no plugin, no download) */}
+-+      <div className="mt-6">
+-+        <ProTeardownLoader robotId={robotId} roomW={roomW} roomL={roomL} />
+-       </div>
+- 
+--      {/* desktop downloads */}
+-+      {/* honest context — no dead links */}
+-       <div className="mt-6 grid gap-3 sm:grid-cols-2">
+-         <div className="rounded-xl border border-border bg-card p-4">
+-           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+--            <Download className="h-4 w-4" /> Desktop build (max fidelity)
+-+            <Monitor className="h-4 w-4" /> Renders live in your browser
+-           </p>
+-           <p className="mt-1 text-sm text-muted-foreground">
+--            Native executables run heavier physics and higher-poly internals than
+--            the browser build.
+-+            This teardown runs on the same WebGL engine as the simulator — no
+-+            plugin, no download. Drag to orbit, pull the exploded slider, and
+-+            toggle the cutaway to see the drum, motor rotor and reduction gears.
+-           </p>
+--          <div className="mt-3 flex flex-wrap gap-2">
+--            <a
+--              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
+--              href="/pro-sim/downloads/floorforge-pro-sim-win.zip"
+--            >
+--              Windows (.zip)
+--            </a>
+--            <a
+--              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
+--              href="/pro-sim/downloads/floorforge-pro-sim-linux.zip"
+--            >
+--              Linux (.zip)
+--            </a>
+--            <a
+--              className="rounded-lg border border-border bg-muted px-3 py-1.5 text-xs font-medium text-foreground hover:bg-accent-light"
+--              href="/pro-sim/downloads/floorforge-pro-sim-mac.zip"
+--            >
+--              macOS (.zip)
+--            </a>
+--          </div>
+-         </div>
+- 
+-         <div className="rounded-xl border border-border bg-card p-4">
+-           <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+--            <Info className="h-4 w-4" /> Setup note
+-+            <Info className="h-4 w-4" /> What you&apos;re looking at
+-           </p>
+-           <p className="mt-1 text-sm text-muted-foreground">
+--            The player loads from <code>/public/pro-sim/</code>. Export the Godot
+--            project (single-threaded web preset) there and this page goes live —
+--            no server header changes required.
+-+            The geometry reflects how the {robot.name} is designed to operate.
+-+            Dimensions, grit sequence and coverage figures are engineering
+-+            targets for hardware in development — a way to inspect the mechanism,
+-+            not a record of a completed job.
+-           </p>
+-         </div>
+-       </div>
+-diff --git a/components/simulator/LaunchProSimulator.tsx b/components/simulator/LaunchProSimulator.tsx
+-index e86368c..d0aa62e 100644
+---- a/components/simulator/LaunchProSimulator.tsx
+-+++ b/components/simulator/LaunchProSimulator.tsx
+-@@ -7,9 +7,9 @@ import { useSim } from "@/lib/simStore";
+- import { Button } from "@/components/ui/button";
+- 
+- /**
+-- * Premium upsell: launches the high-fidelity Godot "Pro Simulator" and passes
+-- * the current job parameters through the URL. The Godot build reads these via
+-- * JavaScriptBridge (see the Godot project's JobParams.gd).
+-+ * Premium upsell: opens the high-fidelity Pro teardown and passes the current
+-+ * job parameters through the URL (robot, roomW, roomL). The Pro page reads them
+-+ * to load the right machine and job size.
+-  *
+-  * Positioning (honest): the Pro Simulator is a high-fidelity *concept*
+-  * teardown + inspection tool for pre-production hardware — not a telemetry
+-@@ -27,14 +27,12 @@ export default function LaunchProSimulator({
+-   const roomW = useSim((s) => s.roomW);
+-   const roomL = useSim((s) => s.roomL);
+- 
+--  // Job params handed to the Godot build. Keep keys stable — JobParams.gd
+--  // parses exactly these.
+-+  // Job params handed to the Pro teardown page. Keep keys stable — the page
+-+  // reads exactly these to pick the machine and job size.
+-   const params = new URLSearchParams({
+-     robot: selectedId,
+-     roomW: String(roomW),
+-     roomL: String(roomL),
+--    // "web" | "desktop" hint so the Godot UI can adapt density of controls
+--    target: "web",
+-   });
+-   const href = `/pro-simulator?${params.toString()}`;
+- 
+-@@ -52,9 +50,9 @@ export default function LaunchProSimulator({
+-             </span>
+-           </p>
+-           <p className="mt-0.5 text-sm text-muted-foreground">
+--            Full mechanical teardown of this platform — every gear, motor rotor,
+--            drum, belt and the dust path — with exploded views, cutaway cameras
+--            and realistic multi-grit passes. Opens with your current job loaded.
+-+            Full mechanical teardown of this platform — motor rotor, reduction
+-+            gears, drum and the dust path — with exploded views, cutaway cameras
+-+            and a turntable inspection view. Opens with your current job loaded.
+-           </p>
+-         </div>
+-       </div>
+-diff --git a/components/simulator/ProTeardown.tsx b/components/simulator/ProTeardown.tsx
+-new file mode 100644
+-index 0000000..a0c48ab
+---- /dev/null
+-+++ b/components/simulator/ProTeardown.tsx
+-@@ -0,0 +1,269 @@
+-+"use client";
+-+
+-+import React, { useEffect, useState, Suspense } from "react";
+-+import { Canvas } from "@react-three/fiber";
+-+import {
+-+  OrbitControls,
+-+  Environment,
+-+  Lightformer,
+-+  ContactShadows,
+-+} from "@react-three/drei";
+-+import {
+-+  Boxes,
+-+  Layers,
+-+  RotateCw,
+-+  RefreshCw,
+-+  ScanLine,
+-+} from "lucide-react";
+-+import { getRobot, type RobotSpec } from "@/lib/robots";
+-+import { useSim } from "@/lib/simStore";
+-+import RobotMesh from "@/components/simulator/RobotMesh";
+-+
+-+/** Honest, concept-level descriptions of the internals the model actually
+-+ *  renders for each platform — used for the annotated parts legend. */
+-+function partsFor(id: string): { label: string; note: string }[] {
+-+  switch (id) {
+-+    case "sand":
+-+      return [
+-+        { label: "Planetary drum", note: "ribbed abrasive · 36→120 grit" },
+-+        { label: "Brushless motor + rotor", note: "revealed in cutaway" },
+-+        { label: "Reduction gear pair", note: "meshing spur gears" },
+-+        { label: "Dust shroud + hose", note: "routes to HEPA canister" },
+-+      ];
+-+    case "edge":
+-+      return [
+-+        { label: "Oscillating disc head", note: "edge & transition sanding" },
+-+        { label: "Offset follow arm", note: "reaches the wall line" },
+-+        { label: "Guard skirt", note: "contains debris" },
+-+      ];
+-+    case "coat":
+-+      return [
+-+        { label: "Fluid tank", note: "stain / poly reservoir" },
+-+        { label: "Feed line", note: "to the applicator" },
+-+        { label: "Applicator bar", note: "even film build" },
+-+        { label: "Wet-film sheen", note: "freshly laid finish" },
+-+      ];
+-+    case "lay":
+-+      return [
+-+        { label: "Gantry + gripper", note: "picks & sets each plank" },
+-+        { label: "Plank magazine", note: "staged material feed" },
+-+        { label: "Alignment head", note: "vision-indexed rows" },
+-+      ];
+-+    case "scan":
+-+      return [
+-+        { label: "LiDAR dome", note: "rotating flatness sweep" },
+-+        { label: "Scan emitter ring", note: "active while surveying" },
+-+        { label: "Forward camera pods", note: "coverage QA" },
+-+        { label: "Sensor mast", note: "elevated vantage" },
+-+      ];
+-+    default:
+-+      return [];
+-+  }
+-+}
+-+
+-+function Scene({ robot, autoRotate }: { robot: RobotSpec; autoRotate: boolean }) {
+-+  return (
+-+    <>
+-+      <ambientLight intensity={0.4} />
+-+      <directionalLight position={[4, 6, 3]} intensity={1.6} castShadow />
+-+      <directionalLight position={[-5, 3, -4]} intensity={0.5} color="#bcd0ff" />
+-+
+-+      {/* in-engine reflections — no network fetch, offline-safe */}
+-+      <Environment resolution={128} frames={1}>
+-+        <Lightformer intensity={2.2} position={[0, 4, 2]} scale={[6, 3, 1]} color="#fff6e8" />
+-+        <Lightformer intensity={1.4} position={[4, 2, -3]} scale={[3, 3, 1]} color="#dce8ff" />
+-+        <Lightformer intensity={1} position={[-4, 1, 2]} scale={[3, 3, 1]} color="#ffffff" />
+-+      </Environment>
+-+
+-+      {/* turntable pedestal */}
+-+      <mesh position={[0, -0.006, 0]} rotation={[0, 0, 0]}>
+-+        <cylinderGeometry args={[1.15, 1.2, 0.012, 64]} />
+-+        <meshStandardMaterial color="#12161f" metalness={0.6} roughness={0.35} envMapIntensity={0.6} />
+-+      </mesh>
+-+      <mesh position={[0, 0.002, 0]}>
+-+        <torusGeometry args={[1.15, 0.006, 8, 80]} />
+-+        <meshStandardMaterial color={robot.color} emissive={robot.color} emissiveIntensity={0.5} />
+-+      </mesh>
+-+
+-+      <ContactShadows position={[0, 0.001, 0]} opacity={0.5} scale={5} blur={2.4} far={2} />
+-+
+-+      <group position={[0, 0, 0]}>
+-+        <RobotMesh robot={robot} animate />
+-+      </group>
+-+
+-+      <OrbitControls
+-+        enablePan={false}
+-+        autoRotate={autoRotate}
+-+        autoRotateSpeed={0.9}
+-+        minDistance={1.4}
+-+        maxDistance={6}
+-+        maxPolarAngle={Math.PI / 1.9}
+-+        target={[0, 0.3, 0]}
+-+        enableDamping
+-+      />
+-+    </>
+-+  );
+-+}
+-+
+-+export default function ProTeardown({
+-+  robotId,
+-+  roomW,
+-+  roomL,
+-+}: {
+-+  robotId: string;
+-+  roomW: string;
+-+  roomL: string;
+-+}) {
+-+  const robot = getRobot(robotId);
+-+  const exploded = useSim((s) => s.exploded);
+-+  const cutaway = useSim((s) => s.cutaway);
+-+  const setExploded = useSim((s) => s.setExploded);
+-+  const toggleCutaway = useSim((s) => s.toggleCutaway);
+-+  const [autoRotate, setAutoRotate] = useState(true);
+-+
+-+  // Enter with a clean, assembled machine; leave the store tidy on exit so
+-+  // navigating back to /simulator doesn't inherit teardown inspection state.
+-+  useEffect(() => {
+-+    useSim.setState({ exploded: 0, cutaway: false });
+-+    return () => useSim.setState({ exploded: 0, cutaway: false });
+-+  }, [robotId]);
+-+
+-+  const reset = () => {
+-+    setExploded(0);
+-+    if (cutaway) toggleCutaway();
+-+  };
+-+
+-+  const parts = partsFor(robot.id);
+-+
+-+  return (
+-+    <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-[#0b0e14]">
+-+      {/* subtle studio vignette */}
+-+      <div
+-+        className="pointer-events-none absolute inset-0 z-[1]"
+-+        style={{
+-+          background:
+-+            "radial-gradient(120% 90% at 50% 12%, rgba(255,255,255,0.06), transparent 55%)",
+-+        }}
+-+      />
+-+
+-+      <Canvas
+-+        shadows
+-+        dpr={[1, 1.75]}
+-+        camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
+-+        className="h-full w-full"
+-+        aria-label={`High-fidelity 3D teardown of the ${robot.name}`}
+-+      >
+-+        <color attach="background" args={["#0b0e14"]} />
+-+        <Suspense fallback={null}>
+-+          <Scene robot={robot} autoRotate={autoRotate} />
+-+        </Suspense>
+-+      </Canvas>
+-+
+-+      {/* title chip */}
+-+      <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-sm">
+-+        <p className="flex items-center gap-2 text-sm font-semibold text-white">
+-+          <span
+-+            className="inline-block h-2.5 w-2.5 rounded-full"
+-+            style={{ background: robot.color }}
+-+          />
+-+          {robot.name}
+-+        </p>
+-+        <p className="text-[11px] text-white/60">{robot.role}</p>
+-+      </div>
+-+
+-+      {/* parts legend */}
+-+      {parts.length > 0 && (
+-+        <div className="pointer-events-none absolute right-3 top-3 z-10 hidden w-[210px] rounded-xl border border-white/10 bg-black/40 p-3 backdrop-blur-sm sm:block">
+-+          <p className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/70">
+-+            <ScanLine className="h-3.5 w-3.5" /> Internals
+-+          </p>
+-+          <ul className="space-y-1.5">
+-+            {parts.map((p) => (
+-+              <li key={p.label} className="flex gap-2">
+-+                <span
+-+                  className="mt-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+-+                  style={{ background: robot.color }}
+-+                />
+-+                <span className="min-w-0">
+-+                  <span className="block text-[12px] font-medium text-white">
+-+                    {p.label}
+-+                  </span>
+-+                  <span className="block text-[10px] leading-tight text-white/55">
+-+                    {p.note}
+-+                  </span>
+-+                </span>
+-+              </li>
+-+            ))}
+-+          </ul>
+-+        </div>
+-+      )}
+-+
+-+      {/* control dock */}
+-+      <div className="absolute inset-x-3 bottom-3 z-10 rounded-xl border border-white/10 bg-black/45 p-3 backdrop-blur-md">
+-+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+-+          {/* exploded */}
+-+          <div className="min-w-0 flex-1">
+-+            <div className="mb-1 flex items-center justify-between">
+-+              <label
+-+                htmlFor="pt-explode"
+-+                className="flex items-center gap-1.5 text-[11px] font-semibold text-white"
+-+              >
+-+                <Boxes className="h-3.5 w-3.5" /> Exploded view
+-+              </label>
+-+              <span className="font-mono text-[11px] text-white/60">
+-+                {Math.round(exploded * 100)}%
+-+              </span>
+-+            </div>
+-+            <input
+-+              id="pt-explode"
+-+              type="range"
+-+              min={0}
+-+              max={1}
+-+              step={0.01}
+-+              value={exploded}
+-+              onChange={(e) => setExploded(Number(e.target.value))}
+-+              className="w-full accent-[var(--accent)]"
+-+            />
+-+          </div>
+-+
+-+          {/* buttons */}
+-+          <div className="flex shrink-0 gap-2">
+-+            <button
+-+              onClick={toggleCutaway}
+-+              aria-pressed={cutaway}
+-+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+-+                cutaway
+-+                  ? "border-accent bg-accent text-white"
+-+                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+-+              }`}
+-+            >
+-+              <Layers className="h-3.5 w-3.5" /> Cutaway
+-+            </button>
+-+            <button
+-+              onClick={() => setAutoRotate((v) => !v)}
+-+              aria-pressed={autoRotate}
+-+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+-+                autoRotate
+-+                  ? "border-accent bg-accent text-white"
+-+                  : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+-+              }`}
+-+            >
+-+              <RotateCw className="h-3.5 w-3.5" /> Spin
+-+            </button>
+-+            <button
+-+              onClick={reset}
+-+              className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/10"
+-+            >
+-+              <RefreshCw className="h-3.5 w-3.5" /> Reset
+-+            </button>
+-+          </div>
+-+        </div>
+-+        <p className="mt-2 text-[10px] leading-tight text-white/45">
+-+          Concept teardown for a {roomW}×{roomL} m job · drag to orbit · scroll to
+-+          zoom. Geometry shows how the machine is designed to work — not telemetry
+-+          from shipping hardware.
+-+        </p>
+-+      </div>
+-+    </div>
+-+  );
+-+}
+-diff --git a/components/simulator/ProTeardownLoader.tsx b/components/simulator/ProTeardownLoader.tsx
+-new file mode 100644
+-index 0000000..21d76c1
+---- /dev/null
+-+++ b/components/simulator/ProTeardownLoader.tsx
+-@@ -0,0 +1,23 @@
+-+"use client";
+-+
+-+import dynamic from "next/dynamic";
+-+
+-+const ProTeardown = dynamic(
+-+  () => import("@/components/simulator/ProTeardown"),
+-+  {
+-+    ssr: false,
+-+    loading: () => (
+-+      <div className="flex aspect-video w-full animate-pulse items-center justify-center rounded-2xl border border-border bg-[#0b0e14]">
+-+        <span className="text-sm text-white/50">Loading teardown…</span>
+-+      </div>
+-+    ),
+-+  }
+-+);
+-+
+-+export default function ProTeardownLoader(props: {
+-+  robotId: string;
+-+  roomW: string;
+-+  roomL: string;
+-+}) {
+-+  return <ProTeardown {...props} />;
+-+}
+-diff --git a/components/simulator/RobotMesh.tsx b/components/simulator/RobotMesh.tsx
+-index 0691023..d0ebb9c 100644
+---- a/components/simulator/RobotMesh.tsx
+-+++ b/components/simulator/RobotMesh.tsx
+-@@ -126,7 +126,13 @@ function Wheels({ width }: { width: number }) {
+-   );
+- }
+- 
+--export default function RobotMesh({ robot }: { robot: RobotSpec }) {
+-+export default function RobotMesh({
+-+  robot,
+-+  animate = false,
+-+}: {
+-+  robot: RobotSpec;
+-+  animate?: boolean;
+-+}) {
+-   const m = useMats(robot.color);
+-   const width = robot.workingWidthM;
+-   const bodyW = Math.max(0.42, width * 0.95);
+-@@ -153,7 +159,7 @@ export default function RobotMesh({ robot }: { robot: RobotSpec }) {
+-   }, [bodyW]);
+- 
+-   useFrame((state, delta) => {
+--    const running = useSim.getState().running;
+-+    const running = animate || useSim.getState().running;
+-     const dt = Math.min(delta, 0.05);
+-     const t = state.clock.elapsedTime;
+- 
+-diff --git a/next.config.ts b/next.config.ts
+-index b440c31..b460b5e 100644
+---- a/next.config.ts
+-+++ b/next.config.ts
+-@@ -1,33 +1,12 @@
+- import type { NextConfig } from "next";
+- 
+- /**
+-- * Pro Simulator (Godot) hosting:
+-- *
+-- * The recommended Godot web export is SINGLE-THREADED (Godot 4.3+). That mode
+-- * needs NO special HTTP headers, so leave PRO_SIM_THREADS = false and nothing
+-- * else is required — it just works on Vercel.
+-- *
+-- * ONLY flip this to true if you deliberately export a MULTI-THREADED Godot
+-- * build (SharedArrayBuffer). Then these two headers are required on the pages
+-- * that host the player. They are scoped to /pro-simulator and /pro-sim/* ONLY
+-- * — never apply COEP: require-corp globally, or it will break cross-origin
+-- * subresources across the whole site (Clerk, Supabase images, fonts, etc.).
+-+ * The Pro Simulator teardown now renders natively in-browser via WebGL
+-+ * (see components/simulator/ProTeardown.tsx) — there is no embedded Godot
+-+ * player, so NO special cross-origin isolation headers are required. Keep
+-+ * this config minimal; never apply COEP: require-corp globally or it will
+-+ * break cross-origin subresources (Clerk, Supabase images, fonts, etc.).
+-  */
+--const PRO_SIM_THREADS = false;
+--
+--const crossOriginIsolation = [
+--  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+--  { key: "Cross-Origin-Embedder-Policy", value: "require-corp" },
+--];
+--
+--const nextConfig: NextConfig = {
+--  async headers() {
+--    if (!PRO_SIM_THREADS) return [];
+--    return [
+--      { source: "/pro-simulator", headers: crossOriginIsolation },
+--      { source: "/pro-sim/:path*", headers: crossOriginIsolation },
+--    ];
+--  },
+--};
+-+const nextConfig: NextConfig = {};
+- 
+- export default nextConfig;
+diff --git a/ALIGNMENT_SUMMARY.md b/docs/archive/ALIGNMENT_SUMMARY.md
+similarity index 100%
+rename from ALIGNMENT_SUMMARY.md
+rename to docs/archive/ALIGNMENT_SUMMARY.md
+diff --git a/AUDIT_2026-07-31.md b/docs/archive/AUDIT_2026-07-31.md
+similarity index 100%
+rename from AUDIT_2026-07-31.md
+rename to docs/archive/AUDIT_2026-07-31.md
+diff --git a/BACKEND_INDEX.md b/docs/archive/BACKEND_INDEX.md
+similarity index 100%
+rename from BACKEND_INDEX.md
+rename to docs/archive/BACKEND_INDEX.md
+diff --git a/BACKEND_SKELETON_REPORT.md b/docs/archive/BACKEND_SKELETON_REPORT.md
+similarity index 100%
+rename from BACKEND_SKELETON_REPORT.md
+rename to docs/archive/BACKEND_SKELETON_REPORT.md
+diff --git a/IMPLEMENTATION_SUMMARY.md b/docs/archive/IMPLEMENTATION_SUMMARY.md
+similarity index 100%
+rename from IMPLEMENTATION_SUMMARY.md
+rename to docs/archive/IMPLEMENTATION_SUMMARY.md
+diff --git a/INTEGRATION_READINESS_REPORT.md b/docs/archive/INTEGRATION_READINESS_REPORT.md
+similarity index 100%
+rename from INTEGRATION_READINESS_REPORT.md
+rename to docs/archive/INTEGRATION_READINESS_REPORT.md
+diff --git a/MISSION_COMPLETE.md b/docs/archive/MISSION_COMPLETE.md
+similarity index 100%
+rename from MISSION_COMPLETE.md
+rename to docs/archive/MISSION_COMPLETE.md
+diff --git a/OPERATOR_SURFACE_REPORT.md b/docs/archive/OPERATOR_SURFACE_REPORT.md
+similarity index 100%
+rename from OPERATOR_SURFACE_REPORT.md
+rename to docs/archive/OPERATOR_SURFACE_REPORT.md
+diff --git a/PRODUCT_ALIGNMENT.md b/docs/archive/PRODUCT_ALIGNMENT.md
+similarity index 100%
+rename from PRODUCT_ALIGNMENT.md
+rename to docs/archive/PRODUCT_ALIGNMENT.md
+diff --git a/docs/archive/README.md b/docs/archive/README.md
+new file mode 100644
+index 000000000000..7115a8eeb779
+--- /dev/null
++++ b/docs/archive/README.md
+@@ -0,0 +1,58 @@
++# `docs/archive/`
++
++Point-in-time reports and superseded planning documents, moved here from the repo
++root in `FLOORFORGE_01_repo_hygiene.patch`.
++
++**Nothing here was deleted, and nothing here was rewritten.** These are someone
++else's work product, and several record decisions that are still load-bearing —
++`AUDIT_2026-07-31.md` in particular already names most of the backend gaps the
++Phase 0 audit found, and reached compatible conclusions. They are archived
++because a root directory carrying 22 markdown files makes the living documents
++hard to find, not because the work stopped mattering.
++
++## Still living, still at the repo root
++
++`README.md` · `AGENTS.md` · `TOOLS.md` · `IDENTITY.md` · `DESIGN_SYSTEM.md` ·
++`PAGE_UX_CONTRACTS.md` · `API_REFERENCE.md` · `BACKEND_SETUP.md` ·
++`PRODUCT_SERVICE_DEFINITION.md` · `SOFTWARE_HARDWARE_CONTRACT.md` ·
++`PRODUCT_SERVICE_ROADMAP.md` · `SHARED_INTERFACE_NOTES.md`
++
++## Archived here
++
++| File | What it is |
++|---|---|
++| `ALIGNMENT_SUMMARY.md` | Point-in-time alignment summary |
++| `AUDIT_2026-07-31.md` | Technical and business architecture audit, 2026-07-31 |
++| `BACKEND_INDEX.md` | Index of the backend skeleton as built |
++| `BACKEND_SKELETON_REPORT.md` | Backend skeleton delivery report |
++| `IMPLEMENTATION_SUMMARY.md` | Implementation summary for a completed phase |
++| `INTEGRATION_READINESS_REPORT.md` | Integration readiness assessment |
++| `MISSION_COMPLETE.md` | Completion report for a prior engagement |
++| `OPERATOR_SURFACE_REPORT.md` | Operator console delivery report |
++| `PRODUCT_ALIGNMENT.md` | Product alignment notes, superseded by `PRODUCT_SERVICE_DEFINITION.md` |
++| `REPORT.md` | Build-fix report for commit `43bf65d` (Next.js 16 route params) |
++| `SITE_ARCHITECTURE_SUMMARY.md` | Site architecture summary |
++
++## One disagreement, recorded rather than silently corrected
++
++`DESIGN_SYSTEM.md` stays at the root and stays authoritative, with one exception:
++its "Contrast & Accessibility" section publishes four WCAG ratios that are
++overstated by up to 55 %. Recomputed from the same tokens with
++`audit/scripts/token-contrast.mjs` — pure arithmetic, no browser, identical
++output every run:
++
++| Pair | The doc claims | Measured |
++|---|---|---|
++| `#64748b` on `#ffffff` | 7.1:1 | **4.76:1** |
++| `#b45309` on `#ffffff` | 7.8:1 | **5.02:1** |
++| `#b45309` on `#fef3c7` | 6.2:1 | **4.51:1** |
++| `#0f172a` on `#ffffff` | 16.3:1 | **17.85:1** |
++
++All four still pass AA, so nothing is broken *because* of the table. The damage
++is downstream: a team that believes `--muted-foreground` has 2.6 of headroom on
++white will happily put it on a tinted background. It has 0.26 — and on
++`--accent-light`, the pair the document does not list, it fails at 4.27:1.
++
++Full reasoning in `audit/DESIGN_SYSTEM.md` §4, which recommends replacing that
++hand-written table with generated output so it cannot drift from the tokens
++again.
+diff --git a/REPORT.md b/docs/archive/REPORT.md
+similarity index 100%
+rename from REPORT.md
+rename to docs/archive/REPORT.md
+diff --git a/SITE_ARCHITECTURE_SUMMARY.md b/docs/archive/SITE_ARCHITECTURE_SUMMARY.md
+similarity index 100%
+rename from SITE_ARCHITECTURE_SUMMARY.md
+rename to docs/archive/SITE_ARCHITECTURE_SUMMARY.md
+diff --git a/scripts/check-repo-hygiene.mjs b/scripts/check-repo-hygiene.mjs
+index e86bf7b2d06e..e88f6b99b94f 100755
+--- a/scripts/check-repo-hygiene.mjs
++++ b/scripts/check-repo-hygiene.mjs
+@@ -27,14 +27,13 @@
+  *
+  * THE ALLOWLIST IS TEMPORARY
+  * --------------------------
+- * The entries below already existed on `main` when this guard was written
+- * (audit/FINDINGS.md P3-1, P3-2). They are grandfathered so this gate is green
+- * on the day it lands and turns red the moment a NEW offender appears — which
+- * is the failure mode that has actually bitten twice.
++ * FLOORFORGE_01_repo_hygiene.patch deleted the three stale delivery patches and
++ * scripts/untrack-binaries.sh untracked the 8.4 MB that was provably redundant.
++ * What is left is the social-campaign archives, which hold the only copy of
++ * their contents — see the comment on ALLOWLIST for how to empty it.
+  *
+- * FLOORFORGE_01_repo_hygiene.patch removes them. When it lands, delete every
+- * entry from ALLOWLIST. A missing allowlist entry is not an error, so patch 01
+- * and this patch can land in either order.
++ * A missing allowlist entry is not an error, so the order in which these land
++ * does not matter.
+  */
+ import { execSync } from "node:child_process";
+ import { statSync } from "node:fs";
+@@ -42,13 +41,17 @@ import { statSync } from "node:fs";
+ const MAX_BYTES = 500 * 1024;
+ 
+ const ALLOWLIST = new Set([
+-  // Stale delivery patches committed before `.gitignore` gained `*.patch`.
+-  "04-pro-teardown-native.patch",
+-  "showcase-systems.patch",
+-  "showcase-v2-categorized.patch",
+-  // Committed binaries. 19.7 MB total; see audit/FINDINGS.md P3-1.
+-  "showcase-assets.zip",
+-  "floorforge-image-library-ALL-78.png",
++  // The social-campaign archives, and only these.
++  //
++  // Unlike showcase-assets.zip (a byte-identical copy of
++  // public/showcase/gallery/) and floorforge-image-library-ALL-78.png (a
++  // derived contact sheet), these hold the ONLY copy of 12 files: 5 JPG,
++  // 5 WebP, a README and a JSON, none of which exists anywhere else in the
++  // repo. They are also ~4x redundant with each other — 7.1 MB tracked for
++  // 1.8 MB of unique content.
++  //
++  // Store those 12 files off-repo, run `git rm --cached` on these ten, and
++  // empty this Set. An empty ALLOWLIST is the goal state.
+   "floorforge_social_campaign.zip",
+   "floorforge_social_campaign (1).zip",
+   "floorforge_social_campaign (2).zip",
+diff --git a/scripts/untrack-binaries.sh b/scripts/untrack-binaries.sh
+new file mode 100755
+index 000000000000..64b8e4887c4d
+--- /dev/null
++++ b/scripts/untrack-binaries.sh
+@@ -0,0 +1,84 @@
++#!/usr/bin/env bash
++#
++# Untrack the committed binaries that git should never have been carrying.
++#
++# WHY THIS IS A SCRIPT AND NOT PART OF THE PATCH
++# ----------------------------------------------
++# A unified diff that removes a 4.4 MB zip has to embed the whole pre-image, so
++# `git diff --binary` for these files produces an 11 MB patch — absurd for a
++# change whose entire purpose is to make the repo smaller. More importantly,
++# `git rm --cached` is the operation you actually want: it removes the file from
++# the index while LEAVING IT ON DISK. A patch would delete it outright.
++#
++# WHAT IS SAFE TO UNTRACK, AND HOW THAT WAS ESTABLISHED
++# -----------------------------------------------------
++#   showcase-assets.zip (4.4 MB)
++#       Contains gallery/*.webp — 78 files, every one byte-identical to
++#       public/showcase/gallery/ (verified with `cmp` on all 78). A pure
++#       duplicate of content that stays tracked. Untracking loses nothing.
++#
++#   floorforge-image-library-ALL-78.png (4.0 MB)
++#       A 1500x1968 labelled contact sheet of the 78 renders — each tile is
++#       ~150 px wide against 784x1168 originals. A derived browsing index, not
++#       a source. Regenerable from public/showcase/gallery/ at any time.
++#
++#   openclaw-workspace-state.json (141 B)
++#       Local tool state. Not source.
++#
++# WHAT IS DELIBERATELY LEFT TRACKED
++# ---------------------------------
++#   floorforge_social_campaign*.zip (10 files, 7.1 MB)
++#       These hold the ONLY copy of 12 files — 5 JPG, 5 WebP, a README and a
++#       JSON — none of which exists anywhere else in the repo. They are also
++#       ~4x redundant with each other: 7.1 MB tracked for 1.8 MB of unique
++#       content. Store those 12 files off-repo, then untrack these too and
++#       empty the ALLOWLIST in scripts/check-repo-hygiene.mjs.
++#
++# HISTORY IS NOT REWRITTEN
++# ------------------------
++# Untracking stops the bleeding; it does not shrink the clone. The blobs stay in
++# history, `.git` stays around 67 MB, and every fresh clone still pays for them.
++# Reclaiming that needs `git filter-repo` or BFG plus a force-push, which
++# rewrites every commit SHA and invalidates the two open branches
++# (feat/autonomous-refinishing-showcase, pro-simulator-integration). That is a
++# coordinated operation for a moment when no work is in flight — recommended in
++# audit/DEFERRED.md D-7, deliberately NOT done here.
++#
++# Nothing is lost either way: any untracked file can be restored from history.
++#     git show 3c2c2d0:showcase-assets.zip > showcase-assets.zip
++#
++set -euo pipefail
++cd "$(git rev-parse --show-toplevel)"
++
++FILES=(
++  "showcase-assets.zip"
++  "floorforge-image-library-ALL-78.png"
++  "openclaw-workspace-state.json"
++)
++
++echo "▸ untracking committed binaries (files stay on disk)"
++FREED=0
++DONE=0
++for f in "${FILES[@]}"; do
++  if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
++    SIZE=$(git cat-file -s "$(git rev-parse "HEAD:$f")")
++    git rm --cached --quiet "$f"
++    FREED=$((FREED + SIZE))
++    DONE=$((DONE + 1))
++    printf '  removed from index: %-40s %8d bytes (still on disk)\n' "$f" "$SIZE"
++  else
++    printf '  already untracked:  %s\n' "$f"
++  fi
++done
++
++if [ "$DONE" -eq 0 ]; then
++  echo "  nothing to do."
++  exit 0
++fi
++
++echo
++printf '  %d file(s), %.1f MB no longer tracked.\n' "$DONE" "$(echo "$FREED" | awk '{print $1/1048576}')"
++echo
++echo "  Next:"
++echo "      node scripts/check-repo-hygiene.mjs"
++echo "      git commit -m 'chore: untrack committed binaries (see scripts/untrack-binaries.sh)'"
+diff --git a/showcase-systems.patch b/showcase-systems.patch
+deleted file mode 100644
+index 12848e612386..000000000000
+--- a/showcase-systems.patch
++++ /dev/null
+@@ -1,771 +0,0 @@
+-diff --git a/app/globals.css b/app/globals.css
+-index 26a04a0..a48d8b1 100644
+---- a/app/globals.css
+-+++ b/app/globals.css
+-@@ -321,6 +321,16 @@ a:focus-visible {
+- }
+- 
+- 
+-+/* Hide scrollbar on the Autonomous Refinishing showcase rail while keeping
+-+   native horizontal scroll / swipe + scroll-snap intact. */
+-+.no-scrollbar::-webkit-scrollbar {
+-+  display: none;
+-+}
+-+.no-scrollbar {
+-+  -ms-overflow-style: none;
+-+  scrollbar-width: none;
+-+}
+-+
+- /* Skip link — visible only on keyboard focus, for a11y */
+- .skip-link {
+-   position: absolute;
+-diff --git a/app/page.tsx b/app/page.tsx
+-index f6549ed..07db4ba 100644
+---- a/app/page.tsx
+-+++ b/app/page.tsx
+-@@ -10,6 +10,7 @@ import ROICalculator from "@/components/ROICalculator";
+- import Chatbot from "@/components/Chatbot";
+- import WaitlistCTA from "@/components/WaitlistCTA";
+- import Reveal from "@/components/Reveal";
+-+import ShowcaseCarousel from "@/components/ShowcaseCarousel";
+- import Link from "next/link";
+- import { ROBOTS } from "@/lib/robots";
+- 
+-@@ -168,6 +169,9 @@ export default function FloorForgeLanding() {
+-         </div>
+-       </section>
+- 
+-+      {/* AUTONOMOUS FLOOR REFINISHING SYSTEMS — product showcase */}
+-+      <ShowcaseCarousel />
+-+
+-       {/* SIMULATOR TEASER */}
+-       <section className="section border-b bg-muted py-16">
+-         <div className="mx-auto max-w-6xl px-6">
+-diff --git a/components/Header.tsx b/components/Header.tsx
+-index 1e020be..b234080 100644
+---- a/components/Header.tsx
+-+++ b/components/Header.tsx
+-@@ -10,6 +10,7 @@ import { authEnabled } from "@/lib/auth";
+- import { motion, AnimatePresence } from "framer-motion";
+- 
+- const navLinks = [
+-+  { href: "#showcase", label: "Systems" },
+-   { href: "#features", label: "Features" },
+-   { href: "#how-it-works", label: "How it Works" },
+-   { href: "#roi", label: "ROI" },
+-diff --git a/components/ShowcaseCarousel.tsx b/components/ShowcaseCarousel.tsx
+-new file mode 100644
+-index 0000000..a0c5f26
+---- /dev/null
+-+++ b/components/ShowcaseCarousel.tsx
+-@@ -0,0 +1,481 @@
+-+"use client";
+-+
+-+import React, { useCallback, useEffect, useRef, useState } from "react";
+-+import Image from "next/image";
+-+import * as Dialog from "@radix-ui/react-dialog";
+-+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+-+import { ChevronLeft, ChevronRight, X, ArrowUpRight, Cpu } from "lucide-react";
+-+import { Button } from "@/components/ui/button";
+-+import { cn } from "@/lib/utils";
+-+import { SHOWCASE, similarTo, type ShowcaseItem } from "@/lib/showcase";
+-+
+-+/* Every frame is a fixed 784×1168 render; cards and the lightbox use
+-+   fixed-aspect-ratio boxes with next/image `fill`, so layout is reserved
+-+   before the image loads and the section never shifts (zero CLS). */
+-+
+-+/* ------------------------------------------------------------------ */
+-+/*  Lightbox                                                           */
+-+/* ------------------------------------------------------------------ */
+-+
+-+function Lightbox({
+-+  index,
+-+  onIndexChange,
+-+  onClose,
+-+}: {
+-+  index: number;
+-+  onIndexChange: (i: number) => void;
+-+  onClose: () => void;
+-+}) {
+-+  const reduce = useReducedMotion();
+-+  const item = SHOWCASE[index];
+-+  const similar = similarTo(item);
+-+
+-+  const go = useCallback(
+-+    (dir: 1 | -1) => {
+-+      const next = (index + dir + SHOWCASE.length) % SHOWCASE.length;
+-+      onIndexChange(next);
+-+    },
+-+    [index, onIndexChange]
+-+  );
+-+
+-+  // Arrow-key navigation between all frames (Esc is handled by Radix).
+-+  useEffect(() => {
+-+    const onKey = (e: KeyboardEvent) => {
+-+      if (e.key === "ArrowRight") go(1);
+-+      if (e.key === "ArrowLeft") go(-1);
+-+    };
+-+    window.addEventListener("keydown", onKey);
+-+    return () => window.removeEventListener("keydown", onKey);
+-+  }, [go]);
+-+
+-+  const motionProps = reduce
+-+    ? {}
+-+    : {
+-+        initial: { opacity: 0, scale: 0.98, y: 8 },
+-+        animate: { opacity: 1, scale: 1, y: 0 },
+-+        exit: { opacity: 0, scale: 0.98, y: 8 },
+-+        transition: { duration: 0.24, ease: [0.23, 1, 0.32, 1] as const },
+-+      };
+-+
+-+  return (
+-+    <Dialog.Portal forceMount>
+-+      <Dialog.Overlay asChild forceMount>
+-+        <motion.div
+-+          className="fixed inset-0 z-[60] bg-slate-950/80 backdrop-blur-sm"
+-+          initial={reduce ? undefined : { opacity: 0 }}
+-+          animate={reduce ? undefined : { opacity: 1 }}
+-+          exit={reduce ? undefined : { opacity: 0 }}
+-+          transition={{ duration: 0.2 }}
+-+        />
+-+      </Dialog.Overlay>
+-+
+-+      <Dialog.Content
+-+        asChild
+-+        forceMount
+-+        aria-describedby={`sc-desc-${item.id}`}
+-+        onOpenAutoFocus={(e) => e.preventDefault()}
+-+      >
+-+        <motion.div
+-+          {...motionProps}
+-+          className="fixed inset-0 z-[61] flex items-stretch justify-center p-0 sm:p-6 md:p-10"
+-+        >
+-+          <div className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-card shadow-2xl sm:rounded-2xl md:flex-row">
+-+            {/* Close */}
+-+            <Dialog.Close asChild>
+-+              <button
+-+                aria-label="Close"
+-+                className="absolute right-3 top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white/90 text-foreground backdrop-blur transition hover:bg-white"
+-+              >
+-+                <X className="h-5 w-5" />
+-+              </button>
+-+            </Dialog.Close>
+-+
+-+            {/* Prev / Next across all frames */}
+-+            <button
+-+              aria-label="Previous view"
+-+              onClick={() => go(-1)}
+-+              className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:flex"
+-+            >
+-+              <ChevronLeft className="h-5 w-5" />
+-+            </button>
+-+            <button
+-+              aria-label="Next view"
+-+              onClick={() => go(1)}
+-+              className="absolute left-3 top-[calc(50%+3.25rem)] z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:hidden"
+-+            >
+-+              <ChevronRight className="h-5 w-5" />
+-+            </button>
+-+
+-+            {/* Image panel */}
+-+            <div className="relative w-full shrink-0 bg-slate-950 md:w-[52%]">
+-+              <div className="relative mx-auto aspect-[4/5] w-full sm:aspect-[3/4] md:h-full md:aspect-auto">
+-+                <AnimatePresence mode="wait">
+-+                  <motion.div
+-+                    key={item.id}
+-+                    className="absolute inset-0"
+-+                    initial={reduce ? undefined : { opacity: 0 }}
+-+                    animate={reduce ? undefined : { opacity: 1 }}
+-+                    exit={reduce ? undefined : { opacity: 0 }}
+-+                    transition={{ duration: 0.18 }}
+-+                  >
+-+                    <Image
+-+                      src={item.src}
+-+                      alt={`${item.platform} — ${item.title} (concept render)`}
+-+                      fill
+-+                      sizes="(max-width: 768px) 100vw, 52vw"
+-+                      className="object-contain"
+-+                      priority
+-+                    />
+-+                  </motion.div>
+-+                </AnimatePresence>
+-+                <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-white/90">
+-+                  Concept render
+-+                </span>
+-+              </div>
+-+
+-+              {/* Desktop next button */}
+-+              <button
+-+                aria-label="Next view"
+-+                onClick={() => go(1)}
+-+                className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:flex"
+-+              >
+-+                <ChevronRight className="h-5 w-5" />
+-+              </button>
+-+            </div>
+-+
+-+            {/* Detail panel */}
+-+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:p-8">
+-+              <div className="text-xs font-semibold uppercase tracking-[2px] text-accent">
+-+                {item.groupLabel}
+-+              </div>
+-+              <Dialog.Title className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+-+                {item.title}
+-+              </Dialog.Title>
+-+              <div className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
+-+                <Cpu className="h-4 w-4 text-accent" />
+-+                <span className="font-medium text-foreground">{item.platform}</span>
+-+                <span className="text-border">·</span>
+-+                <span>concept platform</span>
+-+              </div>
+-+
+-+              <Dialog.Description
+-+                id={`sc-desc-${item.id}`}
+-+                className="mt-5 text-[15px] leading-relaxed text-muted-foreground"
+-+              >
+-+                {item.detail}
+-+              </Dialog.Description>
+-+
+-+              {/* Precise measurements */}
+-+              <div className="mt-6">
+-+                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+-+                  Measurements
+-+                </div>
+-+                <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border">
+-+                  {item.specs.map((s) => (
+-+                    <div key={s.label} className="bg-card p-4">
+-+                      <dt className="text-xs text-muted-foreground">{s.label}</dt>
+-+                      <dd className="mt-0.5 font-mono text-base font-semibold tracking-tight text-foreground">
+-+                        {s.value}
+-+                      </dd>
+-+                    </div>
+-+                  ))}
+-+                </dl>
+-+              </div>
+-+
+-+              {/* Grit / pass sequence */}
+-+              {item.sequence && (
+-+                <div className="mt-5">
+-+                  <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+-+                    Pass sequence
+-+                  </div>
+-+                  <div className="flex flex-wrap items-center gap-2">
+-+                    {item.sequence.map((seq, i) => (
+-+                      <React.Fragment key={seq}>
+-+                        <span className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-xs text-foreground">
+-+                          {seq}
+-+                        </span>
+-+                        {i < item.sequence!.length - 1 && (
+-+                          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+-+                        )}
+-+                      </React.Fragment>
+-+                    ))}
+-+                  </div>
+-+                </div>
+-+              )}
+-+
+-+              {/* Similar Views */}
+-+              {similar.length > 0 && (
+-+                <div className="mt-7 border-t border-border pt-5">
+-+                  <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+-+                    Similar views
+-+                  </div>
+-+                  <div className="grid grid-cols-3 gap-3">
+-+                    {similar.map((s) => {
+-+                      const target = SHOWCASE.findIndex((x) => x.id === s.id);
+-+                      return (
+-+                        <button
+-+                          key={s.id}
+-+                          onClick={() => onIndexChange(target)}
+-+                          className="group text-left"
+-+                        >
+-+                          <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg border border-border bg-muted">
+-+                            <Image
+-+                              src={s.src}
+-+                              alt={`${s.platform} — ${s.title}`}
+-+                              fill
+-+                              sizes="140px"
+-+                              className="object-cover transition-transform duration-300 group-hover:scale-105"
+-+                            />
+-+                          </div>
+-+                          <div className="mt-1.5 line-clamp-1 text-xs font-medium text-foreground">
+-+                            {s.title}
+-+                          </div>
+-+                        </button>
+-+                      );
+-+                    })}
+-+                  </div>
+-+                </div>
+-+              )}
+-+
+-+              <div className="mt-auto pt-7">
+-+                <Button
+-+                  variant="accent"
+-+                  className="w-full sm:w-auto"
+-+                  onClick={() => {
+-+                    onClose();
+-+                    // hand off to the pilot form
+-+                    requestAnimationFrame(() => {
+-+                      document
+-+                        .getElementById("waitlist")
+-+                        ?.scrollIntoView({ behavior: "smooth" });
+-+                    });
+-+                  }}
+-+                >
+-+                  Put this platform in your pilot
+-+                  <ArrowUpRight className="h-4 w-4" />
+-+                </Button>
+-+              </div>
+-+            </div>
+-+          </div>
+-+        </motion.div>
+-+      </Dialog.Content>
+-+    </Dialog.Portal>
+-+  );
+-+}
+-+
+-+/* ------------------------------------------------------------------ */
+-+/*  Card                                                               */
+-+/* ------------------------------------------------------------------ */
+-+
+-+function Card({
+-+  item,
+-+  onOpen,
+-+}: {
+-+  item: ShowcaseItem;
+-+  onOpen: () => void;
+-+}) {
+-+  return (
+-+    <button
+-+      onClick={onOpen}
+-+      className="group snap-start shrink-0 basis-[82%] text-left sm:basis-[360px] lg:basis-[384px]"
+-+      aria-label={`${item.title} — open details`}
+-+    >
+-+      <div className="card overflow-hidden p-0">
+-+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
+-+          <Image
+-+            src={item.src}
+-+            alt={`${item.platform} — ${item.title} (concept render)`}
+-+            fill
+-+            sizes="(max-width: 640px) 82vw, 384px"
+-+            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+-+          />
+-+          {/* legibility gradient */}
+-+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/5 to-transparent" />
+-+
+-+          <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+-+            {item.groupLabel}
+-+          </span>
+-+
+-+          <div className="absolute inset-x-0 bottom-0 p-4">
+-+            <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+-+              {item.platform}
+-+            </div>
+-+            <div className="mt-0.5 text-lg font-semibold leading-tight tracking-tight text-white">
+-+              {item.title}
+-+            </div>
+-+            <div className="mt-1 line-clamp-1 text-[13px] text-white/75">
+-+              {item.tagline}
+-+            </div>
+-+          </div>
+-+        </div>
+-+
+-+        {/* spec strip */}
+-+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+-+          <div className="flex min-w-0 gap-4">
+-+            {item.specs.slice(0, 2).map((s) => (
+-+              <div key={s.label} className="min-w-0">
+-+                <div className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+-+                  {s.label}
+-+                </div>
+-+                <div className="font-mono text-sm font-semibold tracking-tight text-foreground">
+-+                  {s.value}
+-+                </div>
+-+              </div>
+-+            ))}
+-+          </div>
+-+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground transition group-hover:border-accent group-hover:bg-accent-light group-hover:text-accent">
+-+            <ArrowUpRight className="h-4 w-4" />
+-+          </span>
+-+        </div>
+-+      </div>
+-+    </button>
+-+  );
+-+}
+-+
+-+/* ------------------------------------------------------------------ */
+-+/*  Section                                                            */
+-+/* ------------------------------------------------------------------ */
+-+
+-+export default function ShowcaseCarousel() {
+-+  const scrollerRef = useRef<HTMLDivElement>(null);
+-+  const [active, setActive] = useState<number | null>(null);
+-+  const [atStart, setAtStart] = useState(true);
+-+  const [atEnd, setAtEnd] = useState(false);
+-+
+-+  const updateEdges = useCallback(() => {
+-+    const el = scrollerRef.current;
+-+    if (!el) return;
+-+    setAtStart(el.scrollLeft <= 4);
+-+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 4);
+-+  }, []);
+-+
+-+  useEffect(() => {
+-+    updateEdges();
+-+    const el = scrollerRef.current;
+-+    if (!el) return;
+-+    el.addEventListener("scroll", updateEdges, { passive: true });
+-+    window.addEventListener("resize", updateEdges);
+-+    return () => {
+-+      el.removeEventListener("scroll", updateEdges);
+-+      window.removeEventListener("resize", updateEdges);
+-+    };
+-+  }, [updateEdges]);
+-+
+-+  const nudge = (dir: 1 | -1) => {
+-+    const el = scrollerRef.current;
+-+    if (!el) return;
+-+    const card = el.querySelector<HTMLElement>("[data-card]");
+-+    const amount = card ? card.offsetWidth + 20 : el.clientWidth * 0.8;
+-+    el.scrollBy({ left: dir * amount, behavior: "smooth" });
+-+  };
+-+
+-+  return (
+-+    <section
+-+      id="showcase"
+-+      className="section border-b bg-white py-20 md:py-24"
+-+      aria-labelledby="showcase-heading"
+-+    >
+-+      <div className="mx-auto max-w-7xl px-6">
+-+        {/* Header row */}
+-+        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+-+          <div className="max-w-2xl">
+-+            <div className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-accent">
+-+              Autonomous floor refinishing systems
+-+            </div>
+-+            <h2
+-+              id="showcase-heading"
+-+              className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl lg:text-5xl"
+-+            >
+-+              The machines, working the floor on their own.
+-+            </h2>
+-+            <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
+-+              Concept renders of the Forge platforms operating independently on
+-+              hardwood — sanding, edging, dust capture, finishing, and QA. Swipe
+-+              the rail, open any card for measurements and the technical detail.
+-+            </p>
+-+          </div>
+-+
+-+          {/* Desktop arrows */}
+-+          <div className="hidden shrink-0 items-center gap-2 md:flex">
+-+            <button
+-+              aria-label="Scroll left"
+-+              onClick={() => nudge(-1)}
+-+              disabled={atStart}
+-+              className={cn(
+-+                "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition",
+-+                atStart
+-+                  ? "cursor-not-allowed opacity-40"
+-+                  : "hover:border-accent hover:text-accent"
+-+              )}
+-+            >
+-+              <ChevronLeft className="h-5 w-5" />
+-+            </button>
+-+            <button
+-+              aria-label="Scroll right"
+-+              onClick={() => nudge(1)}
+-+              disabled={atEnd}
+-+              className={cn(
+-+                "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition",
+-+                atEnd
+-+                  ? "cursor-not-allowed opacity-40"
+-+                  : "hover:border-accent hover:text-accent"
+-+              )}
+-+            >
+-+              <ChevronRight className="h-5 w-5" />
+-+            </button>
+-+          </div>
+-+        </div>
+-+
+-+        {/* Rail */}
+-+        <div className="relative mt-10">
+-+          {/* edge fades */}
+-+          <div
+-+            className={cn(
+-+              "pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white to-transparent transition-opacity",
+-+              atStart ? "opacity-0" : "opacity-100"
+-+            )}
+-+          />
+-+          <div
+-+            className={cn(
+-+              "pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity",
+-+              atEnd ? "opacity-0" : "opacity-100"
+-+            )}
+-+          />
+-+
+-+          <div
+-+            ref={scrollerRef}
+-+            className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2"
+-+            style={{ scrollbarWidth: "none" }}
+-+          >
+-+            {SHOWCASE.map((item, i) => (
+-+              <div data-card key={item.id} className="flex">
+-+                <Card item={item} onOpen={() => setActive(i)} />
+-+              </div>
+-+            ))}
+-+          </div>
+-+        </div>
+-+
+-+        <p className="mt-6 text-xs text-muted-foreground">
+-+          Renders depict concept platforms; all figures are design targets, not
+-+          measured specifications of shipping hardware.
+-+        </p>
+-+      </div>
+-+
+-+      {/* Lightbox */}
+-+      <Dialog.Root
+-+        open={active !== null}
+-+        onOpenChange={(o) => !o && setActive(null)}
+-+      >
+-+        <AnimatePresence>
+-+          {active !== null && (
+-+            <Lightbox
+-+              index={active}
+-+              onIndexChange={setActive}
+-+              onClose={() => setActive(null)}
+-+            />
+-+          )}
+-+        </AnimatePresence>
+-+      </Dialog.Root>
+-+    </section>
+-+  );
+-+}
+-diff --git a/lib/showcase.ts b/lib/showcase.ts
+-new file mode 100644
+-index 0000000..b5bf360
+---- /dev/null
+-+++ b/lib/showcase.ts
+-@@ -0,0 +1,223 @@
+-+/**
+-+ * Data for the "Autonomous Floor Refinishing Systems" showcase section.
+-+ *
+-+ * HONESTY NOTE (consistent with lib/robots.ts): every figure below is a
+-+ * *design target* for FloorForge's concept platforms, not a measured spec
+-+ * of shipping hardware. Numbers are kept in lockstep with ROBOTS in
+-+ * lib/robots.ts so the showcase, the simulator, and the marketing copy all
+-+ * tell the same story. The imagery shows the concept platforms operating
+-+ * independently on hardwood; the UI labels them as concept renders.
+-+ *
+-+ * Images live in /public/showcase/01.png … 10.png (see the prepare step in
+-+ * the deploy notes — they are unpacked from the committed
+-+ * floorforge-ai_10_images.zip so they never bloat the git history twice).
+-+ */
+-+
+-+export interface ShowcaseSpec {
+-+  label: string;
+-+  value: string;
+-+}
+-+
+-+export interface ShowcaseItem {
+-+  /** Stable id, also used for deep-grouping "Similar Views". */
+-+  id: string;
+-+  /** 1-indexed source frame → /showcase/0X.png */
+-+  src: string;
+-+  /** Card + modal heading. */
+-+  title: string;
+-+  /** Which concept platform is pictured (matches ROBOTS[].name). */
+-+  platform: string;
+-+  /** Group key — drives the "Similar Views" row in the lightbox. */
+-+  group: "field-sanding" | "edge-detail" | "dust" | "finish" | "qa";
+-+  /** Human label for the group (shown as the card eyebrow). */
+-+  groupLabel: string;
+-+  /** One-line card subtitle. */
+-+  tagline: string;
+-+  /** Precise, at-a-glance measurements (design targets). */
+-+  specs: ShowcaseSpec[];
+-+  /** Longer technical explanation shown in the lightbox. */
+-+  detail: string;
+-+  /** Optional ordered grit / pass sequence chips for the lightbox. */
+-+  sequence?: string[];
+-+}
+-+
+-+export const SHOWCASE: ShowcaseItem[] = [
+-+  {
+-+    id: "field-open",
+-+    src: "/showcase/01.png",
+-+    title: "Autonomous field sanding",
+-+    platform: "ForgeSand D1",
+-+    group: "field-sanding",
+-+    groupLabel: "Field sanding",
+-+    tagline: "Open-floor abrasion, no operator on the drum.",
+-+    specs: [
+-+      { label: "Sanding width", value: "0.50 m" },
+-+      { label: "Grit sequence", value: "36 → 180" },
+-+      { label: "Dust capture", value: "98% HEPA (target)" },
+-+      { label: "Coverage", value: "~55 m²/h" },
+-+    ],
+-+    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"],
+-+    detail:
+-+      "The D1 runs a boustrophedon field pass end-to-end on its own: load-sensing drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so there are no witness lines where one lane meets the next.",
+-+  },
+-+  {
+-+    id: "field-midcut",
+-+    src: "/showcase/02.png",
+-+    title: "Grit-sequence pass · mid-cut",
+-+    platform: "ForgeSand D1",
+-+    group: "field-sanding",
+-+    groupLabel: "Field sanding",
+-+    tagline: "Sequenced 36→180 abrasion at constant pressure.",
+-+    specs: [
+-+      { label: "Sanding width", value: "0.50 m" },
+-+      { label: "Grit sequence", value: "36 → 180" },
+-+      { label: "Pressure control", value: "closed-loop" },
+-+      { label: "Coverage", value: "~55 m²/h" },
+-+    ],
+-+    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"],
+-+    detail:
+-+      "Between coarse strip and finish sand, the planetary head steps through the grit ladder without an operator swapping paper. Real-time load feedback trims speed on hard grain and dense knots so the surface leaves each lap a shade smoother than the last.",
+-+  },
+-+  {
+-+    id: "field-clearance",
+-+    src: "/showcase/03.png",
+-+    title: "Low-profile door clearance",
+-+    platform: "ForgeSand D1",
+-+    group: "field-sanding",
+-+    groupLabel: "Field sanding",
+-+    tagline: "Sub-8″ envelope, designed to clear doorways.",
+-+    specs: [
+-+      { label: "Height envelope", value: "< 8 in (target)" },
+-+      { label: "Sanding width", value: "0.50 m" },
+-+      { label: "Turn radius", value: "in-place" },
+-+      { label: "Coverage", value: "~55 m²/h" },
+-+    ],
+-+    detail:
+-+      "The platform is designed to slip under a standard door slab and pivot in place, so a single machine covers connected rooms without being lifted or reset. The low body keeps the centre of mass over the drum for even contact on cupped boards.",
+-+  },
+-+  {
+-+    id: "edge-perimeter",
+-+    src: "/showcase/04.png",
+-+    title: "Perimeter edge detail",
+-+    platform: "ForgeEdge E1",
+-+    group: "edge-detail",
+-+    groupLabel: "Edge & detail",
+-+    tagline: "Vision-guided edging where the drum can't reach.",
+-+    specs: [
+-+      { label: "Working width", value: "0.14 m" },
+-+      { label: "Edge follow", value: "LiDAR + vision" },
+-+      { label: "Mode", value: "human-oversight" },
+-+      { label: "Coverage", value: "~18 m²/h" },
+-+    ],
+-+    detail:
+-+      "The E1 hugs baseboards and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs semi-autonomously with a human-oversight mode for complex perimeters, minimising the hand-scraping that usually eats the schedule.",
+-+  },
+-+  {
+-+    id: "edge-transition",
+-+    src: "/showcase/05.png",
+-+    title: "Transition & doorway edging",
+-+    platform: "ForgeEdge E1",
+-+    group: "edge-detail",
+-+    groupLabel: "Edge & detail",
+-+    tagline: "Thresholds, vents, and built-ins without rework.",
+-+    specs: [
+-+      { label: "Working width", value: "0.14 m" },
+-+      { label: "Follow error", value: "sub-mm (target)" },
+-+      { label: "Mode", value: "human-oversight" },
+-+      { label: "Coverage", value: "~18 m²/h" },
+-+    ],
+-+    detail:
+-+      "At thresholds and around vents the edge head slows and shortens its stroke, blending the perimeter cut into the field pass so the two never leave a step. The oversight operator confirms tricky details on-screen rather than kneeling on the floor.",
+-+  },
+-+  {
+-+    id: "dust-head",
+-+    src: "/showcase/06.png",
+-+    title: "Cyclonic capture at the head",
+-+    platform: "ForgeSand D1",
+-+    group: "dust",
+-+    groupLabel: "Dust containment",
+-+    tagline: "Shrouded drum pulls dust at the point of cut.",
+-+    specs: [
+-+      { label: "Capture point", value: "at the drum" },
+-+      { label: "Pre-separation", value: "cyclonic" },
+-+      { label: "Filtration", value: "HEPA" },
+-+      { label: "Capture (target)", value: "98%" },
+-+    ],
+-+    detail:
+-+      "Dust is pulled at the point of contact by a shrouded head, then spun through cyclonic pre-separation before the HEPA stage so the fine filter loads slowly. The goal is a floor that can be sanded inside an occupied home without sheeting the furniture.",
+-+  },
+-+  {
+-+    id: "dust-hepa",
+-+    src: "/showcase/07.png",
+-+    title: "HEPA extraction module",
+-+    platform: "ForgeSand D1",
+-+    group: "dust",
+-+    groupLabel: "Dust containment",
+-+    tagline: "Per-job airborne particulate, logged not promised.",
+-+    specs: [
+-+      { label: "Filtration", value: "HEPA" },
+-+      { label: "Capture (target)", value: "98%" },
+-+      { label: "Logging", value: "per-job PM" },
+-+      { label: "Report", value: "airborne µg/m³" },
+-+    ],
+-+    detail:
+-+      "The onboard module logs airborne particulate for the whole job, so dust performance shows up as a number on the report instead of a claim. That record is what lets a crew bid occupied-space work the competition has to turn down.",
+-+  },
+-+  {
+-+    id: "finish-apply",
+-+    src: "/showcase/08.png",
+-+    title: "Finish application pass",
+-+    platform: "ForgeCoat C1",
+-+    group: "finish",
+-+    groupLabel: "Finish application",
+-+    tagline: "Even film build across the whole field.",
+-+    specs: [
+-+      { label: "Working width", value: "0.60 m" },
+-+      { label: "Film build", value: "±5% (target)" },
+-+      { label: "Modes", value: "T-bar / spray" },
+-+      { label: "Coverage", value: "~75 m²/h" },
+-+    ],
+-+    sequence: ["Seal · wets grain", "Finish · builds film"],
+-+    detail:
+-+      "The C1 lays stain or polyurethane at a metered rate with live viscosity and ambient monitoring, targeting uniform sheen and film thickness edge-to-edge. Consistent wet-edge timing across the field is what removes the lap marks a rushed hand application leaves behind.",
+-+  },
+-+  {
+-+    id: "finish-filmbuild",
+-+    src: "/showcase/09.png",
+-+    title: "Seal-to-topcoat film build",
+-+    platform: "ForgeCoat C1",
+-+    group: "finish",
+-+    groupLabel: "Finish application",
+-+    tagline: "Seal coat then topcoat, monitored for cure.",
+-+    specs: [
+-+      { label: "Working width", value: "0.60 m" },
+-+      { label: "Passes", value: "seal + finish" },
+-+      { label: "Sensing", value: "viscosity + ambient" },
+-+      { label: "Coverage", value: "~75 m²/h" },
+-+    ],
+-+    sequence: ["Seal · wets grain", "Finish · builds film"],
+-+    detail:
+-+      "First a seal coat wets the grain, then the finish coat builds the film to target thickness while environmental sensors watch temperature and humidity against the coating's cure window. The result is a controlled build rather than a best-guess flood.",
+-+  },
+-+  {
+-+    id: "qa-scan",
+-+    src: "/showcase/10.png",
+-+    title: "Flatness & coverage QA scan",
+-+    platform: "ForgeScan S1",
+-+    group: "qa",
+-+    groupLabel: "Inspection & QA",
+-+    tagline: "Sub-mm flatness map, before and after.",
+-+    specs: [
+-+      { label: "Sweep width", value: "0.80 m" },
+-+      { label: "Flatness res.", value: "sub-mm (target)" },
+-+      { label: "Output", value: "coverage QA map" },
+-+      { label: "Coverage", value: "~220 m²/h" },
+-+    ],
+-+    detail:
+-+      "At survey speed the S1 maps flatness before and after the job and confirms coverage, producing the QA map that ships with the finish and dust logs. That digital record is the sign-off a GC or property manager can file — proof the floor met spec, not a promise it did.",
+-+  },
+-+];
+-+
+-+/** Items sharing a group, excluding the given id (for "Similar Views"). */
+-+export const similarTo = (item: ShowcaseItem): ShowcaseItem[] =>
+-+  SHOWCASE.filter((s) => s.group === item.group && s.id !== item.id);
+diff --git a/showcase-v2-categorized.patch b/showcase-v2-categorized.patch
+deleted file mode 100644
+index f303ae803a8e..000000000000
+--- a/showcase-v2-categorized.patch
++++ /dev/null
+@@ -1,1001 +0,0 @@
+-diff --git a/components/ShowcaseCarousel.tsx b/components/ShowcaseCarousel.tsx
+-index a0c5f26..9795557 100644
+---- a/components/ShowcaseCarousel.tsx
+-+++ b/components/ShowcaseCarousel.tsx
+-@@ -7,9 +7,18 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+- import { ChevronLeft, ChevronRight, X, ArrowUpRight, Cpu } from "lucide-react";
+- import { Button } from "@/components/ui/button";
+- import { cn } from "@/lib/utils";
+--import { SHOWCASE, similarTo, type ShowcaseItem } from "@/lib/showcase";
+--
+--/* Every frame is a fixed 784×1168 render; cards and the lightbox use
+-+import {
+-+  CATEGORIES,
+-+  FEATURED,
+-+  FRAMES,
+-+  type CatKey,
+-+  categoryOf,
+-+  frameById,
+-+  frameSrc,
+-+  framesInCat,
+-+} from "@/lib/showcase";
+-+
+-+/* Every frame is a fixed 784×1168 WebP; cards and the lightbox use
+-    fixed-aspect-ratio boxes with next/image `fill`, so layout is reserved
+-    before the image loads and the section never shifts (zero CLS). */
+- 
+-@@ -18,27 +27,29 @@ import { SHOWCASE, similarTo, type ShowcaseItem } from "@/lib/showcase";
+- /* ------------------------------------------------------------------ */
+- 
+- function Lightbox({
+-+  list,
+-   index,
+-   onIndexChange,
+-   onClose,
+- }: {
+-+  list: string[];
+-   index: number;
+-   onIndexChange: (i: number) => void;
+-   onClose: () => void;
+- }) {
+-   const reduce = useReducedMotion();
+--  const item = SHOWCASE[index];
+--  const similar = similarTo(item);
+-+  const id = list[index];
+-+  const frame = frameById(id);
+-+  const cat = categoryOf(frame ? frame.cat : "sand");
+-+  const similar = framesInCat(cat.key)
+-+    .filter((f) => f.id !== id)
+-+    .slice(0, 6);
+- 
+-   const go = useCallback(
+--    (dir: 1 | -1) => {
+--      const next = (index + dir + SHOWCASE.length) % SHOWCASE.length;
+--      onIndexChange(next);
+--    },
+--    [index, onIndexChange]
+-+    (dir: 1 | -1) => onIndexChange((index + dir + list.length) % list.length),
+-+    [index, list.length, onIndexChange]
+-   );
+- 
+--  // Arrow-key navigation between all frames (Esc is handled by Radix).
+-   useEffect(() => {
+-     const onKey = (e: KeyboardEvent) => {
+-       if (e.key === "ArrowRight") go(1);
+-@@ -72,7 +83,7 @@ function Lightbox({
+-       <Dialog.Content
+-         asChild
+-         forceMount
+--        aria-describedby={`sc-desc-${item.id}`}
+-+        aria-describedby={`sc-desc-${cat.key}`}
+-         onOpenAutoFocus={(e) => e.preventDefault()}
+-       >
+-         <motion.div
+-@@ -80,7 +91,6 @@ function Lightbox({
+-           className="fixed inset-0 z-[61] flex items-stretch justify-center p-0 sm:p-6 md:p-10"
+-         >
+-           <div className="relative flex w-full max-w-6xl flex-col overflow-hidden bg-card shadow-2xl sm:rounded-2xl md:flex-row">
+--            {/* Close */}
+-             <Dialog.Close asChild>
+-               <button
+-                 aria-label="Close"
+-@@ -90,28 +100,12 @@ function Lightbox({
+-               </button>
+-             </Dialog.Close>
+- 
+--            {/* Prev / Next across all frames */}
+--            <button
+--              aria-label="Previous view"
+--              onClick={() => go(-1)}
+--              className="absolute left-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:flex"
+--            >
+--              <ChevronLeft className="h-5 w-5" />
+--            </button>
+--            <button
+--              aria-label="Next view"
+--              onClick={() => go(1)}
+--              className="absolute left-3 top-[calc(50%+3.25rem)] z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:hidden"
+--            >
+--              <ChevronRight className="h-5 w-5" />
+--            </button>
+--
+-             {/* Image panel */}
+-             <div className="relative w-full shrink-0 bg-slate-950 md:w-[52%]">
+-               <div className="relative mx-auto aspect-[4/5] w-full sm:aspect-[3/4] md:h-full md:aspect-auto">
+-                 <AnimatePresence mode="wait">
+-                   <motion.div
+--                    key={item.id}
+-+                    key={id}
+-                     className="absolute inset-0"
+-                     initial={reduce ? undefined : { opacity: 0 }}
+-                     animate={reduce ? undefined : { opacity: 1 }}
+-@@ -119,8 +113,8 @@ function Lightbox({
+-                     transition={{ duration: 0.18 }}
+-                   >
+-                     <Image
+--                      src={item.src}
+--                      alt={`${item.platform} — ${item.title} (concept render)`}
+-+                      src={frameSrc(id)}
+-+                      alt={`${cat.platform} — ${cat.label} (concept render ${id})`}
+-                       fill
+-                       sizes="(max-width: 768px) 100vw, 52vw"
+-                       className="object-contain"
+-@@ -129,15 +123,21 @@ function Lightbox({
+-                   </motion.div>
+-                 </AnimatePresence>
+-                 <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-medium uppercase tracking-wider text-white/90">
+--                  Concept render
+-+                  Concept render · {id}
+-                 </span>
+-               </div>
+- 
+--              {/* Desktop next button */}
+-+              <button
+-+                aria-label="Previous view"
+-+                onClick={() => go(-1)}
+-+                className="absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white"
+-+              >
+-+                <ChevronLeft className="h-5 w-5" />
+-+              </button>
+-               <button
+-                 aria-label="Next view"
+-                 onClick={() => go(1)}
+--                className="absolute right-3 top-1/2 z-10 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white md:flex"
+-+                className="absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white/90 text-foreground shadow-sm backdrop-blur transition hover:bg-white"
+-               >
+-                 <ChevronRight className="h-5 w-5" />
+-               </button>
+-@@ -146,32 +146,31 @@ function Lightbox({
+-             {/* Detail panel */}
+-             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6 sm:p-8">
+-               <div className="text-xs font-semibold uppercase tracking-[2px] text-accent">
+--                {item.groupLabel}
+-+                {cat.eyebrow}
+-               </div>
+-               <Dialog.Title className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+--                {item.title}
+-+                {cat.label}
+-               </Dialog.Title>
+-               <div className="mt-2 inline-flex items-center gap-2 text-sm text-muted-foreground">
+-                 <Cpu className="h-4 w-4 text-accent" />
+--                <span className="font-medium text-foreground">{item.platform}</span>
+-+                <span className="font-medium text-foreground">{cat.platform}</span>
+-                 <span className="text-border">·</span>
+-                 <span>concept platform</span>
+-               </div>
+- 
+-               <Dialog.Description
+--                id={`sc-desc-${item.id}`}
+-+                id={`sc-desc-${cat.key}`}
+-                 className="mt-5 text-[15px] leading-relaxed text-muted-foreground"
+-               >
+--                {item.detail}
+-+                {cat.blurb}
+-               </Dialog.Description>
+- 
+--              {/* Precise measurements */}
+-               <div className="mt-6">
+-                 <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+-                   Measurements
+-                 </div>
+-                 <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-border bg-border">
+--                  {item.specs.map((s) => (
+-+                  {cat.specs.map((s) => (
+-                     <div key={s.label} className="bg-card p-4">
+-                       <dt className="text-xs text-muted-foreground">{s.label}</dt>
+-                       <dd className="mt-0.5 font-mono text-base font-semibold tracking-tight text-foreground">
+-@@ -182,19 +181,18 @@ function Lightbox({
+-                 </dl>
+-               </div>
+- 
+--              {/* Grit / pass sequence */}
+--              {item.sequence && (
+-+              {cat.sequence && (
+-                 <div className="mt-5">
+-                   <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+-                     Pass sequence
+-                   </div>
+-                   <div className="flex flex-wrap items-center gap-2">
+--                    {item.sequence.map((seq, i) => (
+-+                    {cat.sequence.map((seq, i) => (
+-                       <React.Fragment key={seq}>
+-                         <span className="rounded-md border border-border bg-muted px-2.5 py-1 font-mono text-xs text-foreground">
+-                           {seq}
+-                         </span>
+--                        {i < item.sequence!.length - 1 && (
+-+                        {i < cat.sequence!.length - 1 && (
+-                           <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+-                         )}
+-                       </React.Fragment>
+-@@ -203,33 +201,32 @@ function Lightbox({
+-                 </div>
+-               )}
+- 
+--              {/* Similar Views */}
+-               {similar.length > 0 && (
+-                 <div className="mt-7 border-t border-border pt-5">
+-                   <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+--                    Similar views
+-+                    Similar views · {cat.label}
+-                   </div>
+-                   <div className="grid grid-cols-3 gap-3">
+-                     {similar.map((s) => {
+--                      const target = SHOWCASE.findIndex((x) => x.id === s.id);
+-+                      const target = list.indexOf(s.id);
+-                       return (
+-                         <button
+-                           key={s.id}
+--                          onClick={() => onIndexChange(target)}
+-+                          onClick={() =>
+-+                            target >= 0 ? onIndexChange(target) : undefined
+-+                          }
+-                           className="group text-left"
+-+                          disabled={target < 0}
+-                         >
+-                           <div className="relative aspect-[4/5] w-full overflow-hidden rounded-lg border border-border bg-muted">
+-                             <Image
+--                              src={s.src}
+--                              alt={`${s.platform} — ${s.title}`}
+-+                              src={frameSrc(s.id)}
+-+                              alt={`${cat.platform} — ${s.id}`}
+-                               fill
+-                               sizes="140px"
+-                               className="object-cover transition-transform duration-300 group-hover:scale-105"
+-                             />
+-                           </div>
+--                          <div className="mt-1.5 line-clamp-1 text-xs font-medium text-foreground">
+--                            {s.title}
+--                          </div>
+-                         </button>
+-                       );
+-                     })}
+-@@ -243,7 +240,6 @@ function Lightbox({
+-                   className="w-full sm:w-auto"
+-                   onClick={() => {
+-                     onClose();
+--                    // hand off to the pilot form
+-                     requestAnimationFrame(() => {
+-                       document
+-                         .getElementById("waitlist")
+-@@ -264,81 +260,11 @@ function Lightbox({
+- }
+- 
+- /* ------------------------------------------------------------------ */
+--/*  Card                                                               */
+-+/*  Featured swipe rail                                                */
+- /* ------------------------------------------------------------------ */
+- 
+--function Card({
+--  item,
+--  onOpen,
+--}: {
+--  item: ShowcaseItem;
+--  onOpen: () => void;
+--}) {
+--  return (
+--    <button
+--      onClick={onOpen}
+--      className="group snap-start shrink-0 basis-[82%] text-left sm:basis-[360px] lg:basis-[384px]"
+--      aria-label={`${item.title} — open details`}
+--    >
+--      <div className="card overflow-hidden p-0">
+--        <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
+--          <Image
+--            src={item.src}
+--            alt={`${item.platform} — ${item.title} (concept render)`}
+--            fill
+--            sizes="(max-width: 640px) 82vw, 384px"
+--            className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+--          />
+--          {/* legibility gradient */}
+--          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/5 to-transparent" />
+--
+--          <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+--            {item.groupLabel}
+--          </span>
+--
+--          <div className="absolute inset-x-0 bottom-0 p-4">
+--            <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+--              {item.platform}
+--            </div>
+--            <div className="mt-0.5 text-lg font-semibold leading-tight tracking-tight text-white">
+--              {item.title}
+--            </div>
+--            <div className="mt-1 line-clamp-1 text-[13px] text-white/75">
+--              {item.tagline}
+--            </div>
+--          </div>
+--        </div>
+--
+--        {/* spec strip */}
+--        <div className="flex items-center justify-between gap-3 px-4 py-3">
+--          <div className="flex min-w-0 gap-4">
+--            {item.specs.slice(0, 2).map((s) => (
+--              <div key={s.label} className="min-w-0">
+--                <div className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+--                  {s.label}
+--                </div>
+--                <div className="font-mono text-sm font-semibold tracking-tight text-foreground">
+--                  {s.value}
+--                </div>
+--              </div>
+--            ))}
+--          </div>
+--          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground transition group-hover:border-accent group-hover:bg-accent-light group-hover:text-accent">
+--            <ArrowUpRight className="h-4 w-4" />
+--          </span>
+--        </div>
+--      </div>
+--    </button>
+--  );
+--}
+--
+--/* ------------------------------------------------------------------ */
+--/*  Section                                                            */
+--/* ------------------------------------------------------------------ */
+--
+--export default function ShowcaseCarousel() {
+-+function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
+-   const scrollerRef = useRef<HTMLDivElement>(null);
+--  const [active, setActive] = useState<number | null>(null);
+-   const [atStart, setAtStart] = useState(true);
+-   const [atEnd, setAtEnd] = useState(false);
+- 
+-@@ -370,108 +296,266 @@ export default function ShowcaseCarousel() {
+-   };
+- 
+-   return (
+--    <section
+--      id="showcase"
+--      className="section border-b bg-white py-20 md:py-24"
+--      aria-labelledby="showcase-heading"
+--    >
+--      <div className="mx-auto max-w-7xl px-6">
+--        {/* Header row */}
+--        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+--          <div className="max-w-2xl">
+--            <div className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-accent">
+--              Autonomous floor refinishing systems
+--            </div>
+--            <h2
+--              id="showcase-heading"
+--              className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl lg:text-5xl"
+--            >
+--              The machines, working the floor on their own.
+--            </h2>
+--            <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
+--              Concept renders of the Forge platforms operating independently on
+--              hardwood — sanding, edging, dust capture, finishing, and QA. Swipe
+--              the rail, open any card for measurements and the technical detail.
+--            </p>
+--          </div>
+-+    <div className="relative mt-10">
+-+      <div
+-+        className={cn(
+-+          "pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white to-transparent transition-opacity",
+-+          atStart ? "opacity-0" : "opacity-100"
+-+        )}
+-+      />
+-+      <div
+-+        className={cn(
+-+          "pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity",
+-+          atEnd ? "opacity-0" : "opacity-100"
+-+        )}
+-+      />
+-+
+-+      <button
+-+        aria-label="Scroll left"
+-+        onClick={() => nudge(-1)}
+-+        disabled={atStart}
+-+        className={cn(
+-+          "absolute -left-3 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition md:flex",
+-+          atStart ? "cursor-not-allowed opacity-0" : "hover:border-accent hover:text-accent"
+-+        )}
+-+      >
+-+        <ChevronLeft className="h-5 w-5" />
+-+      </button>
+-+      <button
+-+        aria-label="Scroll right"
+-+        onClick={() => nudge(1)}
+-+        disabled={atEnd}
+-+        className={cn(
+-+          "absolute -right-3 top-1/2 z-20 hidden h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-sm transition md:flex",
+-+          atEnd ? "cursor-not-allowed opacity-0" : "hover:border-accent hover:text-accent"
+-+        )}
+-+      >
+-+        <ChevronRight className="h-5 w-5" />
+-+      </button>
+- 
+--          {/* Desktop arrows */}
+--          <div className="hidden shrink-0 items-center gap-2 md:flex">
+-+      <div
+-+        ref={scrollerRef}
+-+        className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2"
+-+        style={{ scrollbarWidth: "none" }}
+-+      >
+-+        {FEATURED.map((id) => {
+-+          const frame = frameById(id);
+-+          const cat = categoryOf(frame ? frame.cat : "sand");
+-+          return (
+-             <button
+--              aria-label="Scroll left"
+--              onClick={() => nudge(-1)}
+--              disabled={atStart}
+--              className={cn(
+--                "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition",
+--                atStart
+--                  ? "cursor-not-allowed opacity-40"
+--                  : "hover:border-accent hover:text-accent"
+--              )}
+-+              data-card
+-+              key={id}
+-+              onClick={() => onOpen(id)}
+-+              className="group snap-start shrink-0 basis-[82%] text-left sm:basis-[360px] lg:basis-[384px]"
+-+              aria-label={`${cat.label} — open details`}
+-             >
+--              <ChevronLeft className="h-5 w-5" />
+-+              <div className="card overflow-hidden p-0">
+-+                <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
+-+                  <Image
+-+                    src={frameSrc(id)}
+-+                    alt={`${cat.platform} — ${cat.label} (concept render ${id})`}
+-+                    fill
+-+                    sizes="(max-width: 640px) 82vw, 384px"
+-+                    className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+-+                  />
+-+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/5 to-transparent" />
+-+                  <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+-+                    {cat.label}
+-+                  </span>
+-+                  <div className="absolute inset-x-0 bottom-0 p-4">
+-+                    <div className="text-[11px] font-medium uppercase tracking-wider text-white/70">
+-+                      {cat.platform}
+-+                    </div>
+-+                    <div className="mt-0.5 text-lg font-semibold leading-tight tracking-tight text-white">
+-+                      {cat.eyebrow}
+-+                    </div>
+-+                  </div>
+-+                </div>
+-+                <div className="flex items-center justify-between gap-3 px-4 py-3">
+-+                  <div className="flex min-w-0 gap-4">
+-+                    {cat.specs.slice(0, 2).map((s) => (
+-+                      <div key={s.label} className="min-w-0">
+-+                        <div className="truncate text-[10px] uppercase tracking-wider text-muted-foreground">
+-+                          {s.label}
+-+                        </div>
+-+                        <div className="font-mono text-sm font-semibold tracking-tight text-foreground">
+-+                          {s.value}
+-+                        </div>
+-+                      </div>
+-+                    ))}
+-+                  </div>
+-+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground transition group-hover:border-accent group-hover:bg-accent-light group-hover:text-accent">
+-+                    <ArrowUpRight className="h-4 w-4" />
+-+                  </span>
+-+                </div>
+-+              </div>
+-             </button>
+-+          );
+-+        })}
+-+      </div>
+-+    </div>
+-+  );
+-+}
+-+
+-+/* ------------------------------------------------------------------ */
+-+/*  Category gallery                                                   */
+-+/* ------------------------------------------------------------------ */
+-+
+-+function Gallery({
+-+  activeCat,
+-+  onCat,
+-+  onOpen,
+-+}: {
+-+  activeCat: CatKey;
+-+  onCat: (k: CatKey) => void;
+-+  onOpen: (list: string[], idx: number) => void;
+-+}) {
+-+  const frames = framesInCat(activeCat);
+-+  const cat = categoryOf(activeCat);
+-+  const list = frames.map((f) => f.id);
+-+
+-+  return (
+-+    <div className="mt-16">
+-+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+-+        <div>
+-+          <div className="mb-2 text-xs font-semibold uppercase tracking-[3px] text-accent">
+-+            The full system library
+-+          </div>
+-+          <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+-+            Every view, sorted by what the machine is doing.
+-+          </h3>
+-+        </div>
+-+        <div className="text-sm text-muted-foreground">
+-+          {FRAMES.length} concept renders · {CATEGORIES.length} platforms
+-+        </div>
+-+      </div>
+-+
+-+      {/* Tabs */}
+-+      <div className="no-scrollbar mt-6 flex gap-2 overflow-x-auto pb-1">
+-+        {CATEGORIES.map((c) => {
+-+          const count = framesInCat(c.key).length;
+-+          const on = c.key === activeCat;
+-+          return (
+-             <button
+--              aria-label="Scroll right"
+--              onClick={() => nudge(1)}
+--              disabled={atEnd}
+-+              key={c.key}
+-+              onClick={() => onCat(c.key)}
+-               className={cn(
+--                "flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white text-foreground transition",
+--                atEnd
+--                  ? "cursor-not-allowed opacity-40"
+--                  : "hover:border-accent hover:text-accent"
+-+                "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition",
+-+                on
+-+                  ? "border-accent bg-accent text-white"
+-+                  : "border-border bg-white text-muted-foreground hover:border-accent hover:text-accent"
+-               )}
+-             >
+--              <ChevronRight className="h-5 w-5" />
+-+              {c.label}
+-+              <span
+-+                className={cn(
+-+                  "ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+-+                  on ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+-+                )}
+-+              >
+-+                {count}
+-+              </span>
+-             </button>
+--          </div>
+--        </div>
+-+          );
+-+        })}
+-+      </div>
+-+
+-+      {/* Active category description */}
+-+      <div className="mt-6 flex items-start gap-3">
+-+        <Cpu className="mt-1 h-5 w-5 shrink-0 text-accent" />
+-+        <p className="max-w-3xl text-[15px] leading-relaxed text-muted-foreground">
+-+          <span className="font-medium text-foreground">{cat.platform}</span> —{" "}
+-+          {cat.blurb}
+-+        </p>
+-+      </div>
+- 
+--        {/* Rail */}
+--        <div className="relative mt-10">
+--          {/* edge fades */}
+--          <div
+--            className={cn(
+--              "pointer-events-none absolute inset-y-0 left-0 z-10 w-12 bg-gradient-to-r from-white to-transparent transition-opacity",
+--              atStart ? "opacity-0" : "opacity-100"
+--            )}
+--          />
+--          <div
+--            className={cn(
+--              "pointer-events-none absolute inset-y-0 right-0 z-10 w-12 bg-gradient-to-l from-white to-transparent transition-opacity",
+--              atEnd ? "opacity-0" : "opacity-100"
+--            )}
+--          />
+--
+--          <div
+--            ref={scrollerRef}
+--            className="no-scrollbar flex snap-x snap-mandatory gap-5 overflow-x-auto scroll-smooth pb-2"
+--            style={{ scrollbarWidth: "none" }}
+-+      {/* Grid */}
+-+      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+-+        {frames.map((f, i) => (
+-+          <button
+-+            key={f.id}
+-+            onClick={() => onOpen(list, i)}
+-+            className="group relative aspect-[4/5] overflow-hidden rounded-xl border border-border bg-slate-950 text-left"
+-+            aria-label={`${cat.label} — ${f.id}, open details`}
+-           >
+--            {SHOWCASE.map((item, i) => (
+--              <div data-card key={item.id} className="flex">
+--                <Card item={item} onOpen={() => setActive(i)} />
+--              </div>
+--            ))}
+-+            <Image
+-+              src={frameSrc(f.id)}
+-+              alt={`${cat.platform} — ${cat.label} (concept render ${f.id})`}
+-+              fill
+-+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+-+              className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
+-+            />
+-+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/60 to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
+-+            <span className="absolute bottom-2 right-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-foreground opacity-0 transition group-hover:opacity-100">
+-+              <ArrowUpRight className="h-3.5 w-3.5" />
+-+            </span>
+-+          </button>
+-+        ))}
+-+      </div>
+-+    </div>
+-+  );
+-+}
+-+
+-+/* ------------------------------------------------------------------ */
+-+/*  Section                                                            */
+-+/* ------------------------------------------------------------------ */
+-+
+-+export default function ShowcaseCarousel() {
+-+  const [activeCat, setActiveCat] = useState<CatKey>("sand");
+-+  const [box, setBox] = useState<{ list: string[]; idx: number } | null>(null);
+-+
+-+  const openById = (id: string) => {
+-+    const f = frameById(id);
+-+    const list = framesInCat(f ? f.cat : "sand").map((x) => x.id);
+-+    setBox({ list, idx: Math.max(0, list.indexOf(id)) });
+-+  };
+-+
+-+  return (
+-+    <section
+-+      id="showcase"
+-+      className="section border-b bg-white py-20 md:py-24"
+-+      aria-labelledby="showcase-heading"
+-+    >
+-+      <div className="mx-auto max-w-7xl px-6">
+-+        <div className="max-w-2xl">
+-+          <div className="mb-3 text-xs font-semibold uppercase tracking-[3px] text-accent">
+-+            Autonomous floor refinishing systems
+-           </div>
+-+          <h2
+-+            id="showcase-heading"
+-+            className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl lg:text-5xl"
+-+          >
+-+            The machines, working the floor on their own.
+-+          </h2>
+-+          <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
+-+            Concept renders of the Forge platforms operating independently on
+-+            hardwood — sanding, edging, dust capture, finishing, and QA. Swipe
+-+            the featured rail, or open the full library below by platform.
+-+          </p>
+-         </div>
+- 
+--        <p className="mt-6 text-xs text-muted-foreground">
+-+        <FeaturedRail onOpen={openById} />
+-+
+-+        <Gallery
+-+          activeCat={activeCat}
+-+          onCat={setActiveCat}
+-+          onOpen={(list, idx) => setBox({ list, idx })}
+-+        />
+-+
+-+        <p className="mt-8 text-xs text-muted-foreground">
+-           Renders depict concept platforms; all figures are design targets, not
+-           measured specifications of shipping hardware.
+-         </p>
+-       </div>
+- 
+--      {/* Lightbox */}
+--      <Dialog.Root
+--        open={active !== null}
+--        onOpenChange={(o) => !o && setActive(null)}
+--      >
+-+      <Dialog.Root open={box !== null} onOpenChange={(o) => !o && setBox(null)}>
+-         <AnimatePresence>
+--          {active !== null && (
+-+          {box !== null && (
+-             <Lightbox
+--              index={active}
+--              onIndexChange={setActive}
+--              onClose={() => setActive(null)}
+-+              list={box.list}
+-+              index={box.idx}
+-+              onIndexChange={(idx) => setBox((b) => (b ? { ...b, idx } : b))}
+-+              onClose={() => setBox(null)}
+-             />
+-           )}
+-         </AnimatePresence>
+-diff --git a/lib/showcase.ts b/lib/showcase.ts
+-index b5bf360..2de285c 100644
+---- a/lib/showcase.ts
+-+++ b/lib/showcase.ts
+-@@ -1,223 +1,95 @@
+- /**
+-- * Data for the "Autonomous Floor Refinishing Systems" showcase section.
+-+ * Autonomous Floor Refinishing Systems — showcase data (v2, categorized).
+-  *
+-- * HONESTY NOTE (consistent with lib/robots.ts): every figure below is a
+-- * *design target* for FloorForge's concept platforms, not a measured spec
+-- * of shipping hardware. Numbers are kept in lockstep with ROBOTS in
+-- * lib/robots.ts so the showcase, the simulator, and the marketing copy all
+-- * tell the same story. The imagery shows the concept platforms operating
+-- * independently on hardwood; the UI labels them as concept renders.
+-+ * The full uploaded render library (78 usable frames across the eight source
+-+ * batches; 2 corrupt frames dropped) is optimized to WebP and sorted into the
+-+ * five FloorForge concept platforms. The `cat` on each frame is the ONLY thing
+-+ * that decides where it appears — it is auto-derived from image analytics
+-+ * (gloss / machine-mass / sharpness) plus directly-inspected frames, and is
+-+ * meant to be adjusted by hand freely: to re-file a frame, change its `cat`.
+-  *
+-- * Images live in /public/showcase/01.png … 10.png (see the prepare step in
+-- * the deploy notes — they are unpacked from the committed
+-- * floorforge-ai_10_images.zip so they never bloat the git history twice).
+-+ * HONESTY NOTE (matches lib/robots.ts): all figures are DESIGN TARGETS for
+-+ * concept platforms, not measured specs of shipping hardware. Images are
+-+ * concept renders. Assets live in /public/showcase/gallery/<id>.webp.
+-  */
+- 
+--export interface ShowcaseSpec {
+--  label: string;
+--  value: string;
+--}
+-+export type CatKey = "sand" | "edge" | "dust" | "finish" | "qa";
+- 
+--export interface ShowcaseItem {
+--  /** Stable id, also used for deep-grouping "Similar Views". */
+--  id: string;
+--  /** 1-indexed source frame → /showcase/0X.png */
+--  src: string;
+--  /** Card + modal heading. */
+--  title: string;
+--  /** Which concept platform is pictured (matches ROBOTS[].name). */
+-+export interface ShowcaseSpec { label: string; value: string; }
+-+
+-+export interface ShowcaseCategory {
+-+  key: CatKey;
+-+  label: string;
+-   platform: string;
+--  /** Group key — drives the "Similar Views" row in the lightbox. */
+--  group: "field-sanding" | "edge-detail" | "dust" | "finish" | "qa";
+--  /** Human label for the group (shown as the card eyebrow). */
+--  groupLabel: string;
+--  /** One-line card subtitle. */
+--  tagline: string;
+--  /** Precise, at-a-glance measurements (design targets). */
+-+  eyebrow: string;
+-+  blurb: string;
+-   specs: ShowcaseSpec[];
+--  /** Longer technical explanation shown in the lightbox. */
+--  detail: string;
+--  /** Optional ordered grit / pass sequence chips for the lightbox. */
+-   sequence?: string[];
+- }
+- 
+--export const SHOWCASE: ShowcaseItem[] = [
+--  {
+--    id: "field-open",
+--    src: "/showcase/01.png",
+--    title: "Autonomous field sanding",
+--    platform: "ForgeSand D1",
+--    group: "field-sanding",
+--    groupLabel: "Field sanding",
+--    tagline: "Open-floor abrasion, no operator on the drum.",
+--    specs: [
+--      { label: "Sanding width", value: "0.50 m" },
+--      { label: "Grit sequence", value: "36 → 180" },
+--      { label: "Dust capture", value: "98% HEPA (target)" },
+--      { label: "Coverage", value: "~55 m²/h" },
+--    ],
+--    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"],
+--    detail:
+--      "The D1 runs a boustrophedon field pass end-to-end on its own: load-sensing drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so there are no witness lines where one lane meets the next.",
+--  },
+--  {
+--    id: "field-midcut",
+--    src: "/showcase/02.png",
+--    title: "Grit-sequence pass · mid-cut",
+--    platform: "ForgeSand D1",
+--    group: "field-sanding",
+--    groupLabel: "Field sanding",
+--    tagline: "Sequenced 36→180 abrasion at constant pressure.",
+--    specs: [
+--      { label: "Sanding width", value: "0.50 m" },
+--      { label: "Grit sequence", value: "36 → 180" },
+--      { label: "Pressure control", value: "closed-loop" },
+--      { label: "Coverage", value: "~55 m²/h" },
+--    ],
+--    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"],
+--    detail:
+--      "Between coarse strip and finish sand, the planetary head steps through the grit ladder without an operator swapping paper. Real-time load feedback trims speed on hard grain and dense knots so the surface leaves each lap a shade smoother than the last.",
+--  },
+--  {
+--    id: "field-clearance",
+--    src: "/showcase/03.png",
+--    title: "Low-profile door clearance",
+--    platform: "ForgeSand D1",
+--    group: "field-sanding",
+--    groupLabel: "Field sanding",
+--    tagline: "Sub-8″ envelope, designed to clear doorways.",
+--    specs: [
+--      { label: "Height envelope", value: "< 8 in (target)" },
+--      { label: "Sanding width", value: "0.50 m" },
+--      { label: "Turn radius", value: "in-place" },
+--      { label: "Coverage", value: "~55 m²/h" },
+--    ],
+--    detail:
+--      "The platform is designed to slip under a standard door slab and pivot in place, so a single machine covers connected rooms without being lifted or reset. The low body keeps the centre of mass over the drum for even contact on cupped boards.",
+--  },
+--  {
+--    id: "edge-perimeter",
+--    src: "/showcase/04.png",
+--    title: "Perimeter edge detail",
+--    platform: "ForgeEdge E1",
+--    group: "edge-detail",
+--    groupLabel: "Edge & detail",
+--    tagline: "Vision-guided edging where the drum can't reach.",
+--    specs: [
+--      { label: "Working width", value: "0.14 m" },
+--      { label: "Edge follow", value: "LiDAR + vision" },
+--      { label: "Mode", value: "human-oversight" },
+--      { label: "Coverage", value: "~18 m²/h" },
+--    ],
+--    detail:
+--      "The E1 hugs baseboards and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs semi-autonomously with a human-oversight mode for complex perimeters, minimising the hand-scraping that usually eats the schedule.",
+--  },
+--  {
+--    id: "edge-transition",
+--    src: "/showcase/05.png",
+--    title: "Transition & doorway edging",
+--    platform: "ForgeEdge E1",
+--    group: "edge-detail",
+--    groupLabel: "Edge & detail",
+--    tagline: "Thresholds, vents, and built-ins without rework.",
+--    specs: [
+--      { label: "Working width", value: "0.14 m" },
+--      { label: "Follow error", value: "sub-mm (target)" },
+--      { label: "Mode", value: "human-oversight" },
+--      { label: "Coverage", value: "~18 m²/h" },
+--    ],
+--    detail:
+--      "At thresholds and around vents the edge head slows and shortens its stroke, blending the perimeter cut into the field pass so the two never leave a step. The oversight operator confirms tricky details on-screen rather than kneeling on the floor.",
+--  },
+--  {
+--    id: "dust-head",
+--    src: "/showcase/06.png",
+--    title: "Cyclonic capture at the head",
+--    platform: "ForgeSand D1",
+--    group: "dust",
+--    groupLabel: "Dust containment",
+--    tagline: "Shrouded drum pulls dust at the point of cut.",
+--    specs: [
+--      { label: "Capture point", value: "at the drum" },
+--      { label: "Pre-separation", value: "cyclonic" },
+--      { label: "Filtration", value: "HEPA" },
+--      { label: "Capture (target)", value: "98%" },
+--    ],
+--    detail:
+--      "Dust is pulled at the point of contact by a shrouded head, then spun through cyclonic pre-separation before the HEPA stage so the fine filter loads slowly. The goal is a floor that can be sanded inside an occupied home without sheeting the furniture.",
+--  },
+--  {
+--    id: "dust-hepa",
+--    src: "/showcase/07.png",
+--    title: "HEPA extraction module",
+--    platform: "ForgeSand D1",
+--    group: "dust",
+--    groupLabel: "Dust containment",
+--    tagline: "Per-job airborne particulate, logged not promised.",
+--    specs: [
+--      { label: "Filtration", value: "HEPA" },
+--      { label: "Capture (target)", value: "98%" },
+--      { label: "Logging", value: "per-job PM" },
+--      { label: "Report", value: "airborne µg/m³" },
+--    ],
+--    detail:
+--      "The onboard module logs airborne particulate for the whole job, so dust performance shows up as a number on the report instead of a claim. That record is what lets a crew bid occupied-space work the competition has to turn down.",
+--  },
+--  {
+--    id: "finish-apply",
+--    src: "/showcase/08.png",
+--    title: "Finish application pass",
+--    platform: "ForgeCoat C1",
+--    group: "finish",
+--    groupLabel: "Finish application",
+--    tagline: "Even film build across the whole field.",
+--    specs: [
+--      { label: "Working width", value: "0.60 m" },
+--      { label: "Film build", value: "±5% (target)" },
+--      { label: "Modes", value: "T-bar / spray" },
+--      { label: "Coverage", value: "~75 m²/h" },
+--    ],
+--    sequence: ["Seal · wets grain", "Finish · builds film"],
+--    detail:
+--      "The C1 lays stain or polyurethane at a metered rate with live viscosity and ambient monitoring, targeting uniform sheen and film thickness edge-to-edge. Consistent wet-edge timing across the field is what removes the lap marks a rushed hand application leaves behind.",
+--  },
+--  {
+--    id: "finish-filmbuild",
+--    src: "/showcase/09.png",
+--    title: "Seal-to-topcoat film build",
+--    platform: "ForgeCoat C1",
+--    group: "finish",
+--    groupLabel: "Finish application",
+--    tagline: "Seal coat then topcoat, monitored for cure.",
+--    specs: [
+--      { label: "Working width", value: "0.60 m" },
+--      { label: "Passes", value: "seal + finish" },
+--      { label: "Sensing", value: "viscosity + ambient" },
+--      { label: "Coverage", value: "~75 m²/h" },
+--    ],
+--    sequence: ["Seal · wets grain", "Finish · builds film"],
+--    detail:
+--      "First a seal coat wets the grain, then the finish coat builds the film to target thickness while environmental sensors watch temperature and humidity against the coating's cure window. The result is a controlled build rather than a best-guess flood.",
+--  },
+--  {
+--    id: "qa-scan",
+--    src: "/showcase/10.png",
+--    title: "Flatness & coverage QA scan",
+--    platform: "ForgeScan S1",
+--    group: "qa",
+--    groupLabel: "Inspection & QA",
+--    tagline: "Sub-mm flatness map, before and after.",
+--    specs: [
+--      { label: "Sweep width", value: "0.80 m" },
+--      { label: "Flatness res.", value: "sub-mm (target)" },
+--      { label: "Output", value: "coverage QA map" },
+--      { label: "Coverage", value: "~220 m²/h" },
+--    ],
+--    detail:
+--      "At survey speed the S1 maps flatness before and after the job and confirms coverage, producing the QA map that ships with the finish and dust logs. That digital record is the sign-off a GC or property manager can file — proof the floor met spec, not a promise it did.",
+--  },
+-+export interface Frame {
+-+  /** stable id = <set>-<frame>, e.g. "s04-07" -> /showcase/gallery/s04-07.webp */
+-+  id: string;
+-+  cat: CatKey;
+-+}
+-+
+-+export const CATEGORIES: ShowcaseCategory[] = [
+-+  { key: "sand", label: "Field Sanding", platform: "ForgeSand D1", eyebrow: "Autonomous multi-grit sanding",
+-+    blurb: "The flagship platform runs a full boustrophedon field pass on its own — load-sensing planetary drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so no witness lines are left where lanes meet.",
+-+    specs: [{ label: "Sanding width", value: "0.50 m" }, { label: "Grit sequence", value: "36 → 180" }, { label: "Dust capture", value: "98% HEPA (target)" }, { label: "Coverage", value: "~55 m²/h" }],
+-+    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"] },
+-+  { key: "edge", label: "Edge & Perimeter", platform: "ForgeEdge E1", eyebrow: "Semi-autonomous edging",
+-+    blurb: "Where the drum can't reach, the E1 hugs baseboards, thresholds and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs with a human-oversight mode for complex perimeters, cutting the hand-scraping that eats the schedule.",
+-+    specs: [{ label: "Working width", value: "0.14 m" }, { label: "Edge follow", value: "LiDAR + vision" }, { label: "Mode", value: "human-oversight" }, { label: "Coverage", value: "~18 m²/h" }] },
+-+  { key: "dust", label: "Dust Containment", platform: "ForgeSand D1", eyebrow: "Cyclonic + HEPA extraction",
+-+    blurb: "Dust is pulled at the point of contact by a shrouded head, spun through cyclonic pre-separation, then held by the HEPA stage so the fine filter loads slowly. Per-job airborne particulate is logged — dust performance shows up as a number on the report, not a promise.",
+-+    specs: [{ label: "Pre-separation", value: "cyclonic" }, { label: "Filtration", value: "HEPA" }, { label: "Capture (target)", value: "98%" }, { label: "Logging", value: "per-job PM" }] },
+-+  { key: "finish", label: "Finish Application", platform: "ForgeCoat C1", eyebrow: "Even film-build coating",
+-+    blurb: "The C1 lays stain or polyurethane at a metered rate with live viscosity and ambient monitoring — a seal coat wets the grain, then the finish coat builds the film to target thickness while sensors watch the cure window. Consistent wet-edge timing removes the lap marks a rushed hand pass leaves behind.",
+-+    specs: [{ label: "Working width", value: "0.60 m" }, { label: "Film build", value: "±5% (target)" }, { label: "Modes", value: "T-bar / spray" }, { label: "Coverage", value: "~75 m²/h" }],
+-+    sequence: ["Seal · wets grain", "Finish · builds film"] },
+-+  { key: "qa", label: "Inspection & Result", platform: "ForgeScan S1", eyebrow: "Flatness & coverage QA",
+-+    blurb: "At survey speed the S1 maps flatness before and after and confirms coverage, producing the QA map that ships with the finish and dust logs. The empty, evenly-lit floor is the deliverable a GC or property manager signs off — proof the floor met spec.",
+-+    specs: [{ label: "Sweep width", value: "0.80 m" }, { label: "Flatness res.", value: "sub-mm (target)" }, { label: "Output", value: "coverage QA map" }, { label: "Coverage", value: "~220 m²/h" }] },
+-+];
+-+
+-+export const FRAMES: Frame[] = [
+-+  { id: "s04-06", cat: "sand" }, { id: "s02-04", cat: "sand" }, { id: "s07-06", cat: "sand" },
+-+  { id: "s05-04", cat: "sand" }, { id: "s08-03", cat: "sand" }, { id: "s03-02", cat: "sand" },
+-+  { id: "s03-04", cat: "sand" }, { id: "s03-01", cat: "sand" }, { id: "s05-06", cat: "sand" },
+-+  { id: "s02-01", cat: "sand" }, { id: "s08-07", cat: "sand" }, { id: "s01-02", cat: "sand" },
+-+  { id: "s01-01", cat: "sand" }, { id: "s07-03", cat: "sand" }, { id: "s03-08", cat: "sand" },
+-+  { id: "s04-02", cat: "sand" }, { id: "s04-01", cat: "sand" }, { id: "s07-04", cat: "sand" },
+-+  { id: "s05-01", cat: "sand" }, { id: "s01-08", cat: "sand" }, { id: "s07-02", cat: "sand" },
+-+  { id: "s02-09", cat: "sand" }, { id: "s02-03", cat: "sand" }, { id: "s02-10", cat: "sand" },
+-+  { id: "s04-10", cat: "sand" }, { id: "s05-02", cat: "sand" }, { id: "s05-10", cat: "sand" },
+-+  { id: "s01-10", cat: "sand" }, { id: "s06-10", cat: "sand" }, { id: "s08-08", cat: "sand" },
+-+  { id: "s03-09", cat: "sand" }, { id: "s07-09", cat: "sand" }, { id: "s08-10", cat: "sand" },
+-+  { id: "s03-03", cat: "edge" }, { id: "s05-08", cat: "edge" }, { id: "s08-01", cat: "edge" },
+-+  { id: "s04-08", cat: "edge" }, { id: "s06-01", cat: "edge" }, { id: "s03-10", cat: "edge" },
+-+  { id: "s07-10", cat: "edge" }, { id: "s05-03", cat: "dust" }, { id: "s03-06", cat: "dust" },
+-+  { id: "s01-04", cat: "dust" }, { id: "s02-02", cat: "dust" }, { id: "s06-05", cat: "dust" },
+-+  { id: "s04-03", cat: "dust" }, { id: "s07-01", cat: "dust" }, { id: "s01-09", cat: "dust" },
+-+  { id: "s06-04", cat: "dust" }, { id: "s02-07", cat: "dust" }, { id: "s08-09", cat: "dust" },
+-+  { id: "s06-09", cat: "dust" }, { id: "s08-06", cat: "finish" }, { id: "s08-05", cat: "finish" },
+-+  { id: "s08-04", cat: "finish" }, { id: "s02-06", cat: "finish" }, { id: "s06-06", cat: "finish" },
+-+  { id: "s04-05", cat: "finish" }, { id: "s04-04", cat: "finish" }, { id: "s04-07", cat: "finish" },
+-+  { id: "s07-05", cat: "finish" }, { id: "s03-07", cat: "finish" }, { id: "s05-07", cat: "finish" },
+-+  { id: "s07-07", cat: "finish" }, { id: "s02-08", cat: "finish" }, { id: "s01-06", cat: "qa" },
+-+  { id: "s02-05", cat: "qa" }, { id: "s05-05", cat: "qa" }, { id: "s01-07", cat: "qa" },
+-+  { id: "s03-05", cat: "qa" }, { id: "s01-03", cat: "qa" }, { id: "s01-05", cat: "qa" },
+-+  { id: "s05-09", cat: "qa" }, { id: "s08-02", cat: "qa" }, { id: "s04-09", cat: "qa" },
+-+  { id: "s06-07", cat: "qa" }, { id: "s07-08", cat: "qa" }, { id: "s06-08", cat: "qa" },
+- ];
+- 
+--/** Items sharing a group, excluding the given id (for "Similar Views"). */
+--export const similarTo = (item: ShowcaseItem): ShowcaseItem[] =>
+--  SHOWCASE.filter((s) => s.group === item.group && s.id !== item.id);
+-+/** Frames chosen for the top "featured" swipe rail (sharpest, spread across categories). */
+-+export const FEATURED: string[] = ["s04-06", "s03-03", "s05-03", "s08-06", "s01-06", "s02-04", "s05-08", "s03-06", "s08-05", "s02-05"];
+-+
+-+export const frameSrc = (id: string): string => `/showcase/gallery/${id}.webp`;
+-+export const categoryOf = (key: CatKey): ShowcaseCategory =>
+-+  CATEGORIES.find((c) => c.key === key) ?? CATEGORIES[0];
+-+export const framesInCat = (key: CatKey): Frame[] =>
+-+  FRAMES.filter((f) => f.cat === key);
+-+export const frameById = (id: string): Frame | undefined =>
+-+  FRAMES.find((f) => f.id === id);
+-+
