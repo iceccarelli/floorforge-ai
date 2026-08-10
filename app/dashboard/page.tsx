@@ -54,21 +54,32 @@ export default function FloorForgeDashboard() {
       <div className="bg-accent text-white text-center text-xs font-semibold tracking-wider py-2 px-4">
         PRODUCT PREVIEW — ALL DATA ON THIS PAGE IS SAMPLE DATA ILLUSTRATING THE PLANNED DASHBOARD
       </div>
-      {/* Dashboard Header - consistent with main but dashboard focused */}
-      <div className="border-b bg-white sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+      {/* Dashboard header.
+          Three things were wrong here (audit/FINDINGS.md P0-3, P1-7, P1-4):
+
+            1. The row was `flex justify-between` with no wrap, so it overflowed
+               the viewport on every phone tested — 80px at 375, 135px at 320.
+               `flex-wrap` plus a wrapping right-hand cluster fixes it without
+               hiding anything.
+            2. The page had NO <h1> at all; its first heading was an <h3>. This
+               is linked from the footer of every page as "Dashboard Preview",
+               so it is a prospect-facing surface.
+            3. `bg-accent/10` under `text-accent` measured 4.35:1, below the
+               4.5 floor. The pill now uses the measured status set. */}
+      <div className="border-b border-border bg-card sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6 py-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Link href="/" className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" /> Back to FloorForge.ai
             </Link>
-            <div className="h-4 w-px bg-border" />
-            <div className="font-semibold tracking-tight">FloorForge Dashboard</div>
-            <div className="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent font-medium">PRODUCTION</div>
+            <div className="hidden h-4 w-px bg-border sm:block" />
+            <h1 className="font-semibold tracking-tight text-foreground">FloorForge Dashboard</h1>
+            <span className="status status-active">PRODUCT PREVIEW</span>
           </div>
-          
+
           <div className="flex items-center gap-3 text-sm">
             <div className="text-muted-foreground">Good morning, Alex Rivera</div>
-            <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-medium">AR</div>
+            <div className="h-8 w-8 shrink-0 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-xs font-medium">AR</div>
           </div>
         </div>
       </div>
@@ -139,9 +150,11 @@ export default function FloorForgeDashboard() {
         {/* Jobs Tab */}
         {activeTab === "jobs" && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-xl tracking-tight">Active Sanding & Finishing Jobs</h3>
-              <Button variant="accent" size="sm">+ New Job from Scan</Button>
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              {/* h2, not h3: this is the first section under the page's <h1>, and
+                  jumping 1 -> 3 is a WCAG 1.3.1 hierarchy break (FINDINGS P1-7). */}
+              <h2 className="min-w-0 font-semibold text-xl tracking-tight">Active Sanding &amp; Finishing Jobs</h2>
+              <Button variant="accent" size="sm" className="shrink-0">+ New Job</Button>
             </div>
 
             {mockJobs.map((job) => (
@@ -175,16 +188,23 @@ export default function FloorForgeDashboard() {
             ))}
 
             {/* Cross-sell to other Forge platforms */}
-            <div className="mt-8 rounded-2xl border-2 border-dashed border-accent/30 bg-accent/5 p-8">
+            <div className="mt-8 rounded-2xl border-2 border-dashed border-accent/40 bg-accent-light p-8">
               <div className="flex flex-col md:flex-row md:items-center gap-6">
                 <div className="flex-1">
                   <div className="uppercase tracking-[2px] text-xs font-semibold text-accent mb-2">CROSS-PLATFORM OPPORTUNITY</div>
                   <div className="text-2xl font-semibold tracking-tight">This client has 42,000 sqft of walls & ceilings still untouched.</div>
-                  <p className="mt-2 text-muted-foreground">Future Forge products are planned to share this reporting layer for whole-interior jobs.</p>
+                  <p className="mt-2 text-foreground">Future Forge products are planned to share this reporting layer for whole-interior jobs.</p>
                 </div>
-                <div>
-                  <Button variant="accent" className="whitespace-nowrap">Start walls & ceilings quote in DryForge</Button>
-                  <div className="text-[10px] text-center mt-2 text-muted-foreground">Opens in new tab • Shared job context</div>
+                <div className="w-full md:w-auto">
+                  {/* `whitespace-nowrap` forced this 313px-wide button to sit on
+                      one line, which is what still overflowed a 320px viewport
+                      after the header row was fixed. The label wraps now; the
+                      button stays full-width on narrow screens and shrink-wraps
+                      from md up. (audit/FINDINGS.md P0-3) */}
+                  <Button variant="accent" className="h-auto w-full py-3 text-center leading-snug md:w-auto">
+                    Start walls &amp; ceilings quote in DryForge
+                  </Button>
+                  <div className="text-xs text-center mt-2 text-foreground">Opens in new tab • Shared job context</div>
                 </div>
               </div>
             </div>

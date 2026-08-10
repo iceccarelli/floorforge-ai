@@ -21,16 +21,19 @@ const STATUS_OPTIONS: JobStatus[] = [
   "failed",
 ];
 
-const STATUS_COLORS: Record<JobStatus, string> = {
-  draft: "bg-gray-100 text-gray-800",
-  queued: "bg-blue-100 text-blue-800",
-  in_progress: "bg-cyan-100 text-cyan-800",
-  paused: "bg-yellow-100 text-yellow-800",
-  completed: "bg-green-100 text-green-800",
-  approved: "bg-emerald-100 text-emerald-800",
-  rework: "bg-orange-100 text-orange-800",
-  failed: "bg-red-100 text-red-800",
-  archived: "bg-gray-200 text-gray-700",
+/* Status intents, not colours. See the `.status-*` classes in app/globals.css:
+   every ink/tint pair is measured and clears 4.5:1, and the pill always carries
+   its own label so colour is never the sole carrier of meaning. */
+const STATUS_INTENT: Record<JobStatus, string> = {
+  draft: "status-neutral",
+  queued: "status-info",
+  in_progress: "status-active",
+  paused: "status-warn",
+  completed: "status-good",
+  approved: "status-good",
+  rework: "status-warn",
+  failed: "status-bad",
+  archived: "status-neutral",
 };
 
 interface JobRow extends types.Job {
@@ -155,19 +158,28 @@ export default function JobsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground mb-4">
           Jobs ({filteredJobs.length})
         </h2>
 
         {/* Tenant selector */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="tenant-select"
+            className="block text-sm font-medium text-foreground mb-2"
+          >
             Select Pilot Contractor (Tenant)
           </label>
+          {/* htmlFor/id, not proximity: without it axe reports `select-name`
+              (critical) and a screen reader announces an unlabelled combobox.
+              text-base is 16px — anything smaller makes iOS Safari zoom the
+              whole page on focus (audit/FINDINGS.md P2-13). */}
           <select
+            id="tenant-select"
             value={selectedTenantId}
             onChange={(e) => setSelectedTenantId(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded text-sm"
+            aria-describedby="tenant-select-note"
+            className="input min-h-11 w-full max-w-sm text-base"
           >
             <option value="">— Choose a contractor —</option>
             {testTenants.map((tenant) => (
@@ -176,7 +188,7 @@ export default function JobsPage() {
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">
+          <p id="tenant-select-note" className="text-xs text-muted-foreground mt-1">
             Note: In production, this would list actual pilot contractors
           </p>
         </div>
@@ -185,11 +197,8 @@ export default function JobsPage() {
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setFilterStatus("all")}
-            className={`px-3 py-1 rounded text-sm font-medium ${
-              filterStatus === "all"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-            }`}
+            aria-pressed={filterStatus === "all"}
+            className="chip"
           >
             All
           </button>
@@ -198,11 +207,8 @@ export default function JobsPage() {
               <button
                 key={status}
                 onClick={() => setFilterStatus(status as JobStatus)}
-                className={`px-3 py-1 rounded text-sm font-medium ${
-                  filterStatus === status
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
+                aria-pressed={filterStatus === status}
+                className="chip"
               >
                 {status.replace("_", " ").charAt(0).toUpperCase() +
                   status.replace("_", " ").slice(1)}
@@ -214,24 +220,24 @@ export default function JobsPage() {
 
       {/* Error message */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 text-red-700 rounded border border-red-200">
+        <div className="mb-4 p-4 bg-card text-foreground rounded border border-border">
           {error}
         </div>
       )}
 
       {/* Loading */}
-      {loading && <div className="text-gray-500 py-8">Loading...</div>}
+      {loading && <div className="text-muted-foreground py-8">Loading...</div>}
 
       {/* No contractor selected */}
       {!selectedTenantId && !loading && (
-        <div className="text-gray-500 py-8 text-center">
+        <div className="text-muted-foreground py-8 text-center">
           Select a contractor to view jobs
         </div>
       )}
 
       {/* List */}
       {!loading && selectedTenantId && filteredJobs.length === 0 && (
-        <div className="text-gray-500 py-8 text-center">
+        <div className="text-muted-foreground py-8 text-center">
           No jobs found
         </div>
       )}
@@ -241,88 +247,84 @@ export default function JobsPage() {
           {filteredJobs.map((job) => (
             <div
               key={job.id}
-              className="bg-white rounded border border-gray-200 hover:border-gray-300"
+              className="bg-card rounded border border-border hover:border-border-strong"
             >
               {/* Header (clickable) */}
               <button
                 onClick={() =>
                   setExpandedId(expandedId === job.id ? null : job.id)
                 }
-                className="w-full text-left p-4 hover:bg-gray-50 flex justify-between items-start"
+                className="w-full text-left p-4 hover:bg-muted flex justify-between items-start"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-gray-900">
+                    <h3 className="font-semibold text-foreground">
                       {job.site_name}
                     </h3>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        STATUS_COLORS[job.status]
-                      }`}
-                    >
-                      {job.status}
+                    <span className={`status ${STATUS_INTENT[job.status]}`}>
+                      {job.status.replace(/_/g, " ")}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     {job.sqft.toLocaleString()} sqft • {job.robot_id} •
                     Coverage: {job.coverage_pct.toFixed(1)}%
                   </p>
                 </div>
-                <div className="text-gray-400">
+                <div className="text-muted-foreground">
                   {expandedId === job.id ? "▼" : "▶"}
                 </div>
               </button>
 
               {/* Details (expanded) */}
               {expandedId === job.id && (
-                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                <div className="border-t border-border p-4 bg-muted">
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Site Address
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {job.site_address || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Floor Type
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {job.floor_type || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Coverage
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {job.coverage_pct.toFixed(1)}% ({job.coverage_area_m2.toFixed(1)} m²)
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Time Elapsed
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {Math.floor(job.time_elapsed_sec / 3600)}h{" "}
                         {Math.floor((job.time_elapsed_sec % 3600) / 60)}m
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Grit Sequence
                       </p>
-                      <p className="text-sm text-gray-900 font-mono">
+                      <p className="text-sm text-foreground font-mono">
                         {job.grit_sequence?.join(" → ") || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Approval Score
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {job.approval_score ? `${job.approval_score}/100` : "—"}
                       </p>
                     </div>
@@ -330,18 +332,18 @@ export default function JobsPage() {
 
                   {job.site_notes && (
                     <div className="mb-4">
-                      <p className="text-xs text-gray-600 uppercase tracking-wider mb-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                         Site Notes
                       </p>
-                      <p className="text-sm text-gray-900 bg-white p-2 rounded border border-gray-200">
+                      <p className="text-sm text-foreground bg-card p-2 rounded border border-border">
                         {job.site_notes}
                       </p>
                     </div>
                   )}
 
                   {/* Status update section */}
-                  <div className="border-t border-gray-200 pt-4">
-                    <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
                       Update Status
                     </p>
 
@@ -354,7 +356,7 @@ export default function JobsPage() {
                           })
                         }
                         disabled={updatingId === job.id}
-                        className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50 mr-2"
+                        className="btn-console btn-console-advance mr-2"
                       >
                         → Queue for assignment
                       </button>
@@ -368,7 +370,7 @@ export default function JobsPage() {
                           })
                         }
                         disabled={updatingId === job.id}
-                        className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50 mr-2"
+                        className="btn-console btn-console-advance mr-2"
                       >
                         → Start work
                       </button>
@@ -383,14 +385,14 @@ export default function JobsPage() {
                             })
                           }
                           disabled={updatingId === job.id}
-                          className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50 mr-2"
+                          className="btn-console btn-console-advance mr-2"
                         >
                           → Complete job
                         </button>
                         <button
                           onClick={() => updateJobStatus(job.id, "paused")}
                           disabled={updatingId === job.id}
-                          className="px-3 py-2 bg-yellow-500 text-white rounded text-sm font-medium hover:bg-yellow-600 disabled:opacity-50"
+                          className="btn-console btn-console-hold"
                         >
                           → Pause
                         </button>
@@ -403,15 +405,15 @@ export default function JobsPage() {
                           approval_score: 95,
                         })}
                         disabled={updatingId === job.id}
-                        className="px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50 mr-2"
+                        className="btn-console btn-console-advance mr-2"
                       >
                         → Approve & finalize
                       </button>
                     )}
 
                     {/* Manual status selector */}
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
                         Or set status manually:
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -422,11 +424,7 @@ export default function JobsPage() {
                             disabled={
                               updatingId === job.id || job.status === status
                             }
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              job.status === status
-                                ? "bg-gray-300 text-gray-600 cursor-default"
-                                : "bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-                            }`}
+                            className="btn-console btn-console-sm"
                           >
                             {status}
                           </button>
@@ -436,7 +434,7 @@ export default function JobsPage() {
                   </div>
 
                   {/* Metadata */}
-                  <div className="border-t border-gray-200 mt-4 pt-4 text-xs text-gray-500">
+                  <div className="border-t border-border mt-4 pt-4 text-xs text-muted-foreground">
                     <p>Created: {new Date(job.created_at).toLocaleDateString()}</p>
                     <p>ID: {job.id}</p>
                     <p>Robot: {job.robot_id}</p>

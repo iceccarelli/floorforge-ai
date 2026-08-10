@@ -63,7 +63,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden lg:flex items-center gap-8 text-sm font-medium">
+          <nav aria-label="Main" className="hidden lg:flex items-center gap-8 text-sm font-medium">
             {navLinks.map((link) => (
               <button
                 key={link.href}

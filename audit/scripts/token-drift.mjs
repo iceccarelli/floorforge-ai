@@ -32,6 +32,10 @@ for (const f of files) {
     src = src.replace(/@theme\s+inline\s*\{[\s\S]*?\n\}/g, "")
              .replace(/:root\s*\{[\s\S]*?\n\}/g, "");
   }
+  // A palette name inside a comment is documentation, not drift — several files
+  // explain in prose which hardcode they replaced. Strip block and line
+  // comments before counting so the number tracks code, not commentary.
+  src = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
   const counts = {};
   const samples = {};
   for (const [k, rx] of Object.entries(RX)) {

@@ -99,6 +99,25 @@
      feel — the 3:1 floor is the rule. */
 
   /* -------------------------------------------------------------------------
+     STATUS — job and application state in the operator console.
+
+     Reserved: a status colour never doubles as decoration, and it never carries
+     meaning alone — every pill contains its own label. Each ink/tint pair was
+     measured, not picked; all clear 4.5:1. The tints sit close to white on
+     purpose (1.07-1.22:1), so the pill takes a border to have a shape.
+
+     Before FLOORFORGE_04_components.patch these were raw Tailwind palette
+     classes — bg-blue-100 text-blue-800 and friends — in a console whose
+     primary action colour was bg-blue-600 on a site whose accent is amber.
+     ------------------------------------------------------------------------- */
+  --status-neutral-ink: #334155;  --status-neutral-tint: #f1f5f9;  /* 9.45:1 */
+  --status-info-ink:    #1e40af;  --status-info-tint:    #dbeafe;  /* 7.15:1 */
+  --status-active-ink:  #9a3412;  --status-active-tint:  #ffedd5;  /* 6.38:1 */
+  --status-good-ink:    #166534;  --status-good-tint:    #dcfce7;  /* 6.49:1 */
+  --status-warn-ink:    #854d0e;  --status-warn-tint:    #fef9c3;  /* 6.38:1 */
+  --status-bad-ink:     #991b1b;  --status-bad-tint:     #fee2e2;  /* 6.80:1 */
+
+  /* -------------------------------------------------------------------------
      RADIUS
      ------------------------------------------------------------------------- */
   --r-sm: 4px;
@@ -360,6 +379,166 @@ h1, h2, h3, h4 {
   letter-spacing: 1px;
   padding: 2px 14px;
   border-radius: var(--r-full);
+}
+
+/* ---------------------------------------------------------------------------
+   STATUS PILL — one anatomy for every state in the console.
+
+   Usage: <span className="status status-good">approved</span>
+   The label is always present, so colour is never the only carrier of meaning.
+   --------------------------------------------------------------------------- */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--r-full);
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--status-tint);
+  color: var(--status-ink);
+  border: 1px solid color-mix(in srgb, var(--status-ink) 22%, transparent);
+}
+
+.status-neutral { --status-ink: var(--status-neutral-ink); --status-tint: var(--status-neutral-tint); }
+.status-info    { --status-ink: var(--status-info-ink);    --status-tint: var(--status-info-tint); }
+.status-active  { --status-ink: var(--status-active-ink);  --status-tint: var(--status-active-tint); }
+.status-good    { --status-ink: var(--status-good-ink);    --status-tint: var(--status-good-tint); }
+.status-warn    { --status-ink: var(--status-warn-ink);    --status-tint: var(--status-warn-tint); }
+.status-bad     { --status-ink: var(--status-bad-ink);     --status-tint: var(--status-bad-tint); }
+
+/* ---------------------------------------------------------------------------
+   FILTER CHIP — the console's segmented filter. One anatomy, three states,
+   44px minimum target (WCAG 2.2 AA 2.5.8).
+   --------------------------------------------------------------------------- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--tap-min);
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--card);
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-std),
+              border-color var(--duration-fast) var(--ease-std),
+              color var(--duration-fast) var(--ease-std);
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary-foreground);
+}
+
+.chip:disabled {
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+
+/* ---------------------------------------------------------------------------
+   DISABLED — one rule for every control. Before this there was no disabled
+   treatment anywhere except `disabled:opacity-50` on <Button>, which lands
+   --muted-foreground at 2.4:1, below the 3:1 floor the spec sets for disabled
+   text (audit/DESIGN_SYSTEM.md §5).
+   --------------------------------------------------------------------------- */
+button:disabled,
+[aria-disabled="true"],
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   CONSOLE ACTION BUTTON — the operator workflow controls.
+
+   These were bg-green-500 / bg-yellow-500 / bg-blue-500 with `disabled:opacity-50`
+   and no disabled cursor: four unrelated hues carrying meaning that the label
+   already carries, on a site whose accent is amber.
+
+   Semantics now live in the label ("→ Complete job", "→ Pause"); the button
+   carries emphasis, not meaning. Two intents only: advance (the expected next
+   step) and hold (the exception). Every state in the matrix is defined here —
+   rest, hover, active, focus-visible, disabled — which is the point of a
+   primitive.
+   --------------------------------------------------------------------------- */
+.btn-console {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--tap-min);
+  padding: 0 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border-strong);
+  background: var(--card);
+  color: var(--foreground, var(--fg));
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-std),
+              border-color var(--duration-fast) var(--ease-std),
+              color var(--duration-fast) var(--ease-std),
+              transform var(--duration-fast) var(--ease-std);
+}
+
+.btn-console:hover:not(:disabled) { background: var(--muted); border-color: var(--accent); color: var(--accent); }
+.btn-console:active:not(:disabled) { transform: scale(0.985); }
+
+.btn-console-sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.btn-console-advance {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--primary-foreground);
+}
+.btn-console-advance:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: var(--primary-foreground);
+}
+
+.btn-console-hold {
+  background: var(--status-warn-tint);
+  border-color: color-mix(in srgb, var(--status-warn-ink) 35%, transparent);
+  color: var(--status-warn-ink);
+}
+.btn-console-hold:hover:not(:disabled) {
+  background: var(--status-warn-tint);
+  border-color: var(--status-warn-ink);
+  color: var(--status-warn-ink);
+}
+
+/* One disabled treatment for the whole family. `opacity: 0.5` on
+   --muted-foreground lands at 2.4:1, below the 3:1 floor for disabled text, so
+   the state is carried by surface and cursor instead of by fading the label. */
+.btn-console:disabled {
+  cursor: not-allowed;
+  background: var(--muted);
+  border-color: var(--border);
+  color: var(--muted-foreground);
+  transform: none;
 }
 
 /* Dashboard mock */

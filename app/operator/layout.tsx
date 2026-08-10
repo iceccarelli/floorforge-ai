@@ -1,10 +1,37 @@
 /**
- * Operator Internal Dashboard Layout
- * Navigation for pilot management surfaces
+ * Operator console layout.
+ *
+ * WHAT WAS WRONG (audit/FINDINGS.md P0-5, P1-1, P1-9)
+ * ---------------------------------------------------
+ * This file used to build a complete second page chrome — its own <header>
+ * with an <h1>, its own <nav>, its own <main>, its own <footer> — and Next.js
+ * nested all of it inside the root layout's <main id="main">. Measured at
+ * 1440x900:
+ *
+ *     /                        header=1  main=1  footer=1
+ *     /operator/jobs           header=2  main=2  footer=2
+ *
+ * Two <main> landmarks is an unambiguous WCAG 1.3.1 failure: a screen-reader
+ * user who jumps to the main landmark lands in the wrong one. Visually it
+ * produced a marketing header, then a console header, then a console footer,
+ * then ~400px of dead space, then the marketing footer.
+ *
+ * It also used the raw Tailwind grey palette throughout — bg-gray-50,
+ * border-gray-200, text-gray-900 — with zero design tokens, which is how a
+ * marketing site and its console drift into looking like two different
+ * companies' products.
+ *
+ * WHAT IT IS NOW
+ * --------------
+ * A section header inside the app's single <main>. One labelled <nav> with
+ * aria-current on the active tab (OperatorNav, a client component so this file
+ * can stay a server component and keep its metadata export). Every colour
+ * resolves to a token. The console is denser than the marketing pages — that
+ * is legitimate and deliberate — but it is denser *within* the same system.
  */
 
-import Link from "next/link";
 import React from "react";
+import OperatorNav from "@/components/OperatorNav";
 
 export const metadata = {
   title: "FloorForge Operator Console",
@@ -17,50 +44,24 @@ export default function OperatorLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">
-            FloorForge Operator Console
+    <div className="min-h-full bg-muted">
+      {/* A section header, NOT a <header> landmark — the page already has one. */}
+      <div className="border-b border-border bg-background">
+        <div className="mx-auto max-w-7xl px-6 pt-8 pb-6">
+          <p className="text-xs font-semibold uppercase tracking-[3px] text-accent">
+            Internal
+          </p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+            Operator Console
           </h1>
-          <p className="text-sm text-gray-600 mt-1">
-            Internal tool for managing pilot applications and jobs
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pilot applications and job management. Internal use only.
           </p>
         </div>
-      </header>
+        <OperatorNav />
+      </div>
 
-      {/* Navigation */}
-      <nav className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-8">
-            <Link
-              href="/operator/applications"
-              className="px-4 py-4 border-b-2 border-transparent hover:border-gray-300 text-gray-700 hover:text-gray-900 font-medium text-sm"
-            >
-              Pilot Applications
-            </Link>
-            <Link
-              href="/operator/jobs"
-              className="px-4 py-4 border-b-2 border-transparent hover:border-gray-300 text-gray-700 hover:text-gray-900 font-medium text-sm"
-            >
-              Jobs
-            </Link>
-          </div>
-        </div>
-      </nav>
-
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {children}
-      </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 py-4 text-sm text-gray-600">
-          <p>FloorForge Operator Console — Internal Use Only</p>
-        </div>
-      </footer>
+      <div className="mx-auto max-w-7xl px-6 py-8">{children}</div>
     </div>
   );
 }

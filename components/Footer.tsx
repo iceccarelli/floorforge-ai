@@ -32,7 +32,7 @@ export default function Footer() {
   return (
     <footer className="bg-primary text-primary-foreground border-t border-white/10">
       <div className="mx-auto max-w-7xl px-6 pt-16 pb-10">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-6">
+        <nav aria-label="Footer" className="grid grid-cols-2 md:grid-cols-4 gap-y-12 gap-x-6">
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-4">
@@ -105,7 +105,7 @@ export default function Footer() {
               })}
             </ul>
           </div>
-        </div>
+        </nav>
 
         {/* Social icon bar + legal strip — AWS-style bottom band */}
         <div className="mt-14 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">

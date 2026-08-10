@@ -23,17 +23,18 @@ const STATUS_OPTIONS: ApplicationStatus[] = [
   "churned",
 ];
 
-const STATUS_COLORS: Record<ApplicationStatus, string> = {
-  new: "bg-gray-100 text-gray-800",
-  contacted: "bg-blue-100 text-blue-800",
-  engaged: "bg-cyan-100 text-cyan-800",
-  qualified: "bg-green-100 text-green-800",
-  accepted: "bg-emerald-100 text-emerald-800",
-  onboarded: "bg-teal-100 text-teal-800",
-  piloting: "bg-purple-100 text-purple-800",
-  completed: "bg-indigo-100 text-indigo-800",
-  declined: "bg-orange-100 text-orange-800",
-  churned: "bg-red-100 text-red-800",
+/* Status intents, not colours — see app/globals.css `.status-*`. */
+const STATUS_INTENT: Record<ApplicationStatus, string> = {
+  new: "status-neutral",
+  contacted: "status-info",
+  engaged: "status-info",
+  qualified: "status-active",
+  accepted: "status-good",
+  onboarded: "status-good",
+  piloting: "status-active",
+  completed: "status-good",
+  declined: "status-warn",
+  churned: "status-bad",
 };
 
 export default function ApplicationsPage() {
@@ -143,7 +144,7 @@ export default function ApplicationsPage() {
   return (
     <div>
       <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        <h2 className="text-xl font-semibold tracking-tight text-foreground mb-4">
           Pilot Applications ({filteredApps.length})
         </h2>
 
@@ -151,11 +152,8 @@ export default function ApplicationsPage() {
         <div className="flex gap-2 mb-4 flex-wrap">
           <button
             onClick={() => setFilterStatus("all")}
-            className={`px-3 py-1 rounded text-sm font-medium ${
-              filterStatus === "all"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-            }`}
+            aria-pressed={filterStatus === "all"}
+            className="chip"
           >
             All
           </button>
@@ -163,11 +161,8 @@ export default function ApplicationsPage() {
             <button
               key={status}
               onClick={() => setFilterStatus(status as ApplicationStatus)}
-              className={`px-3 py-1 rounded text-sm font-medium ${
-                filterStatus === status
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-              }`}
+              aria-pressed={filterStatus === status}
+              className="chip"
             >
               {status.charAt(0).toUpperCase() + status.slice(1)}
             </button>
@@ -177,17 +172,17 @@ export default function ApplicationsPage() {
 
       {/* Error message */}
       {error && (
-        <div className="mb-4 p-4 bg-red-50 text-red-700 rounded border border-red-200">
+        <div className="mb-4 p-4 bg-card text-foreground rounded border border-border">
           {error}
         </div>
       )}
 
       {/* Loading */}
-      {loading && <div className="text-gray-500 py-8">Loading...</div>}
+      {loading && <div className="text-muted-foreground py-8">Loading...</div>}
 
       {/* List */}
       {!loading && filteredApps.length === 0 && (
-        <div className="text-gray-500 py-8 text-center">
+        <div className="text-muted-foreground py-8 text-center">
           No applications found
         </div>
       )}
@@ -197,78 +192,74 @@ export default function ApplicationsPage() {
           {filteredApps.map((app) => (
             <div
               key={app.id}
-              className="bg-white rounded border border-gray-200 hover:border-gray-300"
+              className="bg-card rounded border border-border hover:border-border-strong"
             >
               {/* Header (clickable) */}
               <button
                 onClick={() =>
                   setExpandedId(expandedId === app.id ? null : app.id)
                 }
-                className="w-full text-left p-4 hover:bg-gray-50 flex justify-between items-start"
+                className="w-full text-left p-4 hover:bg-muted flex justify-between items-start"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
-                    <h3 className="font-semibold text-gray-900">{app.name}</h3>
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${
-                        STATUS_COLORS[app.status]
-                      }`}
-                    >
+                    <h3 className="font-semibold text-foreground">{app.name}</h3>
+                    <span className={`status ${STATUS_INTENT[app.status]}`}>
                       {app.status}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     {app.company} • {app.monthly_sqft_target.toLocaleString()} sqft/mo
                   </p>
                 </div>
-                <div className="text-gray-400">
+                <div className="text-muted-foreground">
                   {expandedId === app.id ? "▼" : "▶"}
                 </div>
               </button>
 
               {/* Details (expanded) */}
               {expandedId === app.id && (
-                <div className="border-t border-gray-200 p-4 bg-gray-50">
+                <div className="border-t border-border p-4 bg-muted">
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Email
                       </p>
-                      <p className="text-sm text-gray-900 font-mono">{app.email}</p>
+                      <p className="text-sm text-foreground font-mono">{app.email}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Phone
                       </p>
-                      <p className="text-sm text-gray-900">{app.phone || "—"}</p>
+                      <p className="text-sm text-foreground">{app.phone || "—"}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Segment
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {app.segment || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Source
                       </p>
-                      <p className="text-sm text-gray-900">{app.source}</p>
+                      <p className="text-sm text-foreground">{app.source}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Robot Interest
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {app.robot_interest || "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-600 uppercase tracking-wider">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider">
                         Location
                       </p>
-                      <p className="text-sm text-gray-900">
+                      <p className="text-sm text-foreground">
                         {app.state || "—"}
                       </p>
                     </div>
@@ -276,10 +267,10 @@ export default function ApplicationsPage() {
 
                   {app.challenge && (
                     <div className="mb-4">
-                      <p className="text-xs text-gray-600 uppercase tracking-wider mb-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                         Challenge / Notes
                       </p>
-                      <p className="text-sm text-gray-900 bg-white p-2 rounded border border-gray-200">
+                      <p className="text-sm text-foreground bg-card p-2 rounded border border-border">
                         {app.challenge}
                       </p>
                     </div>
@@ -287,18 +278,18 @@ export default function ApplicationsPage() {
 
                   {app.internal_notes && (
                     <div className="mb-4">
-                      <p className="text-xs text-gray-600 uppercase tracking-wider mb-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
                         Internal Notes
                       </p>
-                      <p className="text-sm text-gray-900 bg-white p-2 rounded border border-gray-200">
+                      <p className="text-sm text-foreground bg-card p-2 rounded border border-border">
                         {app.internal_notes}
                       </p>
                     </div>
                   )}
 
                   {/* Status update section */}
-                  <div className="border-t border-gray-200 pt-4">
-                    <p className="text-xs text-gray-600 uppercase tracking-wider mb-2">
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">
                       Update Status
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -314,11 +305,7 @@ export default function ApplicationsPage() {
                           disabled={
                             updatingId === app.id || app.status === status
                           }
-                          className={`px-2 py-1 rounded text-xs font-medium ${
-                            app.status === status
-                              ? "bg-gray-300 text-gray-600 cursor-default"
-                              : "bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-                          }`}
+                          className="btn-console btn-console-sm"
                         >
                           {status}
                         </button>
@@ -327,7 +314,7 @@ export default function ApplicationsPage() {
                   </div>
 
                   {/* Metadata */}
-                  <div className="border-t border-gray-200 mt-4 pt-4 text-xs text-gray-500">
+                  <div className="border-t border-border mt-4 pt-4 text-xs text-muted-foreground">
                     <p>
                       Created: {new Date(app.created_at).toLocaleDateString()}
                     </p>
