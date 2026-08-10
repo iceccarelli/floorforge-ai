@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Calculator, TrendingUp, Clock, Users, Award, ArrowRight } from "lucide-react";
+import { scrollToElement } from "@/lib/scroll";
+import { openChatbot } from "@/lib/chatbot";
 
 interface ROIInputs {
   sqft: number;
@@ -163,10 +165,7 @@ export default function ROICalculator() {
               <Button 
                 variant="accent" 
                 className="flex-1 md:flex-none"
-                onClick={() => {
-                  const el = document.getElementById('pricing');
-                  el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }}
+                onClick={() => scrollToElement("pricing")}
               >
                 See planned pricing <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -175,11 +174,7 @@ export default function ROICalculator() {
                 className="flex-1 md:flex-none border-white/30 text-white hover:bg-white/10"
                 onClick={() => {
                   // Trigger chatbot with context
-                  const chatBtn = document.querySelector('[aria-label="Open FloorForge Assistant"]') as HTMLButtonElement;
-                  chatBtn?.click();
-                  setTimeout(() => {
-                    // Could enhance to prefill but for now just open
-                  }, 300);
+                  openChatbot();
                 }}
               >
                 Ask the demo assistant about this scenario

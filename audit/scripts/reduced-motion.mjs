@@ -23,6 +23,9 @@ for (const route of ROUTES) {
       if (op < 0.1 || (b.width === 0 && b.height === 0)) {
         // ignore intentionally-hidden a11y helpers and closed dialogs
         if (el.closest('[aria-hidden="true"], [hidden], .sr-only')) continue;
+        // <option> has no layout box until the native picker opens; a zero rect
+        // here is the platform, not hidden content.
+        if (el.tagName === "OPTION" || el.tagName === "OPTGROUP") continue;
         out.push({ route, tag: el.tagName.toLowerCase(), opacity: op, w: Math.round(b.width), h: Math.round(b.height),
           text: el.textContent.trim().slice(0, 50), cls: String(el.className?.baseVal ?? el.className ?? "").slice(0, 70) });
       }

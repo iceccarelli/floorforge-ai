@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { CHATBOT_TRIGGER_ATTR } from "@/lib/chatbot";
 import { MessageCircle, X, Send, Bot, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -94,7 +95,9 @@ export default function Chatbot() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`chat-launcher ${isOpen ? "chat-open" : ""} fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-xl hover:bg-accent-hover transition-all active:scale-95`}
-        aria-label="Open FloorForge Assistant"
+        aria-label={isOpen ? "Close FloorForge Assistant" : "Open FloorForge Assistant"}
+        aria-expanded={isOpen}
+        {...{ [CHATBOT_TRIGGER_ATTR]: "" }}
       >
         {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
       </button>

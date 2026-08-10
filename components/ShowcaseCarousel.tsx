@@ -7,6 +7,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X, ArrowUpRight, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { prefersReducedMotion, scrollToElement } from "@/lib/scroll";
 import {
   CATEGORIES,
   FEATURED,
@@ -240,11 +241,7 @@ function Lightbox({
                   className="w-full sm:w-auto"
                   onClick={() => {
                     onClose();
-                    requestAnimationFrame(() => {
-                      document
-                        .getElementById("waitlist")
-                        ?.scrollIntoView({ behavior: "smooth" });
-                    });
+                    requestAnimationFrame(() => scrollToElement("waitlist"));
                   }}
                 >
                   Put this platform in your pilot
@@ -292,7 +289,10 @@ function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
     if (!el) return;
     const card = el.querySelector<HTMLElement>("[data-card]");
     const amount = card ? card.offsetWidth + 20 : el.clientWidth * 0.8;
-    el.scrollBy({ left: dir * amount, behavior: "smooth" });
+    el.scrollBy({
+      left: dir * amount,
+      behavior: prefersReducedMotion() ? "auto" : "smooth",
+    });
   };
 
   return (

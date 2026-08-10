@@ -414,6 +414,61 @@ textarea:focus-visible,
   }
 }
 
+/* ---------------------------------------------------------------------------
+   SCROLL REVEAL — see components/Reveal.tsx for the full reasoning.
+
+   The hidden state is opt-IN and gated on `html.js`, which app/layout.tsx sets
+   from a render-blocking inline script. Consequences, in order of importance:
+
+     - No JavaScript  -> no `.js` class -> content visible. The prerendered HTML
+       carries no inline opacity, so a crawler or a reader with JS off sees the
+       whole page.
+     - Reduced motion -> the media query below wins -> content visible, no
+       transition. Opting out of motion cannot cost you the content.
+     - Otherwise      -> hidden, then revealed by IntersectionObserver.
+
+   Only transform and opacity are animated.
+   --------------------------------------------------------------------------- */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity var(--duration-slow) var(--ease-std),
+              transform var(--duration-slow) var(--ease-std);
+  will-change: opacity, transform;
+}
+
+.js .reveal[data-revealed="true"] {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+/* ---------------------------------------------------------------------------
+   REDUCED MOTION — a global backstop, not a per-component courtesy.
+
+   Anything that animates without having thought about this preference is
+   reduced to a near-instant state change here. Content is never left hidden:
+   `.reveal` is explicitly restored rather than merely un-animated, which is the
+   distinction that P0-2 turned on.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .js .reveal,
+  .js .reveal[data-revealed="true"] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Chat launcher pulse */
 @keyframes chat-pulse-ring {
   0%   { box-shadow: 0 0 0 0 rgb(180 83 9 / 0.45); }

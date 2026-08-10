@@ -43,6 +43,21 @@ export default function RootLayout({
       lang="en"
       className={`${GeistSans.variable} ${GeistMono.variable} h-full antialiased`}
     >
+      <head>
+        {/*
+          Marks the document as JavaScript-capable BEFORE first paint, so the
+          scroll-reveal in globals.css can hide its content without that hidden
+          state ever reaching a reader who has no JS. Deliberately render-
+          blocking and deliberately tiny: if this does not run, every .reveal
+          block stays visible, which is the correct failure mode.
+          See components/Reveal.tsx and audit/FINDINGS.md P0-2.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.documentElement.classList.add('js')`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <a href="#main" className="skip-link">
           Skip to content

@@ -7,7 +7,7 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { authEnabled } from "@/lib/auth";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const navLinks = [
   { href: "#showcase", label: "Systems" },
@@ -20,6 +20,10 @@ const navLinks = [
 
 export default function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  // The mobile menu previously animated `height: 0 -> auto`: a layout property,
+  // animated on every open, on the lowest-powered devices the site has — and
+  // with no prefers-reduced-motion guard at all (audit/FINDINGS.md P2-4).
+  const reduce = useReducedMotion();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -44,7 +48,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 md:h-20 items-center justify-between">
           {/* Logo */}
@@ -128,7 +132,9 @@ export default function Header() {
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
-            aria-label="Toggle menu"
+            aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={mobileMenuOpen}
+            aria-controls="mobile-menu"
           >
             {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
@@ -139,12 +145,14 @@ export default function Header() {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            className="lg:hidden border-t bg-white"
+            key="mobile-menu"
+            initial={reduce ? false : { opacity: 0, y: -8 }}
+            animate={reduce ? { opacity: 1, y: 0 } : { opacity: 1, y: 0 }}
+            exit={reduce ? { opacity: 1 } : { opacity: 0, y: -8 }}
+            transition={reduce ? { duration: 0 } : { duration: 0.18, ease: [0.23, 1, 0.32, 1] }}
+            className="lg:hidden border-t border-border bg-background"
           >
-            <div className="px-6 py-6 flex flex-col gap-4 text-sm">
+            <div id="mobile-menu" className="px-6 py-6 flex flex-col gap-4 text-sm">
               {navLinks.map((link) => (
                 <button
                   key={link.href}

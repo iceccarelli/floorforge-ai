@@ -13,10 +13,10 @@ import Reveal from "@/components/Reveal";
 import ShowcaseCarousel from "@/components/ShowcaseCarousel";
 import Link from "next/link";
 import { ROBOTS } from "@/lib/robots";
+import { scrollToElement } from "@/lib/scroll";
+import { openChatbot } from "@/lib/chatbot";
 
-const scrollTo = (id: string) => {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
-};
+const scrollTo = (id: string) => scrollToElement(id);
 
 const features = [
   {
@@ -451,10 +451,7 @@ export default function FloorForgeLanding() {
               variant="outline"
               size="lg"
               className="h-14 px-9 text-base border-white/40 text-white hover:bg-white/10"
-              onClick={() => {
-                const chatBtn = document.querySelector('[aria-label="Open FloorForge Assistant"]') as HTMLButtonElement;
-                chatBtn?.click();
-              }}
+              onClick={openChatbot}
             >
               Ask the demo assistant
             </Button>
