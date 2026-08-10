@@ -62,7 +62,7 @@ export default function MetricsHUD() {
             className={`inline-block h-1.5 w-1.5 rounded-full ${
               running ? "animate-pulse" : ""
             }`}
-            style={{ background: running ? robot.color : "#94a3b8" }}
+            style={{ background: running ? robot.color : "var(--border-strong)" }}
           />
           {status}
         </span>
@@ -118,7 +118,7 @@ export default function MetricsHUD() {
           }}
         />
       </div>
-      <p className="mt-2 text-[9px] leading-tight text-muted-foreground">
+      <p className="mt-2 text-xs leading-snug text-foreground">
         Concept simulation. Figures are design targets, not measured results.
       </p>
     </div>

@@ -50,7 +50,7 @@ export default function ROICalculator() {
   };
 
   return (
-    <div className="card p-8 md:p-10 bg-white border-2 border-slate-200">
+    <div className="card p-8 md:p-10 bg-card border-2 border-border-strong">
       <div className="flex items-center gap-3 mb-8">
         <div className="feature-icon">
           <Calculator className="h-6 w-6" />
@@ -116,14 +116,14 @@ export default function ROICalculator() {
 
         {/* Results - Live updating */}
         <div className="lg:col-span-3">
-          <div className="bg-slate-950 text-white rounded-2xl p-7">
+          <div className="bg-surface-dark text-on-dark rounded-2xl p-7">
             <div className="uppercase text-xs tracking-[2px] text-white/50 mb-4 flex items-center gap-2">
               MODELED ESTIMATES <div className="flex-1 h-px bg-white/20" />
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
               <div className="roi-result">
-                <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                <div className="flex items-center gap-2 text-success-on-dark mb-1">
                   <Clock className="h-4 w-4" /> TIME SAVED
                 </div>
                 <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.timeSavedPercent}<span className="text-3xl align-super">%</span></div>
@@ -131,7 +131,7 @@ export default function ROICalculator() {
               </div>
 
               <div className="roi-result">
-                <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                <div className="flex items-center gap-2 text-success-on-dark mb-1">
                   <Users className="h-4 w-4" /> ROBOTS NEEDED
                 </div>
                 <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotsRecommended}</div>
@@ -139,7 +139,7 @@ export default function ROICalculator() {
               </div>
 
               <div className="roi-result">
-                <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                <div className="flex items-center gap-2 text-success-on-dark mb-1">
                   <TrendingUp className="h-4 w-4" /> LABOR COST SAVED
                 </div>
                 <div className="text-3xl lg:text-4xl font-semibold tabular-nums tracking-tighter roi-number">${results.laborSaved.toLocaleString()}</div>
@@ -147,7 +147,7 @@ export default function ROICalculator() {
               </div>
 
               <div className="roi-result">
-                <div className="flex items-center gap-2 text-emerald-400 mb-1">
+                <div className="flex items-center gap-2 text-success-on-dark mb-1">
                   <Award className="h-4 w-4" /> ROBOT HOURS
                 </div>
                 <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotHours}</div>

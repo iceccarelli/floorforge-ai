@@ -45,7 +45,7 @@ export default function Footer() {
               An operating system for autonomous hardwood floor refinishing.
               Early stage — pilot program forming.
             </p>
-            <div className="mt-6 text-[10px] text-white/40">
+            <div className="mt-6 text-[10px] text-on-dark-muted">
               © {new Date().getFullYear()} FloorForge — a Grimaldi Engineering project.
             </div>
           </div>

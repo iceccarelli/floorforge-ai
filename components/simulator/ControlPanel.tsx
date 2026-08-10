@@ -57,7 +57,7 @@ export default function ControlPanel() {
                 className={`flex items-center gap-3 rounded-lg border p-2.5 text-left transition-colors ${
                   active
                     ? "border-accent bg-accent-light"
-                    : "border-border bg-card hover:bg-muted"
+                    : "border-border-strong bg-card hover:bg-muted"
                 }`}
               >
                 <span
@@ -68,7 +68,11 @@ export default function ControlPanel() {
                   <span className="block text-sm font-semibold text-foreground">
                     {r.name}
                   </span>
-                  <span className="block truncate text-xs text-muted-foreground">
+                  <span
+                    className={`block truncate text-xs ${
+                      active ? "text-foreground" : "text-muted-foreground"
+                    }`}
+                  >
                     {r.role}
                   </span>
                 </span>

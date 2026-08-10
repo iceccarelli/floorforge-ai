@@ -62,7 +62,7 @@ export default function WaitlistCTA() {
 
   if (submitted) {
     return (
-      <div className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-white">
+      <div className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
         <div className="text-2xl font-semibold tracking-tight mb-2">You&apos;re on the list.</div>
         <p className="text-muted-foreground">
           Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
@@ -89,7 +89,7 @@ export default function WaitlistCTA() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto card p-8 md:p-10 bg-white border-2 border-slate-200">
+    <div className="max-w-2xl mx-auto card p-8 md:p-10 bg-card border-2 border-border-strong">
       {interest && (
         <div className="mb-5 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent-light px-3 py-2 text-sm text-foreground">
           <span className="font-semibold text-accent">Interested in:</span>

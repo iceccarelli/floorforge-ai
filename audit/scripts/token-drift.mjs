@@ -23,7 +23,15 @@ const RX = {
 const totals = Object.fromEntries(Object.keys(RX).map((k) => [k, 0]));
 const rows = [];
 for (const f of files) {
-  const src = readFileSync(f, "utf8");
+  let src = readFileSync(f, "utf8");
+  // A literal inside a token DEFINITION is not drift — it is the token. Strip
+  // the `:root {…}` and `@theme inline {…}` blocks of the stylesheet before
+  // counting, so the number measures values that BYPASS the system rather than
+  // values that constitute it.
+  if (f.endsWith(".css")) {
+    src = src.replace(/@theme\s+inline\s*\{[\s\S]*?\n\}/g, "")
+             .replace(/:root\s*\{[\s\S]*?\n\}/g, "");
+  }
   const counts = {};
   const samples = {};
   for (const [k, rx] of Object.entries(RX)) {

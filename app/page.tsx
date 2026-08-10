@@ -262,7 +262,7 @@ export default function FloorForgeLanding() {
             {howItWorks.map((step, index) => (
               <Reveal key={index} delay={index * 0.06}>
               <div className="card p-8 md:p-9 flex flex-col md:flex-row gap-8 md:gap-12 items-start group">
-                <div className="font-mono text-6xl font-semibold text-accent/70 tracking-[-3px] w-20 flex-shrink-0">{step.step}</div>
+                <div className="font-mono text-6xl font-semibold text-accent tracking-[-3px] w-20 flex-shrink-0">{step.step}</div>
                 <div className="flex-1">
                   <h3 className="font-semibold text-2xl tracking-tight mb-3 group-hover:text-accent transition-colors">{step.title}</h3>
                   <p className="text-lg text-muted-foreground leading-relaxed">{step.desc}</p>
@@ -333,7 +333,7 @@ export default function FloorForgeLanding() {
           <div className="lg:col-span-7">
             <div className="grid sm:grid-cols-2 gap-4">
               {techHighlights.map((item, idx) => (
-                <div key={idx} className="flex items-start gap-4 p-6 rounded-2xl border bg-white">
+                <div key={idx} className="flex items-start gap-4 p-6 rounded-2xl border bg-card">
                   <CheckCircle className="h-5 w-5 text-accent mt-1 flex-shrink-0" />
                   <div className="text-[15px] leading-snug">{item}</div>
                 </div>
@@ -347,7 +347,7 @@ export default function FloorForgeLanding() {
       </section>
 
       {/* PLANNED PRICING */}
-      <section id="pricing" className="section bg-white border-y py-20">
+      <section id="pricing" className="section bg-background border-y py-20">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <div className="text-accent text-xs tracking-[3px] font-semibold mb-2">PLANNED PRICING</div>
