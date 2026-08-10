@@ -1,0 +1,785 @@
+diff --git a/app/globals.css b/app/globals.css
+index a71eed7bc345..31a50f05fb5e 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -251,10 +251,16 @@ h1, h2, h3, h4 {
+    1.23:1 — effectively invisible to anyone with reduced contrast sensitivity. */
+ .input {
+   width: 100%;
++  min-height: var(--tap-min);
+   padding: 12px 16px;
+   border: 1px solid var(--border-strong);
+   border-radius: var(--r-md);
+-  font-size: 14px;
++  /* 16px is not a style choice. iOS Safari zooms the entire page when a user
++     focuses any input, select or textarea with a computed font-size below 16px,
++     and the page does not zoom back out. `.input` is unlayered CSS, so it beats
++     a `text-base` utility in Tailwind's utilities layer — setting it here is the
++     only place that actually wins. (audit/FINDINGS.md P1-5) */
++  font-size: 16px;
+   background: var(--bg);
+   color: var(--fg);
+   transition: border-color var(--duration-fast) ease,
+@@ -273,6 +279,81 @@ h1, h2, h3, h4 {
+   color: var(--muted-foreground);
+ }
+ 
++/* ---------------------------------------------------------------------------
++   RANGE CONTROL — the ROI sliders, and the simulator's.
++
++   A native range input is ~16px tall, which is a quarter of the 44px WCAG 2.2
++   AA 2.5.8 target and the single worst control to hand someone one-handed on a
++   job site (audit/FINDINGS.md P0-4, P1-5). The track stays visually thin; the
++   HIT AREA is grown with padding, and the thumb is sized to the floor.
++   --------------------------------------------------------------------------- */
++.range-control {
++  -webkit-appearance: none;
++  appearance: none;
++  width: 100%;
++  min-height: var(--tap-min);
++  padding: 0;
++  background: transparent;
++  cursor: pointer;
++  touch-action: manipulation;
++}
++
++/* Track */
++.range-control::-webkit-slider-runnable-track {
++  height: 6px;
++  border-radius: var(--r-full);
++  background: var(--border-strong);
++}
++.range-control::-moz-range-track {
++  height: 6px;
++  border-radius: var(--r-full);
++  background: var(--border-strong);
++}
++
++/* Thumb — 28px visual, sitting inside a 44px row, so the finger target is the
++   row and the mark stays proportionate. */
++.range-control::-webkit-slider-thumb {
++  -webkit-appearance: none;
++  appearance: none;
++  height: 28px;
++  width: 28px;
++  margin-top: -11px;
++  border-radius: var(--r-full);
++  background: var(--accent);
++  border: 2px solid var(--primary-foreground);
++  box-shadow: var(--elev-card-hover);
++  transition: transform var(--duration-fast) var(--ease-std);
++}
++.range-control::-moz-range-thumb {
++  height: 28px;
++  width: 28px;
++  border: 2px solid var(--primary-foreground);
++  border-radius: var(--r-full);
++  background: var(--accent);
++  box-shadow: var(--elev-card-hover);
++  transition: transform var(--duration-fast) var(--ease-std);
++}
++
++.range-control:active::-webkit-slider-thumb { transform: scale(1.08); }
++.range-control:active::-moz-range-thumb { transform: scale(1.08); }
++
++.range-control:focus-visible {
++  outline: 2px solid var(--accent);
++  outline-offset: 4px;
++  border-radius: var(--r-full);
++}
++
++.range-control:disabled {
++  cursor: not-allowed;
++}
++.range-control:disabled::-webkit-slider-thumb { background: var(--muted-foreground); }
++.range-control:disabled::-moz-range-thumb { background: var(--muted-foreground); }
++
++@media (prefers-reduced-motion: reduce) {
++  .range-control::-webkit-slider-thumb,
++  .range-control::-moz-range-thumb { transition: none; }
++}
++
+ /* Progress bars */
+ .progress {
+   height: 6px;
+diff --git a/audit/FINDINGS.md b/audit/FINDINGS.md
+index 05613da7c41a..88d482e14348 100644
+--- a/audit/FINDINGS.md
++++ b/audit/FINDINGS.md
+@@ -600,7 +600,7 @@ comparison, not as a Lighthouse figure.
+ | Dynamically imported, excluded from `/` | **Yes** — proven above |
+ | `prefers-reduced-motion` respected | **No** — `grep -rn 'useReducedMotion\|prefers-reduced-motion' components/simulator/` returns **nothing** |
+ | Pauses when off-screen or tab hidden | **No** — no `visibilitychange`, no `frameloop="demand"`, no `invalidate()` anywhere in `components/simulator/` |
+-| Graceful non-WebGL fallback | **None found** — no context-lost handler, no capability check |
++| Graceful non-WebGL fallback | **`/simulator` yes, `/pro-simulator` no.** **CORRECTION (2026-08-10):** the original audit recorded "none found" for both routes. That was wrong. `components/simulator/Simulator.tsx:15-19` has a real `hasWebGL()` capability check and a text fallback that describes the coverage path, the pattern and the m²/h figure. `ProTeardown.tsx` had none; `FLOORFORGE_07_a11y.patch` adds the same treatment. Neither route has a `webglcontextlost` handler. The false finding is left visible rather than quietly deleted. |
+ | Keyboard focus trap | Not reproduced — the canvas is not in the tab order, so no trap was observed. Conversely it is not keyboard-operable at all. |
+ | Text equivalent of what it conveys | **Absent** — `aria-label` on `<canvas>` is prohibited and not announced (P1-8). `/simulator` has exactly **one heading** and no textual description of the coverage pass the canvas demonstrates. |
+ | Inline styles genuinely dynamic | **10 of 11 yes, 1 no.** `MetricsHUD.tsx:52, 65, 86, 115`, `ProTeardown.tsx:143, 167, 185`, `ControlPanel.tsx:65`, `page.tsx:201`, `dashboard/page.tsx:165` all interpolate runtime values. `ShowcaseCarousel.tsx:339` is static and duplicates `.no-scrollbar`. One hardcoded hex hides inside a dynamic one: `MetricsHUD.tsx:65` falls back to `"#94a3b8"`. |
+diff --git a/audit/scripts/axe-scan.mjs b/audit/scripts/axe-scan.mjs
+index 52a392e421a8..7a52033bf19b 100644
+--- a/audit/scripts/axe-scan.mjs
++++ b/audit/scripts/axe-scan.mjs
+@@ -3,10 +3,11 @@
+ import { chromium } from "playwright";
+ import { readFileSync } from "node:fs";
+ import { createRequire } from "node:module";
+-import { ROUTES, BASE, settle } from "./viewports.mjs";
++import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+ const require = createRequire(import.meta.url);
+ const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
+ 
++await waitForServer();
+ const browser = await chromium.launch();
+ const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+ const page = await ctx.newPage();
+diff --git a/audit/scripts/contrast.mjs b/audit/scripts/contrast.mjs
+index f59c934ad689..df683a823002 100644
+--- a/audit/scripts/contrast.mjs
++++ b/audit/scripts/contrast.mjs
+@@ -11,13 +11,14 @@
+  */
+ import { chromium } from "playwright";
+ import { createRequire } from "node:module";
+-import { ROUTES, BASE, settle } from "./viewports.mjs";
++import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+ const require = createRequire(import.meta.url);
+ const sharp = require("sharp");
+ 
+ const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2]); };
+ const ratio = (a, b) => { const l1 = lum(a), l2 = lum(b); const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1]; return (hi + 0.05) / (lo + 0.05); };
+ 
++await waitForServer();
+ const browser = await chromium.launch();
+ // reducedMotion:'reduce' makes <Reveal> render its children at full opacity,
+ // so scroll-revealed copy is measured too instead of being skipped at opacity 0.
+diff --git a/audit/scripts/input-font-size.mjs b/audit/scripts/input-font-size.mjs
+index 515cbd5297e7..8994e87becb6 100644
+--- a/audit/scripts/input-font-size.mjs
++++ b/audit/scripts/input-font-size.mjs
+@@ -1,7 +1,8 @@
+ #!/usr/bin/env node
+ /** iOS Safari auto-zooms any focused input whose computed font-size < 16px. */
+ import { chromium } from "playwright";
+-import { ROUTES, BASE, settle } from "./viewports.mjs";
++import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
++await waitForServer();
+ const browser = await chromium.launch();
+ const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+ const page = await ctx.newPage();
+diff --git a/audit/scripts/overflow.mjs b/audit/scripts/overflow.mjs
+index 3951a091011d..7873e67baec4 100644
+--- a/audit/scripts/overflow.mjs
++++ b/audit/scripts/overflow.mjs
+@@ -1,8 +1,9 @@
+ #!/usr/bin/env node
+ /** Horizontal-overflow detector: every route x every viewport. P0 if any. */
+ import { chromium } from "playwright";
+-import { VIEWPORTS, ROUTES, BASE, settle } from "./viewports.mjs";
++import { VIEWPORTS, ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+ 
++await waitForServer();
+ const browser = await chromium.launch();
+ const rows = [];
+ for (const vp of VIEWPORTS) {
+diff --git a/audit/scripts/payload.mjs b/audit/scripts/payload.mjs
+index 46610777f0e3..285096936709 100644
+--- a/audit/scripts/payload.mjs
++++ b/audit/scripts/payload.mjs
+@@ -5,8 +5,9 @@
+  * Lighthouse; this measures raw bytes with an empty cache.
+  */
+ import { chromium } from "playwright";
+-import { ROUTES, BASE, settle } from "./viewports.mjs";
++import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+ 
++await waitForServer();
+ const browser = await chromium.launch();
+ const out = [];
+ for (const route of ROUTES) {
+diff --git a/audit/scripts/reduced-motion.mjs b/audit/scripts/reduced-motion.mjs
+index b4cc6bfb351b..61f188f0861b 100644
+--- a/audit/scripts/reduced-motion.mjs
++++ b/audit/scripts/reduced-motion.mjs
+@@ -4,7 +4,8 @@
+  * invisible (opacity 0 / zero-size / translated off-screen by a stuck anim).
+  */
+ import { chromium } from "playwright";
+-import { ROUTES, BASE, settle } from "./viewports.mjs";
++import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
++await waitForServer();
+ const browser = await chromium.launch();
+ const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+ const page = await ctx.newPage();
+diff --git a/audit/scripts/structure.mjs b/audit/scripts/structure.mjs
+index f92db46f635c..9a939dfb6c1f 100644
+--- a/audit/scripts/structure.mjs
++++ b/audit/scripts/structure.mjs
+@@ -1,7 +1,8 @@
+ #!/usr/bin/env node
+ /** Heading hierarchy, landmarks, chrome consistency (Phase 4 / Phase 8). */
+ import { chromium } from "playwright";
+-import { ROUTES, BASE, settle } from "./viewports.mjs";
++import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
++await waitForServer();
+ const browser = await chromium.launch();
+ const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
+ const page = await ctx.newPage();
+diff --git a/audit/scripts/tap-targets.mjs b/audit/scripts/tap-targets.mjs
+index 1193f2c0c3a8..5ce15908f6aa 100644
+--- a/audit/scripts/tap-targets.mjs
++++ b/audit/scripts/tap-targets.mjs
+@@ -1,9 +1,10 @@
+ #!/usr/bin/env node
+ /** WCAG 2.2 AA 2.5.8 target size: every interactive element >= 44x44 CSS px. */
+ import { chromium } from "playwright";
+-import { VIEWPORTS, ROUTES, BASE, settle } from "./viewports.mjs";
++import { VIEWPORTS, ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+ 
+ const MOBILE = VIEWPORTS.filter((v) => v.width < 900);
++await waitForServer();
+ const browser = await chromium.launch();
+ const findings = [];
+ 
+diff --git a/audit/scripts/viewports.mjs b/audit/scripts/viewports.mjs
+index 46a0b3d0a5cb..cd31cc5d26d2 100644
+--- a/audit/scripts/viewports.mjs
++++ b/audit/scripts/viewports.mjs
+@@ -23,19 +23,62 @@ export const ROUTES = [
+ 
+ export const BASE = process.env.AUDIT_BASE_URL ?? "http://localhost:3111";
+ 
+-/** Scroll the whole page so lazy content and whileInView reveals settle. */
++/**
++ * Wait for the server to answer before driving a browser at it.
++ *
++ * Without this, running these scripts right after backgrounding `npm run build
++ * && next start` fails with "Execution context was destroyed" — the build is
++ * still compiling, the port is dead, and Playwright navigates into nothing.
++ * That is a confusing failure for a tooling problem, so the tooling handles it.
++ */
++export async function waitForServer(url = BASE, timeoutMs = 120000) {
++  const deadline = Date.now() + timeoutMs;
++  let lastErr;
++  while (Date.now() < deadline) {
++    try {
++      const res = await fetch(url, { redirect: "manual" });
++      if (res.status < 500) return;
++      lastErr = new Error(`HTTP ${res.status}`);
++    } catch (e) {
++      lastErr = e;
++    }
++    await new Promise((r) => setTimeout(r, 1000));
++  }
++  throw new Error(
++    `${url} did not respond within ${timeoutMs / 1000}s — is the server running?\n` +
++      `  npm run build && npx next start -p 3000 &\n` +
++      `  AUDIT_BASE_URL=http://localhost:3000 node audit/scripts/<script>.mjs\n` +
++      `  last error: ${lastErr}`
++  );
++}
++
++/**
++ * Scroll the whole page so lazy content and scroll-reveals settle.
++ *
++ * Tolerant of a navigation landing mid-scroll: that races the evaluate and
++ * destroys the execution context, which is a transient condition, not a
++ * finding. The caller gets a settled page or a best effort, never a crash.
++ */
+ export async function settle(page) {
+-  await page.evaluate(async () => {
+-    await new Promise((res) => {
+-      let y = 0;
+-      const step = () => {
+-        y += window.innerHeight;
+-        window.scrollTo(0, y);
+-        if (y < document.body.scrollHeight) requestAnimationFrame(step);
+-        else { window.scrollTo(0, 0); res(); }
+-      };
+-      step();
++  try {
++    await page.evaluate(async () => {
++      await new Promise((res) => {
++        let y = 0;
++        const step = () => {
++          y += window.innerHeight;
++          window.scrollTo(0, y);
++          if (y < document.body.scrollHeight) requestAnimationFrame(step);
++          else {
++            window.scrollTo(0, 0);
++            res();
++          }
++        };
++        step();
++      });
+     });
+-  });
++  } catch (err) {
++    if (!/Execution context was destroyed|Target closed|Navigation/.test(String(err))) throw err;
++    await page.waitForTimeout(300);
++  }
+   await page.waitForTimeout(400);
+ }
+diff --git a/components/ROICalculator.tsx b/components/ROICalculator.tsx
+index d25e26bc363f..74a2383a34fa 100644
+--- a/components/ROICalculator.tsx
++++ b/components/ROICalculator.tsx
+@@ -66,54 +66,97 @@ export default function ROICalculator() {
+       <div className="grid lg:grid-cols-5 gap-8">
+         {/* Inputs */}
+         <div className="lg:col-span-2 space-y-6">
++          {/* Both sliders previously had a <label> with no htmlFor and an <input>
++              with no id — axe reported `label` (CRITICAL) on each, and a screen
++              reader announced an unlabelled slider reading a bare number with no
++              unit. Measured hit area was 16px tall against a 44px requirement.
++              This is the ROI model, the page's strongest argument and a stated
++              conversion path (audit/FINDINGS.md P0-4). */}
+           <div>
+-            <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">FLOOR AREA (SQFT)</label>
++            <label
++              htmlFor="roi-sqft"
++              className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
++            >
++              FLOOR AREA (SQFT)
++            </label>
+             <div className="flex items-center gap-4">
+-              <input 
+-                type="range" 
+-                min="1500" 
+-                max="45000" 
++              <input
++                id="roi-sqft"
++                type="range"
++                min="1500"
++                max="45000"
+                 step="500"
+-                value={inputs.sqft} 
++                value={inputs.sqft}
+                 onChange={(e) => updateInput("sqft", parseInt(e.target.value))}
+-                className="flex-1 accent-accent" 
++                aria-valuetext={`${inputs.sqft.toLocaleString()} square feet`}
++                aria-describedby="roi-assumptions"
++                className="range-control flex-1"
+               />
+-              <div className="w-24 text-right font-mono text-lg font-semibold tabular-nums">{inputs.sqft.toLocaleString()}</div>
++              <output
++                htmlFor="roi-sqft"
++                className="w-24 text-right font-mono text-lg font-semibold tabular-nums"
++              >
++                {inputs.sqft.toLocaleString()}
++              </output>
+             </div>
+           </div>
+ 
+           <div>
+-            <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">CURRENT MANUAL HOURS PER JOB</label>
++            <label
++              htmlFor="roi-hours"
++              className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
++            >
++              CURRENT MANUAL HOURS PER JOB
++            </label>
+             <div className="flex items-center gap-4">
+-              <input 
+-                type="range" 
+-                min="20" 
+-                max="280" 
++              <input
++                id="roi-hours"
++                type="range"
++                min="20"
++                max="280"
+                 step="5"
+-                value={inputs.manualHours} 
++                value={inputs.manualHours}
+                 onChange={(e) => updateInput("manualHours", parseInt(e.target.value))}
+-                className="flex-1 accent-accent" 
++                aria-valuetext={`${inputs.manualHours} hours per job`}
++                aria-describedby="roi-assumptions"
++                className="range-control flex-1"
+               />
+-              <div className="w-16 text-right font-mono text-lg font-semibold tabular-nums">{inputs.manualHours}</div>
++              <output
++                htmlFor="roi-hours"
++                className="w-16 text-right font-mono text-lg font-semibold tabular-nums"
++              >
++                {inputs.manualHours}
++              </output>
+             </div>
+           </div>
+ 
+-          <div>
+-            <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">JOB TYPE</label>
+-            <div className="flex gap-2">
++          {/* Two mutually exclusive options is a radiogroup, not two buttons.
++              Previously the only signal for which was selected was background
++              colour — no aria-pressed, no role — which is a WCAG 1.4.1 failure
++              as well as an ARIA gap. */}
++          <fieldset>
++            <legend className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++              JOB TYPE
++            </legend>
++            <div className="flex gap-2" role="radiogroup" aria-label="Job type">
+               {(["residential", "commercial"] as const).map((type) => (
+                 <button
+                   key={type}
++                  type="button"
++                  role="radio"
++                  aria-checked={inputs.jobType === type}
+                   onClick={() => updateInput("jobType", type)}
+-                  className={`flex-1 h-11 rounded-lg border text-sm font-medium transition-all ${inputs.jobType === type 
+-                    ? "bg-accent text-white border-accent" 
+-                    : "bg-white border-border hover:bg-muted"}`}
++                  className={`flex-1 min-h-11 rounded-lg border px-3 text-sm font-medium transition-colors ${
++                    inputs.jobType === type
++                      ? "bg-accent text-primary-foreground border-accent"
++                      : "bg-card border-border-strong text-foreground hover:bg-muted"
++                  }`}
+                 >
+                   {type === "residential" ? "Residential" : "Commercial / Multi-unit"}
+                 </button>
+               ))}
+             </div>
+-          </div>
++          </fieldset>
+         </div>
+ 
+         {/* Results - Live updating */}
+@@ -157,7 +200,7 @@ export default function ROICalculator() {
+               </div>
+             </div>
+ 
+-            <div className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
++            <div id="roi-assumptions" className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
+               <span className="font-medium text-white/80">Model assumptions:</span> $78/hr blended labor rate; automation efficiency baseline of 62% time reduction adjusted by job type; ~2,200 sqft per robot per day throughput target for {results.jobTypeLabel.toLowerCase()} work. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
+             </div>
+ 
+diff --git a/components/ShowcaseCarousel.tsx b/components/ShowcaseCarousel.tsx
+index 2ae63b118abd..64e3f2a71942 100644
+--- a/components/ShowcaseCarousel.tsx
++++ b/components/ShowcaseCarousel.tsx
+@@ -85,7 +85,9 @@ function Lightbox({
+         asChild
+         forceMount
+         aria-describedby={`sc-desc-${cat.key}`}
+-        onOpenAutoFocus={(e) => e.preventDefault()}
++        /* `onOpenAutoFocus` was being prevented, so the dialog opened without
++           moving focus into it: never announced, and the first Tab went to
++           whatever was behind the modal (audit/FINDINGS.md P2-8). */
+       >
+         <motion.div
+           {...motionProps}
+@@ -439,8 +441,11 @@ function Gallery({
+             <button
+               key={c.key}
+               onClick={() => onCat(c.key)}
++              aria-pressed={on}
+               className={cn(
+-                "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition",
++                // min-h-11 is the WCAG 2.2 AA 2.5.8 floor; these chips measured
++                // 38px tall. aria-pressed replaces colour-only selection.
++                "shrink-0 rounded-full border px-4 min-h-11 text-sm font-medium transition",
+                 on
+                   ? "border-accent bg-accent text-white"
+                   : "border-border bg-white text-muted-foreground hover:border-accent hover:text-accent"
+@@ -450,7 +455,10 @@ function Gallery({
+               <span
+                 className={cn(
+                   "ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
+-                  on ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
++                  // bg-white/20 over --accent composites to rgb(195,117,58);
++                  // white on that measured 3.54:1 (audit/FINDINGS.md P1-4).
++                  // A solid surface with accent ink measures 5.02:1.
++                  on ? "bg-primary-foreground text-accent" : "bg-muted text-muted-foreground"
+                 )}
+               >
+                 {count}
+diff --git a/components/WaitlistCTA.tsx b/components/WaitlistCTA.tsx
+index 14ba9509a200..daafb3321eb6 100644
+--- a/components/WaitlistCTA.tsx
++++ b/components/WaitlistCTA.tsx
+@@ -21,6 +21,7 @@ export default function WaitlistCTA() {
+   const [interest, setInterest] = useState("");
+   const [submitting, setSubmitting] = useState(false);
+   const [submitted, setSubmitted] = useState(false);
++  const [emailError, setEmailError] = useState<string | null>(null);
+ 
+   // Read ?interest=<platform> passed from the simulator CTA. Done via a
+   // client effect (not useSearchParams) so the homepage stays static.
+@@ -31,11 +32,17 @@ export default function WaitlistCTA() {
+     if (value) setInterest(value);
+   }, []);
+ 
+-  const handleSubmit = async () => {
++  const handleSubmit = async (e?: React.FormEvent) => {
++    e?.preventDefault();
+     if (!email.trim() || !email.includes("@")) {
++      // Inline AND announced. A toast disappears, is never associated with the
++      // field, and is invisible to anyone who has scrolled (FINDINGS P2-2).
++      setEmailError("Enter a work email address so we can reply.");
++      document.getElementById("waitlist-email")?.focus();
+       toast.error("Please enter a valid email address.");
+       return;
+     }
++    setEmailError(null);
+     setSubmitting(true);
+     try {
+       const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+@@ -62,7 +69,7 @@ export default function WaitlistCTA() {
+ 
+   if (submitted) {
+     return (
+-      <div className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
++      <div role="status" className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
+         <div className="text-2xl font-semibold tracking-tight mb-2">You&apos;re on the list.</div>
+         <p className="text-muted-foreground">
+           Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
+@@ -76,11 +83,14 @@ export default function WaitlistCTA() {
+     // No form backend configured — honest mailto fallback, never a dead CTA.
+     return (
+       <div className="max-w-xl mx-auto text-center">
+-        <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
+-          <Button variant="accent" size="lg" className="h-14 px-10 text-base">
++        {/* asChild, not a nested <button> inside an <a>: that is invalid HTML,
++            and the anchor — not the button — is what the browser sized, giving
++            this a 21px tall hit area (audit/FINDINGS.md P1-5, P2-1). */}
++        <Button asChild variant="accent" size="lg" className="h-14 px-10 text-base">
++          <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
+             <Mail className="mr-2 h-4 w-4" /> Email us to join the pilot waitlist
+-          </Button>
+-        </a>
++          </a>
++        </Button>
+         <div className="mt-3 text-xs text-muted-foreground">
+           Tell us your typical monthly refinishing volume and market.
+         </div>
+@@ -96,47 +106,83 @@ export default function WaitlistCTA() {
+           {interest}
+         </div>
+       )}
++      {/* A real <form>: Enter now submits, which it did not before — a keyboard
++          user had to Tab to the button. onSubmit also gives the browser its
++          native validation hooks back (audit/FINDINGS.md P2-2). */}
++      <form onSubmit={handleSubmit} noValidate>
+       <div className="grid sm:grid-cols-2 gap-4">
+         <div>
+-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++          <label
++            htmlFor="waitlist-name"
++            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
++          >
+             NAME
+           </label>
+           <input
+-            className="input h-11 w-full"
++            id="waitlist-name"
++            className="input min-h-11 w-full text-base"
+             value={name}
+             onChange={(e) => setName(e.target.value)}
+             placeholder="Jane Doe"
+           />
+         </div>
+         <div>
+-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
+-            WORK EMAIL *
++          <label
++            htmlFor="waitlist-email"
++            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
++          >
++            WORK EMAIL <span aria-hidden="true">*</span>
++            <span className="sr-only">(required)</span>
+           </label>
+           <input
+-            className="input h-11 w-full"
++            id="waitlist-email"
++            className="input min-h-11 w-full text-base"
+             type="email"
++            required
+             value={email}
+-            onChange={(e) => setEmail(e.target.value)}
++            onChange={(e) => {
++              setEmail(e.target.value);
++              if (emailError) setEmailError(null);
++            }}
++            aria-invalid={emailError ? true : undefined}
++            aria-describedby={emailError ? "waitlist-email-error" : undefined}
+             placeholder="jane@yourcompany.com"
+           />
++          {emailError && (
++            <p
++              id="waitlist-email-error"
++              role="alert"
++              className="mt-1.5 text-xs font-medium text-[color:var(--status-bad-ink)]"
++            >
++              {emailError}
++            </p>
++          )}
+         </div>
+         <div>
+-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++          <label
++            htmlFor="waitlist-company"
++            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
++          >
+             COMPANY
+           </label>
+           <input
+-            className="input h-11 w-full"
++            id="waitlist-company"
++            className="input min-h-11 w-full text-base"
+             value={company}
+             onChange={(e) => setCompany(e.target.value)}
+             placeholder="Refinishing Co."
+           />
+         </div>
+         <div>
+-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
++          <label
++            htmlFor="waitlist-volume"
++            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
++          >
+             MONTHLY REFINISHING VOLUME (SQFT)
+           </label>
+           <input
+-            className="input h-11 w-full"
++            id="waitlist-volume"
++            className="input min-h-11 w-full text-base"
+             value={volume}
+             onChange={(e) => setVolume(e.target.value)}
+             placeholder="e.g. 25,000"
+@@ -144,10 +190,11 @@ export default function WaitlistCTA() {
+         </div>
+       </div>
+       <Button
++        type="submit"
+         variant="accent"
+         className="mt-6 w-full h-12"
+-        onClick={handleSubmit}
+         disabled={submitting}
++        aria-busy={submitting}
+       >
+         {submitting ? "Submitting…" : "Join the pilot waitlist"}
+         {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
+@@ -155,6 +202,7 @@ export default function WaitlistCTA() {
+       <div className="mt-3 text-center text-xs text-muted-foreground">
+         No spam. We&apos;ll contact you about the pilot program only.
+       </div>
++      </form>
+     </div>
+   );
+ }
+diff --git a/components/simulator/ControlPanel.tsx b/components/simulator/ControlPanel.tsx
+index 8549a0da9e5d..8521db8df202 100644
+--- a/components/simulator/ControlPanel.tsx
++++ b/components/simulator/ControlPanel.tsx
+@@ -153,7 +153,7 @@ export default function ControlPanel() {
+           step={1}
+           value={speed}
+           onChange={(e) => setSpeed(Number(e.target.value))}
+-          className="w-full accent-[var(--accent)]"
++          className="range-control"
+         />
+       </div>
+ 
+@@ -178,7 +178,7 @@ export default function ControlPanel() {
+           step={0.01}
+           value={exploded}
+           onChange={(e) => setExploded(Number(e.target.value))}
+-          className="w-full accent-[var(--accent)]"
++          className="range-control"
+         />
+         <button
+           onClick={toggleCutaway}
+diff --git a/components/simulator/ProTeardown.tsx b/components/simulator/ProTeardown.tsx
+index a0c48abad66a..7cc9dde640e4 100644
+--- a/components/simulator/ProTeardown.tsx
++++ b/components/simulator/ProTeardown.tsx
+@@ -19,6 +19,20 @@ import { getRobot, type RobotSpec } from "@/lib/robots";
+ import { useSim } from "@/lib/simStore";
+ import RobotMesh from "@/components/simulator/RobotMesh";
+ 
++/**
++ * WebGL capability probe, mirroring components/simulator/Simulator.tsx.
++ * Without it this route rendered an empty black box on any device or browser
++ * without WebGL, with nothing to read (audit/FINDINGS.md §6, corrected).
++ */
++function hasWebGL(): boolean {
++  try {
++    const c = document.createElement("canvas");
++    return !!(c.getContext("webgl2") || c.getContext("webgl"));
++  } catch {
++    return false;
++  }
++}
++
+ /** Honest, concept-level descriptions of the internals the model actually
+  *  renders for each platform — used for the annotated parts legend. */
+ function partsFor(id: string): { label: string; note: string }[] {
+@@ -120,6 +134,7 @@ export default function ProTeardown({
+   const setExploded = useSim((s) => s.setExploded);
+   const toggleCutaway = useSim((s) => s.toggleCutaway);
+   const [autoRotate, setAutoRotate] = useState(true);
++  const [webgl] = useState(hasWebGL);
+ 
+   // Enter with a clean, assembled machine; leave the store tidy on exit so
+   // navigating back to /simulator doesn't inherit teardown inspection state.
+@@ -146,18 +161,36 @@ export default function ProTeardown({
+         }}
+       />
+ 
+-      <Canvas
+-        shadows
+-        dpr={[1, 1.75]}
+-        camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
+-        className="h-full w-full"
+-        aria-label={`High-fidelity 3D teardown of the ${robot.name}`}
+-      >
+-        <color attach="background" args={["#0b0e14"]} />
+-        <Suspense fallback={null}>
+-          <Scene robot={robot} autoRotate={autoRotate} />
+-        </Suspense>
+-      </Canvas>
++      {webgl ? (
++        <Canvas
++          shadows
++          dpr={[1, 1.75]}
++          camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
++          className="h-full w-full"
++          role="img"
++          aria-label={`High-fidelity 3D teardown of the ${robot.name}`}
++        >
++          <color attach="background" args={["#0b0e14"]} />
++          <Suspense fallback={null}>
++            <Scene robot={robot} autoRotate={autoRotate} />
++          </Suspense>
++        </Canvas>
++      ) : (
++        /* A 3D canvas is opaque to a screen reader and to any crawler. The text
++           equivalent carries the same honesty labelling as the visual one:
++           these are concept internals, not shipping hardware. */
++        <div className="flex h-full flex-col items-center justify-center p-8 text-center">
++          <p className="text-sm font-semibold text-on-dark">
++            3D teardown needs WebGL
++          </p>
++          <p className="mt-1 max-w-md text-sm text-on-dark-muted">
++            Your browser or device doesn&apos;t support the interactive canvas.
++            The teardown shows the {robot.name}&apos;s drum, motor rotor,
++            reduction gears and dust path as a concept model — engineering
++            targets for hardware in development, not a record of a completed job.
++          </p>
++        </div>
++      )}
+ 
+       {/* title chip */}
+       <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-sm">
+diff --git a/components/simulator/Simulator.tsx b/components/simulator/Simulator.tsx
+index 136b40c4b7fe..01753ad94f9e 100644
+--- a/components/simulator/Simulator.tsx
++++ b/components/simulator/Simulator.tsx
+@@ -46,6 +46,7 @@ export default function Simulator() {
+               dpr={[1, 1.75]}
+               camera={{ position: [6, 6, 7], fov: 42 }}
+               className="h-full w-full"
++              role="img"
+               aria-label={`3D simulation of the ${robot.name} covering a virtual hardwood floor`}
+             >
+               <color attach="background" args={["#eef2f6"]} />
