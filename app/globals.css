@@ -251,10 +251,16 @@ h1, h2, h3, h4 {
    1.23:1 — effectively invisible to anyone with reduced contrast sensitivity. */
 .input {
   width: 100%;
+  min-height: var(--tap-min);
   padding: 12px 16px;
   border: 1px solid var(--border-strong);
   border-radius: var(--r-md);
-  font-size: 14px;
+  /* 16px is not a style choice. iOS Safari zooms the entire page when a user
+     focuses any input, select or textarea with a computed font-size below 16px,
+     and the page does not zoom back out. `.input` is unlayered CSS, so it beats
+     a `text-base` utility in Tailwind's utilities layer — setting it here is the
+     only place that actually wins. (audit/FINDINGS.md P1-5) */
+  font-size: 16px;
   background: var(--bg);
   color: var(--fg);
   transition: border-color var(--duration-fast) ease,
@@ -271,6 +277,81 @@ h1, h2, h3, h4 {
 
 .input::placeholder {
   color: var(--muted-foreground);
+}
+
+/* ---------------------------------------------------------------------------
+   RANGE CONTROL — the ROI sliders, and the simulator's.
+
+   A native range input is ~16px tall, which is a quarter of the 44px WCAG 2.2
+   AA 2.5.8 target and the single worst control to hand someone one-handed on a
+   job site (audit/FINDINGS.md P0-4, P1-5). The track stays visually thin; the
+   HIT AREA is grown with padding, and the thumb is sized to the floor.
+   --------------------------------------------------------------------------- */
+.range-control {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  min-height: var(--tap-min);
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+/* Track */
+.range-control::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+}
+.range-control::-moz-range-track {
+  height: 6px;
+  border-radius: var(--r-full);
+  background: var(--border-strong);
+}
+
+/* Thumb — 28px visual, sitting inside a 44px row, so the finger target is the
+   row and the mark stays proportionate. */
+.range-control::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 28px;
+  width: 28px;
+  margin-top: -11px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  border: 2px solid var(--primary-foreground);
+  box-shadow: var(--elev-card-hover);
+  transition: transform var(--duration-fast) var(--ease-std);
+}
+.range-control::-moz-range-thumb {
+  height: 28px;
+  width: 28px;
+  border: 2px solid var(--primary-foreground);
+  border-radius: var(--r-full);
+  background: var(--accent);
+  box-shadow: var(--elev-card-hover);
+  transition: transform var(--duration-fast) var(--ease-std);
+}
+
+.range-control:active::-webkit-slider-thumb { transform: scale(1.08); }
+.range-control:active::-moz-range-thumb { transform: scale(1.08); }
+
+.range-control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--r-full);
+}
+
+.range-control:disabled {
+  cursor: not-allowed;
+}
+.range-control:disabled::-webkit-slider-thumb { background: var(--muted-foreground); }
+.range-control:disabled::-moz-range-thumb { background: var(--muted-foreground); }
+
+@media (prefers-reduced-motion: reduce) {
+  .range-control::-webkit-slider-thumb,
+  .range-control::-moz-range-thumb { transition: none; }
 }
 
 /* Progress bars */

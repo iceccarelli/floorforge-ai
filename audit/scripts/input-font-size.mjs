@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /** iOS Safari auto-zooms any focused input whose computed font-size < 16px. */
 import { chromium } from "playwright";
-import { ROUTES, BASE, settle } from "./viewports.mjs";
+import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+await waitForServer();
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
 const page = await ctx.newPage();

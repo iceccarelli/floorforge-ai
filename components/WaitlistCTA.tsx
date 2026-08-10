@@ -21,6 +21,7 @@ export default function WaitlistCTA() {
   const [interest, setInterest] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Read ?interest=<platform> passed from the simulator CTA. Done via a
   // client effect (not useSearchParams) so the homepage stays static.
@@ -31,11 +32,17 @@ export default function WaitlistCTA() {
     if (value) setInterest(value);
   }, []);
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!email.trim() || !email.includes("@")) {
+      // Inline AND announced. A toast disappears, is never associated with the
+      // field, and is invisible to anyone who has scrolled (FINDINGS P2-2).
+      setEmailError("Enter a work email address so we can reply.");
+      document.getElementById("waitlist-email")?.focus();
       toast.error("Please enter a valid email address.");
       return;
     }
+    setEmailError(null);
     setSubmitting(true);
     try {
       const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
@@ -62,7 +69,7 @@ export default function WaitlistCTA() {
 
   if (submitted) {
     return (
-      <div className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
+      <div role="status" className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
         <div className="text-2xl font-semibold tracking-tight mb-2">You&apos;re on the list.</div>
         <p className="text-muted-foreground">
           Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
@@ -76,11 +83,14 @@ export default function WaitlistCTA() {
     // No form backend configured — honest mailto fallback, never a dead CTA.
     return (
       <div className="max-w-xl mx-auto text-center">
-        <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
-          <Button variant="accent" size="lg" className="h-14 px-10 text-base">
+        {/* asChild, not a nested <button> inside an <a>: that is invalid HTML,
+            and the anchor — not the button — is what the browser sized, giving
+            this a 21px tall hit area (audit/FINDINGS.md P1-5, P2-1). */}
+        <Button asChild variant="accent" size="lg" className="h-14 px-10 text-base">
+          <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
             <Mail className="mr-2 h-4 w-4" /> Email us to join the pilot waitlist
-          </Button>
-        </a>
+          </a>
+        </Button>
         <div className="mt-3 text-xs text-muted-foreground">
           Tell us your typical monthly refinishing volume and market.
         </div>
@@ -96,47 +106,83 @@ export default function WaitlistCTA() {
           {interest}
         </div>
       )}
+      {/* A real <form>: Enter now submits, which it did not before — a keyboard
+          user had to Tab to the button. onSubmit also gives the browser its
+          native validation hooks back (audit/FINDINGS.md P2-2). */}
+      <form onSubmit={handleSubmit} noValidate>
       <div className="grid sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
+          <label
+            htmlFor="waitlist-name"
+            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+          >
             NAME
           </label>
           <input
-            className="input h-11 w-full"
+            id="waitlist-name"
+            className="input min-h-11 w-full text-base"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Jane Doe"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
-            WORK EMAIL *
+          <label
+            htmlFor="waitlist-email"
+            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+          >
+            WORK EMAIL <span aria-hidden="true">*</span>
+            <span className="sr-only">(required)</span>
           </label>
           <input
-            className="input h-11 w-full"
+            id="waitlist-email"
+            className="input min-h-11 w-full text-base"
             type="email"
+            required
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (emailError) setEmailError(null);
+            }}
+            aria-invalid={emailError ? true : undefined}
+            aria-describedby={emailError ? "waitlist-email-error" : undefined}
             placeholder="jane@yourcompany.com"
           />
+          {emailError && (
+            <p
+              id="waitlist-email-error"
+              role="alert"
+              className="mt-1.5 text-xs font-medium text-[color:var(--status-bad-ink)]"
+            >
+              {emailError}
+            </p>
+          )}
         </div>
         <div>
-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
+          <label
+            htmlFor="waitlist-company"
+            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+          >
             COMPANY
           </label>
           <input
-            className="input h-11 w-full"
+            id="waitlist-company"
+            className="input min-h-11 w-full text-base"
             value={company}
             onChange={(e) => setCompany(e.target.value)}
             placeholder="Refinishing Co."
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
+          <label
+            htmlFor="waitlist-volume"
+            className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+          >
             MONTHLY REFINISHING VOLUME (SQFT)
           </label>
           <input
-            className="input h-11 w-full"
+            id="waitlist-volume"
+            className="input min-h-11 w-full text-base"
             value={volume}
             onChange={(e) => setVolume(e.target.value)}
             placeholder="e.g. 25,000"
@@ -144,10 +190,11 @@ export default function WaitlistCTA() {
         </div>
       </div>
       <Button
+        type="submit"
         variant="accent"
         className="mt-6 w-full h-12"
-        onClick={handleSubmit}
         disabled={submitting}
+        aria-busy={submitting}
       >
         {submitting ? "Submitting…" : "Join the pilot waitlist"}
         {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -155,6 +202,7 @@ export default function WaitlistCTA() {
       <div className="mt-3 text-center text-xs text-muted-foreground">
         No spam. We&apos;ll contact you about the pilot program only.
       </div>
+      </form>
     </div>
   );
 }

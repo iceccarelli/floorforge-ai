@@ -46,6 +46,7 @@ export default function Simulator() {
               dpr={[1, 1.75]}
               camera={{ position: [6, 6, 7], fov: 42 }}
               className="h-full w-full"
+              role="img"
               aria-label={`3D simulation of the ${robot.name} covering a virtual hardwood floor`}
             >
               <color attach="background" args={["#eef2f6"]} />

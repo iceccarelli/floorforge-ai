@@ -3,10 +3,11 @@
 import { chromium } from "playwright";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { ROUTES, BASE, settle } from "./viewports.mjs";
+import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 const require = createRequire(import.meta.url);
 const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
+await waitForServer();
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();

@@ -153,7 +153,7 @@ export default function ControlPanel() {
           step={1}
           value={speed}
           onChange={(e) => setSpeed(Number(e.target.value))}
-          className="w-full accent-[var(--accent)]"
+          className="range-control"
         />
       </div>
 
@@ -178,7 +178,7 @@ export default function ControlPanel() {
           step={0.01}
           value={exploded}
           onChange={(e) => setExploded(Number(e.target.value))}
-          className="w-full accent-[var(--accent)]"
+          className="range-control"
         />
         <button
           onClick={toggleCutaway}

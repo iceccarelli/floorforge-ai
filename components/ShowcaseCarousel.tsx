@@ -85,7 +85,9 @@ function Lightbox({
         asChild
         forceMount
         aria-describedby={`sc-desc-${cat.key}`}
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        /* `onOpenAutoFocus` was being prevented, so the dialog opened without
+           moving focus into it: never announced, and the first Tab went to
+           whatever was behind the modal (audit/FINDINGS.md P2-8). */
       >
         <motion.div
           {...motionProps}
@@ -439,8 +441,11 @@ function Gallery({
             <button
               key={c.key}
               onClick={() => onCat(c.key)}
+              aria-pressed={on}
               className={cn(
-                "shrink-0 rounded-full border px-4 py-2 text-sm font-medium transition",
+                // min-h-11 is the WCAG 2.2 AA 2.5.8 floor; these chips measured
+                // 38px tall. aria-pressed replaces colour-only selection.
+                "shrink-0 rounded-full border px-4 min-h-11 text-sm font-medium transition",
                 on
                   ? "border-accent bg-accent text-white"
                   : "border-border bg-white text-muted-foreground hover:border-accent hover:text-accent"
@@ -450,7 +455,10 @@ function Gallery({
               <span
                 className={cn(
                   "ml-2 rounded-full px-1.5 py-0.5 text-[11px] font-semibold",
-                  on ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                  // bg-white/20 over --accent composites to rgb(195,117,58);
+                  // white on that measured 3.54:1 (audit/FINDINGS.md P1-4).
+                  // A solid surface with accent ink measures 5.02:1.
+                  on ? "bg-primary-foreground text-accent" : "bg-muted text-muted-foreground"
                 )}
               >
                 {count}

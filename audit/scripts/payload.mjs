@@ -5,8 +5,9 @@
  * Lighthouse; this measures raw bytes with an empty cache.
  */
 import { chromium } from "playwright";
-import { ROUTES, BASE, settle } from "./viewports.mjs";
+import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 
+await waitForServer();
 const browser = await chromium.launch();
 const out = [];
 for (const route of ROUTES) {

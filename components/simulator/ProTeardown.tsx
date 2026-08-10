@@ -19,6 +19,20 @@ import { getRobot, type RobotSpec } from "@/lib/robots";
 import { useSim } from "@/lib/simStore";
 import RobotMesh from "@/components/simulator/RobotMesh";
 
+/**
+ * WebGL capability probe, mirroring components/simulator/Simulator.tsx.
+ * Without it this route rendered an empty black box on any device or browser
+ * without WebGL, with nothing to read (audit/FINDINGS.md §6, corrected).
+ */
+function hasWebGL(): boolean {
+  try {
+    const c = document.createElement("canvas");
+    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
 /** Honest, concept-level descriptions of the internals the model actually
  *  renders for each platform — used for the annotated parts legend. */
 function partsFor(id: string): { label: string; note: string }[] {
@@ -120,6 +134,7 @@ export default function ProTeardown({
   const setExploded = useSim((s) => s.setExploded);
   const toggleCutaway = useSim((s) => s.toggleCutaway);
   const [autoRotate, setAutoRotate] = useState(true);
+  const [webgl] = useState(hasWebGL);
 
   // Enter with a clean, assembled machine; leave the store tidy on exit so
   // navigating back to /simulator doesn't inherit teardown inspection state.
@@ -146,18 +161,36 @@ export default function ProTeardown({
         }}
       />
 
-      <Canvas
-        shadows
-        dpr={[1, 1.75]}
-        camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
-        className="h-full w-full"
-        aria-label={`High-fidelity 3D teardown of the ${robot.name}`}
-      >
-        <color attach="background" args={["#0b0e14"]} />
-        <Suspense fallback={null}>
-          <Scene robot={robot} autoRotate={autoRotate} />
-        </Suspense>
-      </Canvas>
+      {webgl ? (
+        <Canvas
+          shadows
+          dpr={[1, 1.75]}
+          camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
+          className="h-full w-full"
+          role="img"
+          aria-label={`High-fidelity 3D teardown of the ${robot.name}`}
+        >
+          <color attach="background" args={["#0b0e14"]} />
+          <Suspense fallback={null}>
+            <Scene robot={robot} autoRotate={autoRotate} />
+          </Suspense>
+        </Canvas>
+      ) : (
+        /* A 3D canvas is opaque to a screen reader and to any crawler. The text
+           equivalent carries the same honesty labelling as the visual one:
+           these are concept internals, not shipping hardware. */
+        <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+          <p className="text-sm font-semibold text-on-dark">
+            3D teardown needs WebGL
+          </p>
+          <p className="mt-1 max-w-md text-sm text-on-dark-muted">
+            Your browser or device doesn&apos;t support the interactive canvas.
+            The teardown shows the {robot.name}&apos;s drum, motor rotor,
+            reduction gears and dust path as a concept model — engineering
+            targets for hardware in development, not a record of a completed job.
+          </p>
+        </div>
+      )}
 
       {/* title chip */}
       <div className="pointer-events-none absolute left-3 top-3 z-10 rounded-xl border border-white/10 bg-black/40 px-3 py-2 backdrop-blur-sm">

@@ -66,54 +66,97 @@ export default function ROICalculator() {
       <div className="grid lg:grid-cols-5 gap-8">
         {/* Inputs */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Both sliders previously had a <label> with no htmlFor and an <input>
+              with no id — axe reported `label` (CRITICAL) on each, and a screen
+              reader announced an unlabelled slider reading a bare number with no
+              unit. Measured hit area was 16px tall against a 44px requirement.
+              This is the ROI model, the page's strongest argument and a stated
+              conversion path (audit/FINDINGS.md P0-4). */}
           <div>
-            <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">FLOOR AREA (SQFT)</label>
+            <label
+              htmlFor="roi-sqft"
+              className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+            >
+              FLOOR AREA (SQFT)
+            </label>
             <div className="flex items-center gap-4">
-              <input 
-                type="range" 
-                min="1500" 
-                max="45000" 
+              <input
+                id="roi-sqft"
+                type="range"
+                min="1500"
+                max="45000"
                 step="500"
-                value={inputs.sqft} 
+                value={inputs.sqft}
                 onChange={(e) => updateInput("sqft", parseInt(e.target.value))}
-                className="flex-1 accent-accent" 
+                aria-valuetext={`${inputs.sqft.toLocaleString()} square feet`}
+                aria-describedby="roi-assumptions"
+                className="range-control flex-1"
               />
-              <div className="w-24 text-right font-mono text-lg font-semibold tabular-nums">{inputs.sqft.toLocaleString()}</div>
+              <output
+                htmlFor="roi-sqft"
+                className="w-24 text-right font-mono text-lg font-semibold tabular-nums"
+              >
+                {inputs.sqft.toLocaleString()}
+              </output>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">CURRENT MANUAL HOURS PER JOB</label>
+            <label
+              htmlFor="roi-hours"
+              className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+            >
+              CURRENT MANUAL HOURS PER JOB
+            </label>
             <div className="flex items-center gap-4">
-              <input 
-                type="range" 
-                min="20" 
-                max="280" 
+              <input
+                id="roi-hours"
+                type="range"
+                min="20"
+                max="280"
                 step="5"
-                value={inputs.manualHours} 
+                value={inputs.manualHours}
                 onChange={(e) => updateInput("manualHours", parseInt(e.target.value))}
-                className="flex-1 accent-accent" 
+                aria-valuetext={`${inputs.manualHours} hours per job`}
+                aria-describedby="roi-assumptions"
+                className="range-control flex-1"
               />
-              <div className="w-16 text-right font-mono text-lg font-semibold tabular-nums">{inputs.manualHours}</div>
+              <output
+                htmlFor="roi-hours"
+                className="w-16 text-right font-mono text-lg font-semibold tabular-nums"
+              >
+                {inputs.manualHours}
+              </output>
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">JOB TYPE</label>
-            <div className="flex gap-2">
+          {/* Two mutually exclusive options is a radiogroup, not two buttons.
+              Previously the only signal for which was selected was background
+              colour — no aria-pressed, no role — which is a WCAG 1.4.1 failure
+              as well as an ARIA gap. */}
+          <fieldset>
+            <legend className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2">
+              JOB TYPE
+            </legend>
+            <div className="flex gap-2" role="radiogroup" aria-label="Job type">
               {(["residential", "commercial"] as const).map((type) => (
                 <button
                   key={type}
+                  type="button"
+                  role="radio"
+                  aria-checked={inputs.jobType === type}
                   onClick={() => updateInput("jobType", type)}
-                  className={`flex-1 h-11 rounded-lg border text-sm font-medium transition-all ${inputs.jobType === type 
-                    ? "bg-accent text-white border-accent" 
-                    : "bg-white border-border hover:bg-muted"}`}
+                  className={`flex-1 min-h-11 rounded-lg border px-3 text-sm font-medium transition-colors ${
+                    inputs.jobType === type
+                      ? "bg-accent text-primary-foreground border-accent"
+                      : "bg-card border-border-strong text-foreground hover:bg-muted"
+                  }`}
                 >
                   {type === "residential" ? "Residential" : "Commercial / Multi-unit"}
                 </button>
               ))}
             </div>
-          </div>
+          </fieldset>
         </div>
 
         {/* Results - Live updating */}
@@ -157,7 +200,7 @@ export default function ROICalculator() {
               </div>
             </div>
 
-            <div className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
+            <div id="roi-assumptions" className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
               <span className="font-medium text-white/80">Model assumptions:</span> $78/hr blended labor rate; automation efficiency baseline of 62% time reduction adjusted by job type; ~2,200 sqft per robot per day throughput target for {results.jobTypeLabel.toLowerCase()} work. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
             </div>
 

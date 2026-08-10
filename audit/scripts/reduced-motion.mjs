@@ -4,7 +4,8 @@
  * invisible (opacity 0 / zero-size / translated off-screen by a stuck anim).
  */
 import { chromium } from "playwright";
-import { ROUTES, BASE, settle } from "./viewports.mjs";
+import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
+await waitForServer();
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 const page = await ctx.newPage();
