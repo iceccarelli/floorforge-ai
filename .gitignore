@@ -43,3 +43,14 @@ next-env.d.ts
 
 # delivery patch artifacts — apply, never commit
 *.patch
+
+# Source archives and generated indexes — object storage, not git.
+# Untracked by scripts/untrack-binaries.sh; rationale in that file and in
+# audit/FINDINGS.md P3-1. The blobs remain in history: `.git` is ~67 MB and a
+# fresh clone still pays for them. Reclaiming that needs git filter-repo or BFG
+# plus a force-push — see audit/DEFERRED.md D-7.
+showcase-assets.zip
+floorforge-image-library-ALL-78.png
+
+# Local tool state, not source.
+openclaw-workspace-state.json

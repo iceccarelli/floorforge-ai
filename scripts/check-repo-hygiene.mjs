@@ -27,14 +27,13 @@
  *
  * THE ALLOWLIST IS TEMPORARY
  * --------------------------
- * The entries below already existed on `main` when this guard was written
- * (audit/FINDINGS.md P3-1, P3-2). They are grandfathered so this gate is green
- * on the day it lands and turns red the moment a NEW offender appears — which
- * is the failure mode that has actually bitten twice.
+ * FLOORFORGE_01_repo_hygiene.patch deleted the three stale delivery patches and
+ * scripts/untrack-binaries.sh untracked the 8.4 MB that was provably redundant.
+ * What is left is the social-campaign archives, which hold the only copy of
+ * their contents — see the comment on ALLOWLIST for how to empty it.
  *
- * FLOORFORGE_01_repo_hygiene.patch removes them. When it lands, delete every
- * entry from ALLOWLIST. A missing allowlist entry is not an error, so patch 01
- * and this patch can land in either order.
+ * A missing allowlist entry is not an error, so the order in which these land
+ * does not matter.
  */
 import { execSync } from "node:child_process";
 import { statSync } from "node:fs";
@@ -42,13 +41,17 @@ import { statSync } from "node:fs";
 const MAX_BYTES = 500 * 1024;
 
 const ALLOWLIST = new Set([
-  // Stale delivery patches committed before `.gitignore` gained `*.patch`.
-  "04-pro-teardown-native.patch",
-  "showcase-systems.patch",
-  "showcase-v2-categorized.patch",
-  // Committed binaries. 19.7 MB total; see audit/FINDINGS.md P3-1.
-  "showcase-assets.zip",
-  "floorforge-image-library-ALL-78.png",
+  // The social-campaign archives, and only these.
+  //
+  // Unlike showcase-assets.zip (a byte-identical copy of
+  // public/showcase/gallery/) and floorforge-image-library-ALL-78.png (a
+  // derived contact sheet), these hold the ONLY copy of 12 files: 5 JPG,
+  // 5 WebP, a README and a JSON, none of which exists anywhere else in the
+  // repo. They are also ~4x redundant with each other — 7.1 MB tracked for
+  // 1.8 MB of unique content.
+  //
+  // Store those 12 files off-repo, run `git rm --cached` on these ten, and
+  // empty this Set. An empty ALLOWLIST is the goal state.
   "floorforge_social_campaign.zip",
   "floorforge_social_campaign (1).zip",
   "floorforge_social_campaign (2).zip",
