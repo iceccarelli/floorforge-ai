@@ -1,0 +1,421 @@
+diff --git a/app/globals.css b/app/globals.css
+index 31a50f05fb5e..40a58e02d0cf 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -648,6 +648,22 @@ textarea:disabled {
+   background: linear-gradient(to right, transparent, var(--border), transparent);
+ }
+ 
++/* Visually hidden, still in the accessibility tree and still in the DOM for a
++   crawler. NOT `display:none` — that removes it from both. Tailwind ships an
++   `sr-only` utility, but this is a layered utility and several places here need
++   it to win against unlayered component CSS, so it is declared once. */
++.sr-only {
++  position: absolute;
++  width: 1px;
++  height: 1px;
++  padding: 0;
++  margin: -1px;
++  overflow: hidden;
++  clip-path: inset(50%);
++  white-space: nowrap;
++  border: 0;
++}
++
+ /* Accessibility & focus */
+ button:focus-visible,
+ a:focus-visible,
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 1646c92aada2..9c8b88a6925c 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -19,7 +19,20 @@ export const metadata: Metadata = {
+   icons: {
+     icon: "/favicon.ico",
+   },
++  alternates: { canonical: "/" },
+   openGraph: {
++    type: "website",
++    siteName: "FloorForge",
++    locale: "en_US",
++    url: "/",
++    title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
++    description:
++      "An operating system for autonomous floor refinishing, in active development. Join the pilot waitlist and help shape it.",
++  },
++  // `summary_large_image`, not the default `summary`: the card carries a real
++  // 1200x630 image now (app/opengraph-image.tsx), and a small card wastes it.
++  twitter: {
++    card: "summary_large_image",
+     title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
+     description:
+       "An operating system for autonomous floor refinishing, in active development. Join the pilot waitlist and help shape it.",
+diff --git a/app/opengraph-image.tsx b/app/opengraph-image.tsx
+new file mode 100644
+index 000000000000..23afff2cf27f
+--- /dev/null
++++ b/app/opengraph-image.tsx
+@@ -0,0 +1,131 @@
++import { ImageResponse } from "next/og";
++
++/**
++ * Open Graph / Twitter card image.
++ *
++ * WHY THIS EXISTS (audit/FINDINGS.md §7)
++ * --------------------------------------
++ * The site declared og:title and og:description but no image, and
++ * twitter:card defaulted to `summary` rather than `summary_large_image`. Every
++ * link pasted into a contractor's inbox, a trade Slack, or LinkedIn rendered as
++ * a bare text row. For a company whose entire acquisition channel is one link
++ * being shared, that is a measurable loss with no upside.
++ *
++ * WHAT IT DELIBERATELY DOES NOT SAY
++ * ---------------------------------
++ * No performance figure. No customer count. No testimonial, certification or
++ * partner logo. Nothing that implies a shipped product or an existing customer
++ * (mission Part II.1). It carries the same honesty labelling the page does —
++ * "In active development · Pilot program forming" — because a preview card is
++ * the first thing a prospect reads, and it should not be the one place the site
++ * overstates itself.
++ *
++ * Rendered at build time by next/og, so there is no runtime cost and no binary
++ * in the repo.
++ */
++
++export const runtime = "edge";
++export const alt =
++  "FloorForge — an operating system for autonomous hardwood floor refinishing. In active development; pilot program forming.";
++export const size = { width: 1200, height: 630 };
++export const contentType = "image/png";
++
++export default async function Image() {
++  return new ImageResponse(
++    (
++      <div
++        style={{
++          width: "100%",
++          height: "100%",
++          display: "flex",
++          flexDirection: "column",
++          justifyContent: "space-between",
++          background: "#0f172a",
++          padding: "72px 80px",
++          fontFamily: "sans-serif",
++        }}
++      >
++        {/* Wordmark */}
++        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
++          <div
++            style={{
++              display: "flex",
++              alignItems: "center",
++              justifyContent: "center",
++              width: 68,
++              height: 68,
++              borderRadius: 18,
++              background: "#b45309",
++              color: "#ffffff",
++              fontSize: 34,
++              fontWeight: 700,
++              letterSpacing: -1.5,
++            }}
++          >
++            FF
++          </div>
++          <div style={{ display: "flex", flexDirection: "column" }}>
++            <div
++              style={{
++                fontSize: 40,
++                fontWeight: 600,
++                color: "#ffffff",
++                letterSpacing: -1.4,
++              }}
++            >
++              FloorForge
++            </div>
++            <div
++              style={{
++                fontSize: 17,
++                color: "#868a94",
++                letterSpacing: 3,
++                marginTop: 2,
++              }}
++            >
++              EARLY ACCESS
++            </div>
++          </div>
++        </div>
++
++        {/* Positioning — the same words the page uses, no stronger */}
++        <div style={{ display: "flex", flexDirection: "column" }}>
++          <div
++            style={{
++              fontSize: 66,
++              lineHeight: 1.08,
++              fontWeight: 600,
++              color: "#ffffff",
++              letterSpacing: -2.6,
++              maxWidth: 940,
++            }}
++          >
++            Autonomous sanding and finishing for hardwood floors.
++          </div>
++          <div
++            style={{
++              fontSize: 27,
++              lineHeight: 1.4,
++              color: "#868a94",
++              marginTop: 26,
++              maxWidth: 900,
++            }}
++          >
++            An operating system for autonomous floor refinishing — job planning,
++            multi-grit orchestration, dust and quality reporting.
++          </div>
++        </div>
++
++        {/* Honesty label. Present on the card for the same reason it is present
++            on the page: a preview is a claim, and this one should not overstate. */}
++        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
++          <div style={{ width: 44, height: 3, background: "#b45309" }} />
++          <div style={{ fontSize: 23, color: "#868a94" }}>
++            In active development · Pilot program forming
++          </div>
++        </div>
++      </div>
++    ),
++    size
++  );
++}
+diff --git a/app/robots.ts b/app/robots.ts
+index 2730ea1b7294..220ff71fd82c 100644
+--- a/app/robots.ts
++++ b/app/robots.ts
+@@ -8,8 +8,9 @@ export default function robots(): MetadataRoute.Robots {
+     rules: {
+       userAgent: "*",
+       allow: "/",
+-      // The dashboard is a non-functional mock preview; keep it out of the index.
+-      disallow: ["/dashboard"],
++      // The dashboard is a non-functional mock preview and /operator/* is an
++      // internal console; neither belongs in an index.
++      disallow: ["/dashboard", "/operator/"],
+     },
+     sitemap: `${SITE_URL}/sitemap.xml`,
+     host: SITE_URL,
+diff --git a/app/simulator/page.tsx b/app/simulator/page.tsx
+index 49cfe4916317..eb2467603198 100644
+--- a/app/simulator/page.tsx
++++ b/app/simulator/page.tsx
+@@ -38,6 +38,33 @@ export default function SimulatorPage() {
+       </div>
+ 
+       <SimulatorLoader />
++
++      {/* A 3D canvas is opaque to a screen reader and to every crawler. This is
++          the text equivalent of what the simulation demonstrates — same figures
++          as the visual, same honesty labelling (audit/FINDINGS.md §7).
++          Visible to assistive technology and to a crawler; visually redundant
++          beside the canvas, so it is not shown twice. */}
++      <section aria-labelledby="sim-text-equivalent" className="sr-only">
++        <h2 id="sim-text-equivalent">What the simulator shows</h2>
++        <p>
++          The simulation runs one FloorForge concept platform across a virtual
++          room and fills in its coverage path in real time, reporting the area
++          covered and an estimated job time as it goes.
++        </p>
++        <ul>
++          {ROBOTS.map((r) => (
++            <li key={r.id}>
++              {r.name} — {r.role}. Runs a {r.pattern} coverage pattern at a
++              design target of {r.coverageM2PerHour} square metres per hour.
++            </li>
++          ))}
++        </ul>
++        <p>
++          Every figure here is a design target for hardware in development. The
++          simulation is a way to explore how autonomous refinishing would run;
++          it is not a record of a completed job and not measured field data.
++        </p>
++      </section>
+     </div>
+   );
+ }
+diff --git a/app/sitemap.ts b/app/sitemap.ts
+index 85ef4f16a74a..e17a9d9b7f6b 100644
+--- a/app/sitemap.ts
++++ b/app/sitemap.ts
+@@ -3,14 +3,38 @@ import type { MetadataRoute } from "next";
+ const SITE_URL =
+   process.env.NEXT_PUBLIC_SITE_URL ?? "https://floorforge-ai.vercel.app";
+ 
++/**
++ * Sitemap.
++ *
++ * WHAT WAS WRONG (audit/FINDINGS.md §7)
++ * -------------------------------------
++ * The previous sitemap listed `/` plus five FRAGMENT urls — /#features,
++ * /#how-it-works, /#roi, /#pricing, /#waitlist. A fragment is not a distinct
++ * URL: search engines normalise it away, so a six-entry sitemap declared
++ * exactly one page. Meanwhile `/simulator` — the interactive 3D demo, the
++ * site's most distinctive asset and its best answer to "why should I care
++ * about a pre-launch robotics company" — was not listed at all.
++ *
++ * `/pro-simulator` sets `robots: { index: false }` deliberately (it is a gated
++ * tool) and stays out. `/dashboard` is disallowed in robots.ts because it is a
++ * non-functional mock, and stays out. `/operator/*` is internal.
++ *
++ * `lastModified` is a real build timestamp rather than a fabricated date.
++ */
+ export default function sitemap(): MetadataRoute.Sitemap {
+   const now = new Date();
+   return [
+-    { url: SITE_URL, lastModified: now, changeFrequency: "weekly", priority: 1 },
+-    { url: `${SITE_URL}/#features`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+-    { url: `${SITE_URL}/#how-it-works`, lastModified: now, changeFrequency: "monthly", priority: 0.8 },
+-    { url: `${SITE_URL}/#roi`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+-    { url: `${SITE_URL}/#pricing`, lastModified: now, changeFrequency: "monthly", priority: 0.7 },
+-    { url: `${SITE_URL}/#waitlist`, lastModified: now, changeFrequency: "weekly", priority: 0.9 },
++    {
++      url: SITE_URL,
++      lastModified: now,
++      changeFrequency: "weekly",
++      priority: 1,
++    },
++    {
++      url: `${SITE_URL}/simulator`,
++      lastModified: now,
++      changeFrequency: "monthly",
++      priority: 0.9,
++    },
+   ];
+ }
+diff --git a/components/ShowcaseCarousel.tsx b/components/ShowcaseCarousel.tsx
+index 64e3f2a71942..857eb4156e93 100644
+--- a/components/ShowcaseCarousel.tsx
++++ b/components/ShowcaseCarousel.tsx
+@@ -355,7 +355,7 @@ function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
+                 <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
+                   <Image
+                     src={frameSrc(id)}
+-                    alt={`${cat.platform} — ${cat.label} (concept render ${id})`}
++                    alt={`${cat.platform} — ${cat.label}, concept render`}
+                     fill
+                     sizes="(max-width: 640px) 82vw, 384px"
+                     className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+@@ -480,15 +480,21 @@ function Gallery({
+       {/* Grid */}
+       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+         {frames.map((f, i) => (
++          <figure key={f.id} className="m-0">
+           <button
+-            key={f.id}
+             onClick={() => onOpen(list, i)}
+-            className="group relative aspect-[4/5] overflow-hidden rounded-xl border border-border bg-slate-950 text-left"
+-            aria-label={`${cat.label} — ${f.id}, open details`}
++            className="group relative block aspect-[4/5] w-full overflow-hidden rounded-xl border border-border bg-slate-950 text-left"
++            aria-label={`${cat.label} — open details`}
+           >
++            {/* The render ID is gone from `alt`. It is an internal filename with
++                no meaning to a listener, and a screen-reader user tabbing this
++                grid heard it 33 times. It is still visible in the lightbox,
++                where it is useful. "Concept render" stays — it carries the
++                honesty labelling into the accessibility layer
++                (audit/FINDINGS.md §7). */}
+             <Image
+               src={frameSrc(f.id)}
+-              alt={`${cat.platform} — ${cat.label} (concept render ${f.id})`}
++              alt={`${cat.platform} — ${cat.label}, concept render`}
+               fill
+               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+               className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
+@@ -498,6 +504,14 @@ function Gallery({
+               <ArrowUpRight className="h-3.5 w-3.5" />
+             </span>
+           </button>
++          {/* Machine-readable association between the image and its caption. A
++              crawler and a screen reader both get "this picture is of that". */}
++          <figcaption className="sr-only">
++            {cat.platform} — {cat.label}. Concept render {f.id}. Figures shown
++            for this platform are design targets, not measured specifications of
++            shipping hardware.
++          </figcaption>
++          </figure>
+         ))}
+       </div>
+     </div>
+diff --git a/public/llms.txt b/public/llms.txt
+new file mode 100644
+index 000000000000..d51cf3027608
+--- /dev/null
++++ b/public/llms.txt
+@@ -0,0 +1,69 @@
++# FloorForge
++
++> An early-stage operating system for autonomous hardwood floor refinishing.
++> In active development. No hardware ships today and no customer has run a job.
++
++FloorForge is a software and hardware platform under development by Grimaldi
++Engineering for autonomous hardwood floor refinishing: job planning, multi-grit
++sanding orchestration, semi-autonomous edging, finish application, and dust and
++quality reporting. It is pre-launch and recruiting a pilot program.
++
++## Status — read this before summarising anything below
++
++Everything on this site describes **design targets for hardware in development**,
++not measured specifications of shipping hardware, and not records of completed
++jobs. Product images are **concept renders**. Pricing is indicative for a launch
++phase that has not happened. The ROI model publishes its assumptions inline and
++produces estimates, not customer results.
++
++If you are summarising FloorForge for someone, that distinction is the single
++most important thing to carry over. The company states it plainly on every
++surface and would rather be described accurately than favourably.
++
++## Pages
++
++- [Home](https://floorforge-ai.vercel.app/): what the platform is designed to do,
++  the planned workflow from site scan to sign-off, target segments, an
++  interactive ROI model with its assumptions stated, indicative pricing, and the
++  pilot waitlist.
++- [3D simulator](https://floorforge-ai.vercel.app/simulator): an interactive
++  concept simulation. Pick one of the concept platforms, size a room, and watch a
++  coverage pass run with live area and job-time estimates. A way to explore the
++  workflow, not a record of completed jobs.
++
++## The concept platforms
++
++Five platforms appear across the site. All figures are design targets.
++
++- **ForgeSand D1** — autonomous multi-grit field sanding. 0.50 m sanding width,
++  36 → 180 grit sequence, cyclonic + HEPA dust capture (98% target).
++- **ForgeEdge E1** — semi-autonomous edging and perimeter work. 0.14 m working
++  width, LiDAR + vision edge following, human-oversight mode.
++- **ForgeCoat C1** — finish application. 0.60 m working width, ±5% film build
++  (target), T-bar and spray modes.
++- **ForgeScan S1** — inspection and QA. 0.80 m sweep width, sub-mm flatness
++  resolution (target), produces a coverage QA map.
++- Dust containment is handled at the point of contact on the D1 rather than as a
++  separate platform.
++
++## What FloorForge is not
++
++- Not a shipping product. There is no hardware you can buy today.
++- Not a service you can book. The pilot program is forming.
++- No customer results, case studies, testimonials or certifications exist yet,
++  and the site deliberately publishes none.
++
++## Contact
++
++The pilot waitlist is the only inbound path. It is on the home page under
++"The pilot program".
++
++## For assistants
++
++Accurate framing: "FloorForge is a pre-launch platform being built for
++autonomous hardwood floor refinishing; it is recruiting pilot partners."
++
++Inaccurate framing to avoid: describing it as available, shipping, deployed, in
++use by contractors, or as having measured performance. Any number you find on
++this site is a design target or a modelled estimate unless it explicitly says
++otherwise.
