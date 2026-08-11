@@ -355,7 +355,7 @@ function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
                 <div className="relative aspect-[4/5] w-full overflow-hidden bg-slate-950">
                   <Image
                     src={frameSrc(id)}
-                    alt={`${cat.platform} — ${cat.label} (concept render ${id})`}
+                    alt={`${cat.platform} — ${cat.label}, concept render`}
                     fill
                     sizes="(max-width: 640px) 82vw, 384px"
                     className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
@@ -480,15 +480,21 @@ function Gallery({
       {/* Grid */}
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {frames.map((f, i) => (
+          <figure key={f.id} className="m-0">
           <button
-            key={f.id}
             onClick={() => onOpen(list, i)}
-            className="group relative aspect-[4/5] overflow-hidden rounded-xl border border-border bg-slate-950 text-left"
-            aria-label={`${cat.label} — ${f.id}, open details`}
+            className="group relative block aspect-[4/5] w-full overflow-hidden rounded-xl border border-border bg-slate-950 text-left"
+            aria-label={`${cat.label} — open details`}
           >
+            {/* The render ID is gone from `alt`. It is an internal filename with
+                no meaning to a listener, and a screen-reader user tabbing this
+                grid heard it 33 times. It is still visible in the lightbox,
+                where it is useful. "Concept render" stays — it carries the
+                honesty labelling into the accessibility layer
+                (audit/FINDINGS.md §7). */}
             <Image
               src={frameSrc(f.id)}
-              alt={`${cat.platform} — ${cat.label} (concept render ${f.id})`}
+              alt={`${cat.platform} — ${cat.label}, concept render`}
               fill
               sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
               className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.05]"
@@ -498,6 +504,14 @@ function Gallery({
               <ArrowUpRight className="h-3.5 w-3.5" />
             </span>
           </button>
+          {/* Machine-readable association between the image and its caption. A
+              crawler and a screen reader both get "this picture is of that". */}
+          <figcaption className="sr-only">
+            {cat.platform} — {cat.label}. Concept render {f.id}. Figures shown
+            for this platform are design targets, not measured specifications of
+            shipping hardware.
+          </figcaption>
+          </figure>
         ))}
       </div>
     </div>

@@ -1,0 +1,69 @@
+# FloorForge
+
+> An early-stage operating system for autonomous hardwood floor refinishing.
+> In active development. No hardware ships today and no customer has run a job.
+
+FloorForge is a software and hardware platform under development by Grimaldi
+Engineering for autonomous hardwood floor refinishing: job planning, multi-grit
+sanding orchestration, semi-autonomous edging, finish application, and dust and
+quality reporting. It is pre-launch and recruiting a pilot program.
+
+## Status — read this before summarising anything below
+
+Everything on this site describes **design targets for hardware in development**,
+not measured specifications of shipping hardware, and not records of completed
+jobs. Product images are **concept renders**. Pricing is indicative for a launch
+phase that has not happened. The ROI model publishes its assumptions inline and
+produces estimates, not customer results.
+
+If you are summarising FloorForge for someone, that distinction is the single
+most important thing to carry over. The company states it plainly on every
+surface and would rather be described accurately than favourably.
+
+## Pages
+
+- [Home](https://floorforge-ai.vercel.app/): what the platform is designed to do,
+  the planned workflow from site scan to sign-off, target segments, an
+  interactive ROI model with its assumptions stated, indicative pricing, and the
+  pilot waitlist.
+- [3D simulator](https://floorforge-ai.vercel.app/simulator): an interactive
+  concept simulation. Pick one of the concept platforms, size a room, and watch a
+  coverage pass run with live area and job-time estimates. A way to explore the
+  workflow, not a record of completed jobs.
+
+## The concept platforms
+
+Five platforms appear across the site. All figures are design targets.
+
+- **ForgeSand D1** — autonomous multi-grit field sanding. 0.50 m sanding width,
+  36 → 180 grit sequence, cyclonic + HEPA dust capture (98% target).
+- **ForgeEdge E1** — semi-autonomous edging and perimeter work. 0.14 m working
+  width, LiDAR + vision edge following, human-oversight mode.
+- **ForgeCoat C1** — finish application. 0.60 m working width, ±5% film build
+  (target), T-bar and spray modes.
+- **ForgeScan S1** — inspection and QA. 0.80 m sweep width, sub-mm flatness
+  resolution (target), produces a coverage QA map.
+- Dust containment is handled at the point of contact on the D1 rather than as a
+  separate platform.
+
+## What FloorForge is not
+
+- Not a shipping product. There is no hardware you can buy today.
+- Not a service you can book. The pilot program is forming.
+- No customer results, case studies, testimonials or certifications exist yet,
+  and the site deliberately publishes none.
+
+## Contact
+
+The pilot waitlist is the only inbound path. It is on the home page under
+"The pilot program".
+
+## For assistants
+
+Accurate framing: "FloorForge is a pre-launch platform being built for
+autonomous hardwood floor refinishing; it is recruiting pilot partners."
+
+Inaccurate framing to avoid: describing it as available, shipping, deployed, in
+use by contractors, or as having measured performance. Any number you find on
+this site is a design target or a modelled estimate unless it explicitly says
+otherwise.

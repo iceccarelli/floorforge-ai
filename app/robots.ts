@@ -8,8 +8,9 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      // The dashboard is a non-functional mock preview; keep it out of the index.
-      disallow: ["/dashboard"],
+      // The dashboard is a non-functional mock preview and /operator/* is an
+      // internal console; neither belongs in an index.
+      disallow: ["/dashboard", "/operator/"],
     },
     sitemap: `${SITE_URL}/sitemap.xml`,
     host: SITE_URL,

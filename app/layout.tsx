@@ -19,7 +19,20 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+  alternates: { canonical: "/" },
   openGraph: {
+    type: "website",
+    siteName: "FloorForge",
+    locale: "en_US",
+    url: "/",
+    title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
+    description:
+      "An operating system for autonomous floor refinishing, in active development. Join the pilot waitlist and help shape it.",
+  },
+  // `summary_large_image`, not the default `summary`: the card carries a real
+  // 1200x630 image now (app/opengraph-image.tsx), and a small card wastes it.
+  twitter: {
+    card: "summary_large_image",
     title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
     description:
       "An operating system for autonomous floor refinishing, in active development. Join the pilot waitlist and help shape it.",
