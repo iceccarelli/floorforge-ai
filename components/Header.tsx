@@ -52,7 +52,7 @@ export default function Header() {
       <div className="mx-auto max-w-7xl px-6">
         <div className="flex h-16 md:h-20 items-center justify-between">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-3 group">
+          <Link href="/" className="flex min-h-11 items-center gap-3 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
               <span className="text-xl font-bold tracking-[-1.5px]">FF</span>
             </div>
@@ -68,14 +68,14 @@ export default function Header() {
               <button
                 key={link.href}
                 onClick={() => goToSection(link.href)}
-                className="text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+                className="inline-flex min-h-11 items-center text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
               >
                 {link.label}
               </button>
             ))}
             <Link
               href="/simulator"
-              className="inline-flex items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+              className="inline-flex min-h-11 items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
             >
               Simulator
               <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
@@ -88,7 +88,7 @@ export default function Header() {
           <div className="hidden lg:flex items-center gap-3">
             <a
               href="mailto:vince.ceccarelli@gmail.com"
-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
+              className="inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
             >
               Contact us
             </a>
@@ -131,7 +131,7 @@ export default function Header() {
           {/* Mobile Menu Button */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
+            className="lg:hidden inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground hover:text-foreground"
             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileMenuOpen}
             aria-controls="mobile-menu"
@@ -157,7 +157,7 @@ export default function Header() {
                 <button
                   key={link.href}
                   onClick={() => goToSection(link.href)}
-                  className="text-left py-2 text-muted-foreground hover:text-foreground font-medium"
+                  className="flex min-h-11 items-center text-left text-muted-foreground hover:text-foreground font-medium"
                 >
                   {link.label}
                 </button>
@@ -165,7 +165,7 @@ export default function Header() {
               <Link
                 href="/simulator"
                 onClick={() => setMobileMenuOpen(false)}
-                className="py-2 text-left font-medium text-accent hover:text-accent-hover"
+                className="flex min-h-11 items-center text-left font-medium text-accent hover:text-accent-hover"
               >
                 Simulator (3D)
               </Link>

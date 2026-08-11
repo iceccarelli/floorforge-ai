@@ -20,11 +20,13 @@ import { ImageResponse } from "next/og";
  * the first thing a prospect reads, and it should not be the one place the site
  * overstates itself.
  *
- * Rendered at build time by next/og, so there is no runtime cost and no binary
- * in the repo.
+ * Rendered at build time by next/og, so there is no per-request cost and no
+ * binary in the repo. Deliberately NOT `runtime = "edge"`: that opts the route
+ * out of static generation (next build says so out loud) and turns a constant
+ * image into a function invocation on every crawl. A social card is the most
+ * cacheable asset a site has.
  */
 
-export const runtime = "edge";
 export const alt =
   "FloorForge — an operating system for autonomous hardwood floor refinishing. In active development; pilot program forming.";
 export const size = { width: 1200, height: 630 };

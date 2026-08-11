@@ -180,7 +180,7 @@ export default function FloorForgeDashboard() {
                     
                     <div className="flex items-center justify-between text-xs">
                       <div>Current: <span className="font-medium">{job.currentGrit}</span></div>
-                      <Button variant="ghost" size="sm" className="h-7 text-xs">View live telemetry</Button>
+                      <Button variant="ghost" size="sm" className="text-xs">View live telemetry</Button>
                     </div>
                   </div>
                 </div>

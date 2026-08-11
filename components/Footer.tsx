@@ -53,23 +53,23 @@ export default function Footer() {
           {/* Product */}
           <div>
             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Product</div>
-            <ul className="space-y-2.5 text-sm text-white/80">
-              <li><Link href="/#features" className="hover:text-white transition">Features</Link></li>
-              <li><Link href="/simulator" className="hover:text-white transition">3D Simulator</Link></li>
-              <li><Link href="/#how-it-works" className="hover:text-white transition">How it Works</Link></li>
-              <li><Link href="/#roi" className="hover:text-white transition">ROI Model</Link></li>
-              <li><Link href="/#pricing" className="hover:text-white transition">Planned Pricing</Link></li>
-              <li><Link href="/dashboard" className="hover:text-white transition">Dashboard Preview</Link></li>
+            <ul className="space-y-0.5 text-sm text-white/80">
+              <li><Link href="/#features" className="inline-flex min-h-11 items-center hover:text-white transition">Features</Link></li>
+              <li><Link href="/simulator" className="inline-flex min-h-11 items-center hover:text-white transition">3D Simulator</Link></li>
+              <li><Link href="/#how-it-works" className="inline-flex min-h-11 items-center hover:text-white transition">How it Works</Link></li>
+              <li><Link href="/#roi" className="inline-flex min-h-11 items-center hover:text-white transition">ROI Model</Link></li>
+              <li><Link href="/#pricing" className="inline-flex min-h-11 items-center hover:text-white transition">Planned Pricing</Link></li>
+              <li><Link href="/dashboard" className="inline-flex min-h-11 items-center hover:text-white transition">Dashboard Preview</Link></li>
             </ul>
           </div>
 
           {/* Pilot */}
           <div>
             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Pilot Program</div>
-            <ul className="space-y-2.5 text-sm text-white/80">
-              <li><Link href="/#waitlist" className="hover:text-white transition">Join the Waitlist</Link></li>
+            <ul className="space-y-0.5 text-sm text-white/80">
+              <li><Link href="/#waitlist" className="inline-flex min-h-11 items-center hover:text-white transition">Join the Waitlist</Link></li>
               <li>
-                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition">
+                <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex min-h-11 items-center hover:text-white transition">
                   Contact Us
                 </a>
               </li>
@@ -79,11 +79,11 @@ export default function Footer() {
           {/* Connect */}
           <div>
             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Connect</div>
-            <ul className="space-y-2.5 text-sm text-white/80">
+            <ul className="space-y-0.5 text-sm text-white/80">
               <li>
                 <a
                   href={`mailto:${CONTACT_EMAIL}`}
-                  className="hover:text-white transition inline-flex items-center gap-2"
+                  className="inline-flex min-h-11 items-center gap-2 hover:text-white transition"
                 >
                   <Mail size={14} /> Email
                 </a>
@@ -96,7 +96,7 @@ export default function Footer() {
                       href={social.href}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="hover:text-white transition inline-flex items-center gap-2"
+                      className="inline-flex min-h-11 items-center gap-2 hover:text-white transition"
                     >
                       <Icon size={14} /> {social.label}
                     </a>
@@ -109,7 +109,7 @@ export default function Footer() {
 
         {/* Social icon bar + legal strip — AWS-style bottom band */}
         <div className="mt-14 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-2">
             {activeSocials.map((social) => {
               const Icon = social.icon;
               return (
@@ -118,7 +118,7 @@ export default function Footer() {
                   href={social.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-white/50 hover:text-white transition-colors p-1"
+                  className="inline-flex min-h-11 min-w-11 items-center justify-center text-white/50 hover:text-white transition-colors"
                   aria-label={social.label}
                 >
                   <Icon size={18} />

@@ -32,7 +32,7 @@ export default async function ProSimulatorPage({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <Link
           href="/simulator"
-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" /> Back to basic simulator
         </Link>

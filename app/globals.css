@@ -754,6 +754,15 @@ textarea:focus-visible,
 .chat-launcher {
   animation: chat-pulse-ring 2.4s var(--ease-quint) infinite;
 }
+
+/* The launcher is fixed to the bottom-right of the viewport. On a notched
+   phone in portrait the home indicator sits exactly there, and in landscape
+   the rounded corner does — env(safe-area-inset-*) keeps it clear of both.
+   `max()` so it never sits closer than 24px on a device with no insets. */
+.chat-launcher-pos {
+  right: max(24px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+}
 .chat-launcher.chat-open,
 .chat-launcher:hover {
   animation: none;
@@ -777,9 +786,12 @@ textarea:focus-visible,
 .skip-link {
   position: absolute;
   left: 12px;
-  top: -48px;
+  top: -56px;
   z-index: 100;
-  padding: 10px 16px;
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap-min);
+  padding: 0 18px;
   border-radius: var(--r-md);
   background: var(--primary);
   color: var(--primary-foreground);

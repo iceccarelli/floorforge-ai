@@ -16,7 +16,7 @@ export default function SimulatorPage() {
     <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
       <Link
         href="/"
-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+        className="mb-6 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" /> Back to home
       </Link>

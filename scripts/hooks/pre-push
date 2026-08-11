@@ -22,6 +22,18 @@ node_modules/.bin/tsc --noEmit
 echo "  running lint…"
 npm run lint
 
+# Next 16 takes a lock at .next/lock for the duration of a build and removes it
+# on clean exit. A build that was interrupted — Ctrl-C, a killed background job,
+# a crashed terminal — leaves it behind, and the next build fails with
+# "Another next build process is already running". Surfacing that as a PUSH
+# failure is how guards teach people to reach for --no-verify, so handle it:
+# if no next process is actually running, the lock is stale. Say so, clear it,
+# continue.
+if [ -e .next/lock ] && ! pgrep -f "next build" >/dev/null 2>&1; then
+  echo "  clearing a stale .next/lock (no build is running)"
+  rm -f .next/lock
+fi
+
 echo "  running build…"
 npm run build --silent >/dev/null
 

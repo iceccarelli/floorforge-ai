@@ -255,7 +255,7 @@ export default function ProTeardown({
               step={0.01}
               value={exploded}
               onChange={(e) => setExploded(Number(e.target.value))}
-              className="w-full accent-[var(--accent)]"
+              className="range-control"
             />
           </div>
 
@@ -264,7 +264,7 @@ export default function ProTeardown({
             <button
               onClick={toggleCutaway}
               aria-pressed={cutaway}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+              className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
                 cutaway
                   ? "border-accent bg-accent text-white"
                   : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
@@ -275,7 +275,7 @@ export default function ProTeardown({
             <button
               onClick={() => setAutoRotate((v) => !v)}
               aria-pressed={autoRotate}
-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+              className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
                 autoRotate
                   ? "border-accent bg-accent text-white"
                   : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
@@ -285,7 +285,7 @@ export default function ProTeardown({
             </button>
             <button
               onClick={reset}
-              className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/10"
+              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 text-xs font-medium text-white/80 transition-colors hover:bg-white/10"
             >
               <RefreshCw className="h-3.5 w-3.5" /> Reset
             </button>

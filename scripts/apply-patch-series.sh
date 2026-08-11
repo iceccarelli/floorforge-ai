@@ -167,7 +167,7 @@ grn "Applied. Now verify before trusting any of it:"
 cat <<'EOF'
     npm ci
     npx tsc --noEmit
-    npm run lint          # exits 1 on this repo today — see audit/FINDINGS.md P0-6
+    npm run lint
     npm run build
     node scripts/check-repo-hygiene.mjs
 EOF

@@ -183,7 +183,7 @@ export default function ControlPanel() {
         <button
           onClick={toggleCutaway}
           aria-pressed={cutaway}
-          className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
+          className={`mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border px-3 text-sm transition-colors ${
             cutaway
               ? "border-accent bg-accent-light text-foreground"
               : "border-border bg-card text-muted-foreground hover:bg-muted"
@@ -208,7 +208,7 @@ export default function ControlPanel() {
                 key={p.label}
                 onClick={() => setRoom(p.w, p.l)}
                 aria-pressed={active}
-                className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                className={`flex min-h-11 items-center rounded-lg border px-3 text-left text-sm transition-colors ${
                   active
                     ? "border-accent bg-accent-light text-foreground"
                     : "border-border bg-card text-muted-foreground hover:bg-muted"
