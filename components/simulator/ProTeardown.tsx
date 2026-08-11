@@ -18,6 +18,7 @@ import {
 import { getRobot, type RobotSpec } from "@/lib/robots";
 import { useSim } from "@/lib/simStore";
 import RobotMesh from "@/components/simulator/RobotMesh";
+import { useCanvasActive } from "@/lib/useCanvasActive";
 
 /**
  * WebGL capability probe, mirroring components/simulator/Simulator.tsx.
@@ -135,6 +136,7 @@ export default function ProTeardown({
   const toggleCutaway = useSim((s) => s.toggleCutaway);
   const [autoRotate, setAutoRotate] = useState(true);
   const [webgl] = useState(hasWebGL);
+  const { ref: stageRef, active } = useCanvasActive<HTMLDivElement>();
 
   // Enter with a clean, assembled machine; leave the store tidy on exit so
   // navigating back to /simulator doesn't inherit teardown inspection state.
@@ -151,7 +153,7 @@ export default function ProTeardown({
   const parts = partsFor(robot.id);
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-[#0b0e14]">
+    <div ref={stageRef} className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-[#0b0e14]">
       {/* subtle studio vignette */}
       <div
         className="pointer-events-none absolute inset-0 z-[1]"
@@ -164,6 +166,7 @@ export default function ProTeardown({
       {webgl ? (
         <Canvas
           shadows
+          frameloop={active ? "always" : "demand"}
           dpr={[1, 1.75]}
           camera={{ position: [1.7, 1.15, 1.9], fov: 40 }}
           className="h-full w-full"

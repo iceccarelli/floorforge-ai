@@ -10,6 +10,7 @@ import MetricsHUD from "@/components/simulator/MetricsHUD";
 import LaunchProSimulator from "@/components/simulator/LaunchProSimulator";
 import { getRobot } from "@/lib/robots";
 import { useSim } from "@/lib/simStore";
+import { useCanvasActive } from "@/lib/useCanvasActive";
 import { Button } from "@/components/ui/button";
 
 function hasWebGL(): boolean {
@@ -26,6 +27,8 @@ export default function Simulator() {
   // Client-only component (loaded with ssr:false), so window is available
   // at first render — lazy-init instead of a setState-in-effect.
   const [webgl] = useState(hasWebGL);
+  // Stop burning frames when nobody is looking (audit/FINDINGS.md §6).
+  const { ref: stageRef, active } = useCanvasActive<HTMLDivElement>();
   const selectedId = useSim((s) => s.selectedId);
   const robot = getRobot(selectedId);
 
@@ -37,12 +40,13 @@ export default function Simulator() {
       </aside>
 
       {/* right: canvas + hud */}
-      <div className="relative order-1 min-h-[360px] overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-[#f1f5f9] to-[#e2e8f0] sm:min-h-[440px] lg:order-none">
+      <div ref={stageRef} className="relative order-1 min-h-[360px] overflow-hidden rounded-2xl border border-border bg-gradient-to-b from-[#f1f5f9] to-[#e2e8f0] sm:min-h-[440px] lg:order-none">
         {webgl ? (
           <>
             <MetricsHUD />
             <Canvas
               shadows
+              frameloop={active ? "always" : "demand"}
               dpr={[1, 1.75]}
               camera={{ position: [6, 6, 7], fov: 42 }}
               className="h-full w-full"

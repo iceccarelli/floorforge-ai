@@ -6,6 +6,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ChevronLeft, ChevronRight, X, ArrowUpRight, Cpu } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { prefersReducedMotion, scrollToElement } from "@/lib/scroll";
 import {
@@ -27,7 +28,7 @@ import {
 /*  Lightbox                                                           */
 /* ------------------------------------------------------------------ */
 
-function Lightbox({
+export function Lightbox({
   list,
   index,
   onIndexChange,
@@ -403,7 +404,7 @@ function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
 /*  Category gallery                                                   */
 /* ------------------------------------------------------------------ */
 
-function Gallery({
+export function Gallery({
   activeCat,
   onCat,
   onOpen,
@@ -417,16 +418,14 @@ function Gallery({
   const list = frames.map((f) => f.id);
 
   return (
-    <div className="mt-16">
+    <div className="mt-10">
+      {/* The eyebrow + heading that used to live here moved to the page's <h1>
+          in app/systems/page.tsx. Repeating them would be a duplicate heading
+          for the same content. */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-[3px] text-accent">
-            The full system library
-          </div>
-          <h3 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Every view, sorted by what the machine is doing.
-          </h3>
-        </div>
+        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+          Browse by platform
+        </h2>
         <div className="text-sm text-muted-foreground">
           {FRAMES.length} concept renders · {CATEGORIES.length} platforms
         </div>
@@ -522,8 +521,22 @@ function Gallery({
 /*  Section                                                            */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Homepage showcase — the featured rail only.
+ *
+ * WHAT CHANGED (audit/FINDINGS.md §6)
+ * -----------------------------------
+ * This section used to render the featured rail AND the full categorised
+ * library. Because the default category is "Field Sanding" (33 of the 78
+ * frames), the homepage mounted 43 <img> elements on first paint and
+ * transferred 899 KB of images before any scroll, rising to 1,277 KB after.
+ *
+ * The renders are the product's only evidence at this stage, so none were
+ * deleted. The full library moved to /systems, where it is a page in its own
+ * right — indexable, linkable, and reachable in one deliberate click instead of
+ * being paid for by every visitor who never scrolls that far.
+ */
 export default function ShowcaseCarousel() {
-  const [activeCat, setActiveCat] = useState<CatKey>("sand");
   const [box, setBox] = useState<{ list: string[]; idx: number } | null>(null);
 
   const openById = (id: string) => {
@@ -552,17 +565,28 @@ export default function ShowcaseCarousel() {
           <p className="mt-4 text-lg text-muted-foreground sm:text-xl">
             Concept renders of the Forge platforms operating independently on
             hardwood — sanding, edging, dust capture, finishing, and QA. Swipe
-            the featured rail, or open the full library below by platform.
+            the featured rail, or open the full library.
           </p>
         </div>
 
         <FeaturedRail onOpen={openById} />
 
-        <Gallery
-          activeCat={activeCat}
-          onCat={setActiveCat}
-          onOpen={(list, idx) => setBox({ list, idx })}
-        />
+        <div className="mt-10 flex flex-col items-start gap-4 rounded-2xl border border-border bg-muted p-6 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-base font-semibold text-foreground">
+              {FRAMES.length} concept renders across {CATEGORIES.length} platforms
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Field sanding, edge and perimeter, dust containment, finish
+              application, inspection and result.
+            </p>
+          </div>
+          <Button asChild variant="secondary" size="lg" className="shrink-0">
+            <Link href="/systems">
+              Open the full library <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
 
         <p className="mt-8 text-xs text-muted-foreground">
           Renders depict concept platforms; all figures are design targets, not

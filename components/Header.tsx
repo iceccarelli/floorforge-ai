@@ -10,7 +10,6 @@ import { authEnabled } from "@/lib/auth";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const navLinks = [
-  { href: "#showcase", label: "Systems" },
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How it Works" },
   { href: "#roi", label: "ROI" },
@@ -73,6 +72,12 @@ export default function Header() {
                 {link.label}
               </button>
             ))}
+            <Link
+              href="/systems"
+              className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+            >
+              Systems
+            </Link>
             <Link
               href="/simulator"
               className="inline-flex min-h-11 items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
@@ -162,6 +167,13 @@ export default function Header() {
                   {link.label}
                 </button>
               ))}
+              <Link
+                href="/systems"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+              >
+                Systems
+              </Link>
               <Link
                 href="/simulator"
                 onClick={() => setMobileMenuOpen(false)}

@@ -26,6 +26,10 @@ surface and would rather be described accurately than favourably.
   the planned workflow from site scan to sign-off, target segments, an
   interactive ROI model with its assumptions stated, indicative pricing, and the
   pilot waitlist.
+- [The Forge platforms](https://floorforge-ai.vercel.app/systems): the full
+  library of concept renders, sorted by what the machine is doing — field
+  sanding, edge and perimeter, dust containment, finish application, inspection
+  and result. Every image is a concept render, not a photograph of hardware.
 - [3D simulator](https://floorforge-ai.vercel.app/simulator): an interactive
   concept simulation. Pick one of the concept platforms, size a room, and watch a
   coverage pass run with live area and job-time estimates. A way to explore the

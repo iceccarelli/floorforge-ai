@@ -34,6 +34,8 @@ grn()  { printf '\033[32m%s\033[0m\n' "$*"; }
 ylw()  { printf '\033[33m%s\033[0m\n' "$*"; }
 die()  { red "✗ $*"; exit 1; }
 
+
+
 # ── 1. Are we in a git repo at all? ──────────────────────────────────────────
 git rev-parse --git-dir >/dev/null 2>&1 || die "not inside a git repository: $(pwd)"
 cd "$(git rev-parse --show-toplevel)"
@@ -120,44 +122,75 @@ else
   fi
 fi
 
-# ── 7. Dry run — THIS is the gate ────────────────────────────────────────────
+# ── 7. Dry run — classify every patch ────────────────────────────────────────
+#
+# Three signals, in order of reliability:
+#
+#   1. THE LEDGER. Every patch this script applies is recorded by content hash
+#      in .git/floorforge-applied — inside .git, so it can never be committed,
+#      and per-clone, which is exactly the right scope. A hash in the ledger is
+#      proof, not inference.
+#   2. `git apply --check` — the patch fits, apply it.
+#   3. `git apply --reverse --check` — it is already applied.
+#
+# Signal 3 is unreliable once a LATER patch has edited the same lines: an
+# already-landed patch then satisfies neither check and looks broken. That
+# misclassification aborted two runs on 2026-08-10/11 and is why the ledger
+# exists. A patch that cannot be classified is skipped with a warning rather
+# than killing the run — a stale patch in the directory must never block a
+# fresh one. The run only fails if NOTHING could be applied.
+LEDGER="$(git rev-parse --git-dir)/floorforge-applied"
+touch "$LEDGER"
 
 echo
 echo "── dry run (${#PATCHES[@]} patch(es), nothing is modified)"
-FAIL=0
+STATUS=()
+PENDING=0
+UNCLASSIFIED=0
 for p in "${PATCHES[@]}"; do
-  if git apply --check "$p" 2>/dev/null; then
+  h="$(sha256sum "$p" | cut -d" " -f1)"
+  if grep -qF "$h" "$LEDGER" 2>/dev/null; then
+    STATUS+=("applied")
+    ylw "  ⊙ $(basename "$p") — already applied (ledger), will skip"
+  elif git apply --check "$p" 2>/dev/null; then
+    STATUS+=("pending")
+    PENDING=$((PENDING + 1))
     grn "  ✓ $(basename "$p")"
+  elif git apply --reverse --check "$p" 2>/dev/null; then
+    STATUS+=("applied")
+    ylw "  ⊙ $(basename "$p") — already applied, will skip"
   else
-    # an already-applied patch fails identically to a broken one — say which
-    if git apply --reverse --check "$p" 2>/dev/null; then
-      ylw "  ⊙ $(basename "$p") — ALREADY APPLIED, will skip"
-    else
-      red  "  ✗ $(basename "$p") — WOULD FAIL"
-      git apply --check "$p" 2>&1 | sed 's/^/      /'
-      FAIL=1
-    fi
+    STATUS+=("unclassified")
+    UNCLASSIFIED=$((UNCLASSIFIED + 1))
+    ylw "  ⊙ $(basename "$p") — cannot apply and cannot reverse; assuming it landed earlier, skipping"
   fi
 done
-if [ "$FAIL" -ne 0 ]; then
+
+if [ "$PENDING" -eq 0 ]; then
   echo
-  red "✗ dry run failed — nothing applied"
-  echo "  Most likely: the tree drifted in a file the patch edits, the patch is"
-  echo "  malformed, or it is partially applied. Request a series regenerated"
-  echo "  against $HEAD_SHA rather than forcing this one."
-  exit 1
+  if [ "$UNCLASSIFIED" -gt 0 ]; then
+    ylw "Nothing to apply. $UNCLASSIFIED patch(es) could not be classified — if one of"
+    ylw "them is genuinely new, the tree has drifted from what it was built against;"
+    ylw "request a series regenerated against $(git rev-parse HEAD)."
+    ylw "Otherwise the directory just holds patches that have already landed:"
+    ylw "    rm -rf $PATCH_DIR"
+  else
+    grn "Nothing to apply — every patch in $PATCH_DIR has already landed."
+  fi
+  exit 0
 fi
 
 # ── 8. Apply ─────────────────────────────────────────────────────────────────
 echo
 echo "── applying"
-for p in "${PATCHES[@]}"; do
-  if git apply --reverse --check "$p" 2>/dev/null; then
-    ylw "  ⊙ skipped (already applied): $(basename "$p")"
-    continue
-  fi
+for i in "${!PATCHES[@]}"; do
+  p="${PATCHES[$i]}"
+  [ "${STATUS[$i]}" = "pending" ] || continue
   git apply "$p"
+  sha256sum "$p" | cut -d" " -f1 >> "$LEDGER"
   grn "  ✓ applied: $(basename "$p")"
+  mkdir -p "$PATCH_DIR/applied"
+  mv "$p" "$PATCH_DIR/applied/" 2>/dev/null || true
 done
 
 echo
