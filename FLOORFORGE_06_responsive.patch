@@ -1,0 +1,371 @@
+diff --git a/app/dashboard/page.tsx b/app/dashboard/page.tsx
+index 24cec4649b62..dc4d6af52c93 100644
+--- a/app/dashboard/page.tsx
++++ b/app/dashboard/page.tsx
+@@ -180,7 +180,7 @@ export default function FloorForgeDashboard() {
+                     
+                     <div className="flex items-center justify-between text-xs">
+                       <div>Current: <span className="font-medium">{job.currentGrit}</span></div>
+-                      <Button variant="ghost" size="sm" className="h-7 text-xs">View live telemetry</Button>
++                      <Button variant="ghost" size="sm" className="text-xs">View live telemetry</Button>
+                     </div>
+                   </div>
+                 </div>
+diff --git a/app/globals.css b/app/globals.css
+index 40a58e02d0cf..45b8d1787ae5 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -754,6 +754,15 @@ textarea:focus-visible,
+ .chat-launcher {
+   animation: chat-pulse-ring 2.4s var(--ease-quint) infinite;
+ }
++
++/* The launcher is fixed to the bottom-right of the viewport. On a notched
++   phone in portrait the home indicator sits exactly there, and in landscape
++   the rounded corner does — env(safe-area-inset-*) keeps it clear of both.
++   `max()` so it never sits closer than 24px on a device with no insets. */
++.chat-launcher-pos {
++  right: max(24px, env(safe-area-inset-right));
++  bottom: max(24px, env(safe-area-inset-bottom));
++}
+ .chat-launcher.chat-open,
+ .chat-launcher:hover {
+   animation: none;
+@@ -777,9 +786,12 @@ textarea:focus-visible,
+ .skip-link {
+   position: absolute;
+   left: 12px;
+-  top: -48px;
++  top: -56px;
+   z-index: 100;
+-  padding: 10px 16px;
++  display: inline-flex;
++  align-items: center;
++  min-height: var(--tap-min);
++  padding: 0 18px;
+   border-radius: var(--r-md);
+   background: var(--primary);
+   color: var(--primary-foreground);
+diff --git a/app/opengraph-image.tsx b/app/opengraph-image.tsx
+index 23afff2cf27f..f5f9eeb86214 100644
+--- a/app/opengraph-image.tsx
++++ b/app/opengraph-image.tsx
+@@ -20,11 +20,13 @@ import { ImageResponse } from "next/og";
+  * the first thing a prospect reads, and it should not be the one place the site
+  * overstates itself.
+  *
+- * Rendered at build time by next/og, so there is no runtime cost and no binary
+- * in the repo.
++ * Rendered at build time by next/og, so there is no per-request cost and no
++ * binary in the repo. Deliberately NOT `runtime = "edge"`: that opts the route
++ * out of static generation (next build says so out loud) and turns a constant
++ * image into a function invocation on every crawl. A social card is the most
++ * cacheable asset a site has.
+  */
+ 
+-export const runtime = "edge";
+ export const alt =
+   "FloorForge — an operating system for autonomous hardwood floor refinishing. In active development; pilot program forming.";
+ export const size = { width: 1200, height: 630 };
+diff --git a/app/pro-simulator/page.tsx b/app/pro-simulator/page.tsx
+index 60a9eb456e77..58b5c3c41b23 100644
+--- a/app/pro-simulator/page.tsx
++++ b/app/pro-simulator/page.tsx
+@@ -32,7 +32,7 @@ export default async function ProSimulatorPage({
+       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+         <Link
+           href="/simulator"
+-          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
++          className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+         >
+           <ArrowLeft className="h-4 w-4" /> Back to basic simulator
+         </Link>
+diff --git a/app/simulator/page.tsx b/app/simulator/page.tsx
+index eb2467603198..223e5b44259e 100644
+--- a/app/simulator/page.tsx
++++ b/app/simulator/page.tsx
+@@ -16,7 +16,7 @@ export default function SimulatorPage() {
+     <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+       <Link
+         href="/"
+-        className="mb-6 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
++        className="mb-6 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+       >
+         <ArrowLeft className="h-4 w-4" /> Back to home
+       </Link>
+diff --git a/components/Chatbot.tsx b/components/Chatbot.tsx
+index 34d19425f63b..6c6a5e21dc7f 100644
+--- a/components/Chatbot.tsx
++++ b/components/Chatbot.tsx
+@@ -94,7 +94,7 @@ export default function Chatbot() {
+     <>
+       <button
+         onClick={() => setIsOpen(!isOpen)}
+-        className={`chat-launcher ${isOpen ? "chat-open" : ""} fixed bottom-6 right-6 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-xl hover:bg-accent-hover transition-all active:scale-95`}
++        className={`chat-launcher ${isOpen ? "chat-open" : ""} chat-launcher-pos fixed z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-accent text-white shadow-xl hover:bg-accent-hover transition-all active:scale-95`}
+         aria-label={isOpen ? "Close FloorForge Assistant" : "Open FloorForge Assistant"}
+         aria-expanded={isOpen}
+         {...{ [CHATBOT_TRIGGER_ATTR]: "" }}
+diff --git a/components/Footer.tsx b/components/Footer.tsx
+index 7fbf8b225a71..134566fab2cd 100644
+--- a/components/Footer.tsx
++++ b/components/Footer.tsx
+@@ -53,23 +53,23 @@ export default function Footer() {
+           {/* Product */}
+           <div>
+             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Product</div>
+-            <ul className="space-y-2.5 text-sm text-white/80">
+-              <li><Link href="/#features" className="hover:text-white transition">Features</Link></li>
+-              <li><Link href="/simulator" className="hover:text-white transition">3D Simulator</Link></li>
+-              <li><Link href="/#how-it-works" className="hover:text-white transition">How it Works</Link></li>
+-              <li><Link href="/#roi" className="hover:text-white transition">ROI Model</Link></li>
+-              <li><Link href="/#pricing" className="hover:text-white transition">Planned Pricing</Link></li>
+-              <li><Link href="/dashboard" className="hover:text-white transition">Dashboard Preview</Link></li>
++            <ul className="space-y-0.5 text-sm text-white/80">
++              <li><Link href="/#features" className="inline-flex min-h-11 items-center hover:text-white transition">Features</Link></li>
++              <li><Link href="/simulator" className="inline-flex min-h-11 items-center hover:text-white transition">3D Simulator</Link></li>
++              <li><Link href="/#how-it-works" className="inline-flex min-h-11 items-center hover:text-white transition">How it Works</Link></li>
++              <li><Link href="/#roi" className="inline-flex min-h-11 items-center hover:text-white transition">ROI Model</Link></li>
++              <li><Link href="/#pricing" className="inline-flex min-h-11 items-center hover:text-white transition">Planned Pricing</Link></li>
++              <li><Link href="/dashboard" className="inline-flex min-h-11 items-center hover:text-white transition">Dashboard Preview</Link></li>
+             </ul>
+           </div>
+ 
+           {/* Pilot */}
+           <div>
+             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Pilot Program</div>
+-            <ul className="space-y-2.5 text-sm text-white/80">
+-              <li><Link href="/#waitlist" className="hover:text-white transition">Join the Waitlist</Link></li>
++            <ul className="space-y-0.5 text-sm text-white/80">
++              <li><Link href="/#waitlist" className="inline-flex min-h-11 items-center hover:text-white transition">Join the Waitlist</Link></li>
+               <li>
+-                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition">
++                <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex min-h-11 items-center hover:text-white transition">
+                   Contact Us
+                 </a>
+               </li>
+@@ -79,11 +79,11 @@ export default function Footer() {
+           {/* Connect */}
+           <div>
+             <div className="font-semibold mb-4 text-sm tracking-wider uppercase text-white/70">Connect</div>
+-            <ul className="space-y-2.5 text-sm text-white/80">
++            <ul className="space-y-0.5 text-sm text-white/80">
+               <li>
+                 <a
+                   href={`mailto:${CONTACT_EMAIL}`}
+-                  className="hover:text-white transition inline-flex items-center gap-2"
++                  className="inline-flex min-h-11 items-center gap-2 hover:text-white transition"
+                 >
+                   <Mail size={14} /> Email
+                 </a>
+@@ -96,7 +96,7 @@ export default function Footer() {
+                       href={social.href}
+                       target="_blank"
+                       rel="noopener noreferrer"
+-                      className="hover:text-white transition inline-flex items-center gap-2"
++                      className="inline-flex min-h-11 items-center gap-2 hover:text-white transition"
+                     >
+                       <Icon size={14} /> {social.label}
+                     </a>
+@@ -109,7 +109,7 @@ export default function Footer() {
+ 
+         {/* Social icon bar + legal strip — AWS-style bottom band */}
+         <div className="mt-14 pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+-          <div className="flex items-center gap-5">
++          <div className="flex items-center gap-2">
+             {activeSocials.map((social) => {
+               const Icon = social.icon;
+               return (
+@@ -118,7 +118,7 @@ export default function Footer() {
+                   href={social.href}
+                   target="_blank"
+                   rel="noopener noreferrer"
+-                  className="text-white/50 hover:text-white transition-colors p-1"
++                  className="inline-flex min-h-11 min-w-11 items-center justify-center text-white/50 hover:text-white transition-colors"
+                   aria-label={social.label}
+                 >
+                   <Icon size={18} />
+diff --git a/components/Header.tsx b/components/Header.tsx
+index 9bf6a75080f0..f2652f709118 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -52,7 +52,7 @@ export default function Header() {
+       <div className="mx-auto max-w-7xl px-6">
+         <div className="flex h-16 md:h-20 items-center justify-between">
+           {/* Logo */}
+-          <Link href="/" className="flex items-center gap-3 group">
++          <Link href="/" className="flex min-h-11 items-center gap-3 group">
+             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
+               <span className="text-xl font-bold tracking-[-1.5px]">FF</span>
+             </div>
+@@ -68,14 +68,14 @@ export default function Header() {
+               <button
+                 key={link.href}
+                 onClick={() => goToSection(link.href)}
+-                className="text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
++                className="inline-flex min-h-11 items-center text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+               >
+                 {link.label}
+               </button>
+             ))}
+             <Link
+               href="/simulator"
+-              className="inline-flex items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[-2px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
++              className="inline-flex min-h-11 items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+             >
+               Simulator
+               <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+@@ -88,7 +88,7 @@ export default function Header() {
+           <div className="hidden lg:flex items-center gap-3">
+             <a
+               href="mailto:vince.ceccarelli@gmail.com"
+-              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
++              className="inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
+             >
+               Contact us
+             </a>
+@@ -131,7 +131,7 @@ export default function Header() {
+           {/* Mobile Menu Button */}
+           <button
+             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+-            className="lg:hidden p-2 text-muted-foreground hover:text-foreground"
++            className="lg:hidden inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground hover:text-foreground"
+             aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+             aria-expanded={mobileMenuOpen}
+             aria-controls="mobile-menu"
+@@ -157,7 +157,7 @@ export default function Header() {
+                 <button
+                   key={link.href}
+                   onClick={() => goToSection(link.href)}
+-                  className="text-left py-2 text-muted-foreground hover:text-foreground font-medium"
++                  className="flex min-h-11 items-center text-left text-muted-foreground hover:text-foreground font-medium"
+                 >
+                   {link.label}
+                 </button>
+@@ -165,7 +165,7 @@ export default function Header() {
+               <Link
+                 href="/simulator"
+                 onClick={() => setMobileMenuOpen(false)}
+-                className="py-2 text-left font-medium text-accent hover:text-accent-hover"
++                className="flex min-h-11 items-center text-left font-medium text-accent hover:text-accent-hover"
+               >
+                 Simulator (3D)
+               </Link>
+diff --git a/components/simulator/ControlPanel.tsx b/components/simulator/ControlPanel.tsx
+index 8521db8df202..a5c31e62305f 100644
+--- a/components/simulator/ControlPanel.tsx
++++ b/components/simulator/ControlPanel.tsx
+@@ -183,7 +183,7 @@ export default function ControlPanel() {
+         <button
+           onClick={toggleCutaway}
+           aria-pressed={cutaway}
+-          className={`mt-2 w-full rounded-lg border px-3 py-2 text-sm transition-colors ${
++          className={`mt-2 flex min-h-11 w-full items-center justify-center rounded-lg border px-3 text-sm transition-colors ${
+             cutaway
+               ? "border-accent bg-accent-light text-foreground"
+               : "border-border bg-card text-muted-foreground hover:bg-muted"
+@@ -208,7 +208,7 @@ export default function ControlPanel() {
+                 key={p.label}
+                 onClick={() => setRoom(p.w, p.l)}
+                 aria-pressed={active}
+-                className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
++                className={`flex min-h-11 items-center rounded-lg border px-3 text-left text-sm transition-colors ${
+                   active
+                     ? "border-accent bg-accent-light text-foreground"
+                     : "border-border bg-card text-muted-foreground hover:bg-muted"
+diff --git a/components/simulator/ProTeardown.tsx b/components/simulator/ProTeardown.tsx
+index 7cc9dde640e4..81dea33adc4b 100644
+--- a/components/simulator/ProTeardown.tsx
++++ b/components/simulator/ProTeardown.tsx
+@@ -255,7 +255,7 @@ export default function ProTeardown({
+               step={0.01}
+               value={exploded}
+               onChange={(e) => setExploded(Number(e.target.value))}
+-              className="w-full accent-[var(--accent)]"
++              className="range-control"
+             />
+           </div>
+ 
+@@ -264,7 +264,7 @@ export default function ProTeardown({
+             <button
+               onClick={toggleCutaway}
+               aria-pressed={cutaway}
+-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
++              className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+                 cutaway
+                   ? "border-accent bg-accent text-white"
+                   : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+@@ -275,7 +275,7 @@ export default function ProTeardown({
+             <button
+               onClick={() => setAutoRotate((v) => !v)}
+               aria-pressed={autoRotate}
+-              className={`flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
++              className={`flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors ${
+                 autoRotate
+                   ? "border-accent bg-accent text-white"
+                   : "border-white/15 bg-white/5 text-white/80 hover:bg-white/10"
+@@ -285,7 +285,7 @@ export default function ProTeardown({
+             </button>
+             <button
+               onClick={reset}
+-              className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-xs font-medium text-white/80 transition-colors hover:bg-white/10"
++              className="flex min-h-11 items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 text-xs font-medium text-white/80 transition-colors hover:bg-white/10"
+             >
+               <RefreshCw className="h-3.5 w-3.5" /> Reset
+             </button>
+diff --git a/components/ui/button.tsx b/components/ui/button.tsx
+index 846bd5003ed7..1da7ed002e3f 100644
+--- a/components/ui/button.tsx
++++ b/components/ui/button.tsx
+@@ -15,10 +15,13 @@ const buttonVariants = cva(
+         outline: "border border-border-strong bg-transparent hover:bg-muted",
+       },
+       size: {
++        // Every size meets WCAG 2.2 AA 2.5.8 (44x44). `sm` and `icon` were
++        // 36px and 40px — a primitive that ships an illegal size guarantees
++        // illegal targets wherever it is used (audit/FINDINGS.md P1-5).
+         default: "h-11 px-6 py-2.5",
+-        sm: "h-9 px-4 text-xs",
++        sm: "h-11 px-4 text-xs",
+         lg: "h-12 px-8 text-base",
+-        icon: "h-10 w-10",
++        icon: "h-11 w-11",
+       },
+     },
+     defaultVariants: {
+diff --git a/scripts/apply-patch-series.sh b/scripts/apply-patch-series.sh
+index 0668562dd476..09eeeb54b445 100755
+--- a/scripts/apply-patch-series.sh
++++ b/scripts/apply-patch-series.sh
+@@ -167,7 +167,7 @@ grn "Applied. Now verify before trusting any of it:"
+ cat <<'EOF'
+     npm ci
+     npx tsc --noEmit
+-    npm run lint          # exits 1 on this repo today — see audit/FINDINGS.md P0-6
++    npm run lint
+     npm run build
+     node scripts/check-repo-hygiene.mjs
+ EOF
+diff --git a/scripts/hooks/pre-push b/scripts/hooks/pre-push
+index 2853843f6997..c9df5af5b536 100755
+--- a/scripts/hooks/pre-push
++++ b/scripts/hooks/pre-push
+@@ -22,6 +22,18 @@ node_modules/.bin/tsc --noEmit
+ echo "  running lint…"
+ npm run lint
+ 
++# Next 16 takes a lock at .next/lock for the duration of a build and removes it
++# on clean exit. A build that was interrupted — Ctrl-C, a killed background job,
++# a crashed terminal — leaves it behind, and the next build fails with
++# "Another next build process is already running". Surfacing that as a PUSH
++# failure is how guards teach people to reach for --no-verify, so handle it:
++# if no next process is actually running, the lock is stale. Say so, clear it,
++# continue.
++if [ -e .next/lock ] && ! pgrep -f "next build" >/dev/null 2>&1; then
++  echo "  clearing a stale .next/lock (no build is running)"
++  rm -f .next/lock
++fi
++
+ echo "  running build…"
+ npm run build --silent >/dev/null
+ 
