@@ -7,6 +7,7 @@ import {
   ArrowLeft, Clock, TrendingUp,
   Zap, BarChart3
 } from "lucide-react";
+import { shareOfOshaPel, OSHA_NUISANCE_DUST_PEL_UGM3 } from "@/lib/product";
 
 interface Job {
   id: string;
@@ -116,7 +117,15 @@ export default function FloorForgeDashboard() {
               </div>
               <BarChart3 className="h-8 w-8 text-accent" />
             </div>
-            <div className="text-xs text-success mt-3">Well below OSHA limit</div>
+            {/* Was "Well below OSHA limit" beside a sibling tile claiming "87%
+                below OSHA action level". OSHA publishes no action level for
+                wood dust — it falls under the generic nuisance-dust PEL of
+                15 mg/m³ — and 87% matches no published limit
+                (audit/PRODUCT_TRUTH.md T0-3). The correct figure is stronger
+                than the wrong one was. */}
+            <div className="text-xs text-success mt-3">
+              {shareOfOshaPel(11.4)} of the OSHA nuisance-dust PEL
+            </div>
           </div>
           <div className="dashboard-card p-5">
             <div className="flex justify-between items-start">
@@ -204,7 +213,12 @@ export default function FloorForgeDashboard() {
                   <Button variant="accent" className="h-auto w-full py-3 text-center leading-snug md:w-auto">
                     Start walls &amp; ceilings quote in DryForge
                   </Button>
-                  <div className="text-xs text-center mt-2 text-foreground">Opens in new tab • Shared job context</div>
+                  {/* Was "Opens in new tab • Shared job context", which asserts
+                      a working deep-link into a product that has no definition
+                      in any document (audit/PRODUCT_TRUTH.md T2-2). */}
+                  <div className="text-xs text-center mt-2 text-foreground">
+                    DryForge is a concept for a future Forge product — not available today.
+                  </div>
                 </div>
               </div>
             </div>
@@ -224,7 +238,10 @@ export default function FloorForgeDashboard() {
               <div>
                 <div className="text-muted-foreground mb-2">Mean Dust Reading (active sanding)</div>
                 <div className="text-6xl font-semibold tabular-nums tracking-tighter">12.1</div>
-                <div className="text-xs">µg/m³ — 87% below OSHA action level</div>
+                <div className="text-xs">
+                  µg/m³ — {shareOfOshaPel(12.1)} of the {OSHA_NUISANCE_DUST_PEL_UGM3 / 1000} mg/m³ OSHA
+                  nuisance-dust PEL (8-hour TWA, total dust)
+                </div>
               </div>
               <div>
                 <div className="text-muted-foreground mb-2">Finish Uniformity Score</div>
@@ -257,7 +274,11 @@ export default function FloorForgeDashboard() {
                   {["FF-03A", "FF-07B", "FF-12C", "FF-04A"].map((id, i) => (
                     <tr key={i}>
                       <td className="py-4 pr-4 font-mono text-xs">{id}</td>
-                      <td className="py-4 pr-4">Sander Pro v4.2 • Online</td>
+                      {/* Was "Sander Pro v4.2" — a sixth name for the sanding
+                          platform, and a version number asserting that v1
+                          through v4.1 shipped and were superseded. The machine
+                          has not been built (audit/PRODUCT_TRUTH.md T2-2). */}
+                      <td className="py-4 pr-4">ForgeSand D1 • Online</td>
                       <td className="py-4 pr-4 text-muted-foreground">{i === 0 ? "RF-2847" : i === 1 ? "RF-2849" : "Standby"}</td>
                       <td className="py-4 pr-4 tabular-nums">847h</td>
                       <td className="py-4 text-right"><span className="inline-block px-3 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700">98%</span></td>

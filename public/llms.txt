@@ -40,11 +40,13 @@ surface and would rather be described accurately than favourably.
 Five platforms appear across the site. All figures are design targets.
 
 - **ForgeSand D1** — autonomous multi-grit field sanding. 0.50 m sanding width,
-  36 → 180 grit sequence, cyclonic + HEPA dust capture (98% target).
+  36 → 80 → 120 grit sequence, cyclonic + HEPA dust capture (98% target).
 - **ForgeEdge E1** — semi-autonomous edging and perimeter work. 0.14 m working
   width, LiDAR + vision edge following, human-oversight mode.
 - **ForgeCoat C1** — finish application. 0.60 m working width, ±5% film build
   (target), T-bar and spray modes.
+- **ForgeLay L1** — plank placement gantry. 0.45 m row pitch, vision-indexed
+  alignment, nail / staple fastening.
 - **ForgeScan S1** — inspection and QA. 0.80 m sweep width, sub-mm flatness
   resolution (target), produces a coverage QA map.
 - Dust containment is handled at the point of contact on the D1 rather than as a

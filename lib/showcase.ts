@@ -36,8 +36,8 @@ export interface Frame {
 export const CATEGORIES: ShowcaseCategory[] = [
   { key: "sand", label: "Field Sanding", platform: "ForgeSand D1", eyebrow: "Autonomous multi-grit sanding",
     blurb: "The flagship platform runs a full boustrophedon field pass on its own — load-sensing planetary drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so no witness lines are left where lanes meet.",
-    specs: [{ label: "Sanding width", value: "0.50 m" }, { label: "Grit sequence", value: "36 → 180" }, { label: "Dust capture", value: "98% HEPA (target)" }, { label: "Coverage", value: "~55 m²/h" }],
-    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"] },
+    specs: [{ label: "Sanding width", value: "0.50 m" }, { label: "Grit sequence", value: "36 → 80 → 120" }, { label: "Dust capture", value: "98% HEPA (target)" }, { label: "Coverage", value: "~55 m²/h" }],
+    sequence: ["36 · strip", "80 · level", "120 · finish"] },
   { key: "edge", label: "Edge & Perimeter", platform: "ForgeEdge E1", eyebrow: "Semi-autonomous edging",
     blurb: "Where the drum can't reach, the E1 hugs baseboards, thresholds and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs with a human-oversight mode for complex perimeters, cutting the hand-scraping that eats the schedule.",
     specs: [{ label: "Working width", value: "0.14 m" }, { label: "Edge follow", value: "LiDAR + vision" }, { label: "Mode", value: "human-oversight" }, { label: "Coverage", value: "~18 m²/h" }] },

@@ -40,7 +40,7 @@ function partsFor(id: string): { label: string; note: string }[] {
   switch (id) {
     case "sand":
       return [
-        { label: "Planetary drum", note: "ribbed abrasive · 36→120 grit" },
+        { label: "Planetary drum", note: "ribbed abrasive · 36→80→120 grit" },
         { label: "Brushless motor + rotor", note: "revealed in cutaway" },
         { label: "Reduction gear pair", note: "meshing spur gears" },
         { label: "Dust shroud + hose", note: "routes to HEPA canister" },

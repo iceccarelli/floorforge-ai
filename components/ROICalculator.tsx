@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Calculator, TrendingUp, Clock, Users, Award, ArrowRight } from "lucide-react";
 import { scrollToElement } from "@/lib/scroll";
 import { openChatbot } from "@/lib/chatbot";
+import {
+  LABOR_TIME_REDUCTION_PCT,
+  JOB_TYPE_ADJUSTMENT_PP,
+  BLENDED_LABOR_RATE_USD,
+  SANDING_SQFT_PER_ROBOT_DAY,
+  GRIT_SEQUENCE,
+} from "@/lib/product";
 
 interface ROIInputs {
   sqft: number;
@@ -21,26 +28,37 @@ export default function ROICalculator() {
 
   const results = useMemo(() => {
     const { sqft, manualHours, jobType } = inputs;
-    
-    const complexityMultiplier = jobType === "commercial" ? 1.15 : 0.92;
-    const baseRobotEfficiency = 0.38; // 62% time reduction baseline
-    
-    const adjustedEfficiency = baseRobotEfficiency * complexityMultiplier;
-    const robotHours = Math.round(manualHours * adjustedEfficiency);
+
+    // Percentage points, not a multiplier, so every step is displayable.
+    //
+    // The old model multiplied retained time by 1.15 / 0.92 against a 0.38
+    // baseline. Two defects, both in audit/PRODUCT_TRUTH.md T0-1: the
+    // residential path displayed 64-67%, above the 60% figure
+    // PRODUCT_SERVICE_DEFINITION.md:276 names as a claim that must not be made;
+    // and the stated "62% baseline" was a number the tool could never actually
+    // display, which is a strange thing for a calculator that sells itself on
+    // transparency. 50% is now a ceiling — no input produces more.
+    const adjustmentPp = JOB_TYPE_ADJUSTMENT_PP[jobType];
+    const timeSavedPercent = LABOR_TIME_REDUCTION_PCT + adjustmentPp;
+
+    const robotHours = Math.round(manualHours * (1 - timeSavedPercent / 100));
     const timeSavedHours = manualHours - robotHours;
-    const timeSavedPercent = Math.round((timeSavedHours / manualHours) * 100);
-    
-    // Robot requirement: ~2200 sqft per robot per day for full multi-grit + finish
-    const robotsRecommended = Math.max(1, Math.ceil(sqft / 2200));
-    
-    // Economics
-    const blendedLaborRate = 78; // realistic crew blended
-    const laborSaved = Math.round(timeSavedHours * blendedLaborRate);
-    
+
+    // Derived in lib/product.ts from the simulator's own coverage rate, so the
+    // number quoted here and the number a visitor watches run on /simulator are
+    // the same number. Sanding passes only — finish coats are additional.
+    const robotsRecommended = Math.max(
+      1,
+      Math.ceil(sqft / SANDING_SQFT_PER_ROBOT_DAY)
+    );
+
+    const laborSaved = Math.round(timeSavedHours * BLENDED_LABOR_RATE_USD);
+
     return {
       robotHours,
       timeSavedHours,
       timeSavedPercent,
+      adjustmentPp,
       robotsRecommended,
       laborSaved,
       jobTypeLabel: jobType === "commercial" ? "Commercial" : "Residential",
@@ -173,6 +191,14 @@ export default function ROICalculator() {
                 </div>
                 <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.timeSavedPercent}<span className="text-3xl align-super">%</span></div>
                 <div className="text-sm text-white/60 mt-1">{results.timeSavedHours} hours per job</div>
+                {/* The arithmetic, on screen. A transparent model should be one
+                    you can check without reading the source. */}
+                <div className="text-xs text-white/60 mt-1 tabular-nums">
+                  {LABOR_TIME_REDUCTION_PCT}% baseline
+                  {results.adjustmentPp !== 0 && (
+                    <> {results.adjustmentPp > 0 ? "+" : "−"}{Math.abs(results.adjustmentPp)} pts {results.jobTypeLabel.toLowerCase()}</>
+                  )}
+                </div>
               </div>
 
               <div className="roi-result">
@@ -201,7 +227,7 @@ export default function ROICalculator() {
             </div>
 
             <div id="roi-assumptions" className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
-              <span className="font-medium text-white/80">Model assumptions:</span> $78/hr blended labor rate; automation efficiency baseline of 62% time reduction adjusted by job type; ~2,200 sqft per robot per day throughput target for {results.jobTypeLabel.toLowerCase()} work. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
+              <span className="font-medium text-white/80">Model assumptions:</span> ${BLENDED_LABOR_RATE_USD}/hr blended labor rate; a {LABOR_TIME_REDUCTION_PCT}% labor time-reduction baseline{results.adjustmentPp !== 0 ? ` adjusted by ${Math.abs(results.adjustmentPp)} points for ${results.jobTypeLabel.toLowerCase()} complexity` : ""}, giving {results.timeSavedPercent}%; and {SANDING_SQFT_PER_ROBOT_DAY.toLocaleString()} sqft per robot per 8-hour day across a {GRIT_SEQUENCE.join("→")} grit sequence — the same coverage rate the 3D simulator runs, sanding passes only, finish coats additional. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">

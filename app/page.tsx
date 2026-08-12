@@ -13,6 +13,7 @@ import Reveal from "@/components/Reveal";
 import ShowcaseCarousel from "@/components/ShowcaseCarousel";
 import Link from "next/link";
 import { ROBOTS } from "@/lib/robots";
+import { HARDWARE_UNIT_COST_LABEL } from "@/lib/product";
 import { scrollToElement } from "@/lib/scroll";
 import { openChatbot } from "@/lib/chatbot";
 
@@ -23,7 +24,7 @@ const features = [
     icon: Zap,
     title: "Autonomous Multi-Grit Sanding",
     description:
-      "Designed around real-time load sensing and species detection, executing 36→180 grit sequences with consistent pressure and pass overlap — the same cut, every pass, every job.",
+      "Designed around real-time load sensing and species detection, executing the 36→80→120 grit sequence with consistent pressure and pass overlap — the same cut, every pass, every job.",
   },
   {
     icon: Target,
@@ -416,7 +417,26 @@ export default function FloorForgeLanding() {
             </div>
           </div>
 
-          <p className="text-center text-xs text-muted-foreground mt-8">
+          {/* The table used to show only the monthly subscription, while the
+              product definition describes the post-pilot model as hardware sale
+              PLUS subscription (PRODUCT_SERVICE_DEFINITION.md:298-299). A
+              contractor reading "$799/mo" would not have budgeted for the
+              machine, and would find out during the sales call — the most
+              expensive possible moment (audit/PRODUCT_TRUTH.md T1-3). */}
+          <div className="mt-8 mx-auto max-w-2xl rounded-xl border border-border-strong bg-muted px-5 py-4 text-center">
+            <div className="text-xs font-semibold tracking-wider text-foreground">
+              HARDWARE IS PRICED SEPARATELY
+            </div>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Subscription tiers above cover the software, fleet dashboard and support.
+              Robots are an indicative <strong className="text-foreground font-semibold">{HARDWARE_UNIT_COST_LABEL} per unit</strong>,
+              not yet locked — unit economics depend on manufacturing quotes the pilot
+              program is designed to produce. Pilot participants receive a loaner unit
+              at no hardware cost.
+            </p>
+          </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-6">
             Pilot participants receive preferential launch pricing.
           </p>
         </div>

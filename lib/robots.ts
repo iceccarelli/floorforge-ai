@@ -89,7 +89,7 @@ export const ROBOTS: RobotSpec[] = [
     speedMps: 0.25,
     coverageM2PerHour: 55,
     pattern: "boustrophedon",
-    toolLabel: "Planetary drum \u00b7 36\u2192180 grit",
+    toolLabel: "Planetary drum \u00b7 36\u219280\u2192120 grit",
     emitsDust: true,
     passes: [
       { label: "36 grit \u00b7 strip old finish", tag: "36", leaves: "#c9b083" },
@@ -98,7 +98,7 @@ export const ROBOTS: RobotSpec[] = [
     ],
     chips: [
       { label: "Working width", value: "0.50 m" },
-      { label: "Grit range", value: "36 \u2192 180" },
+      { label: "Grit sequence", value: "36 \u2192 80 \u2192 120" },
       { label: "Dust capture (target)", value: "98% HEPA" },
       { label: "Coverage", value: "~55 m\u00b2/h" },
     ],
