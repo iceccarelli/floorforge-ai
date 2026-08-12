@@ -159,7 +159,7 @@ interface Job {
   grit_sequence?: string[];        // ["36", "80", "120"] for sanding jobs
 
   // Machines & resources
-  robot_id: string;                // "FF-03A" (Sander D1, Edger, etc.)
+  robot_id: string;                // "FF-03A" (ForgeSand D1, ForgeEdge E1, etc.)
   robot_type?: string;             // Redundant; helps with queries
   operator_ids?: string[];         // Humans present during job
   estimated_duration_hours?: number;
@@ -544,7 +544,7 @@ GET    /api/analytics/robots           Fleet health dashboard
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  Hardware (Robots in Field)                                     │
-│  └─→ Sander D1, Edger E1, Coater C1, etc.                       │
+│  └─→ ForgeSand D1, ForgeEdge E1, ForgeCoat C1, etc.                       │
 │      └─→ Emit TelemetryEvents (dust_reading, pass_completed)    │
 │          └─→ POST /api/telemetry (batch, every 5–10s)           │
 │              └─→ Stored in Supabase telemetry_events            │

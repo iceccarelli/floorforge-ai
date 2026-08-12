@@ -136,7 +136,7 @@ Content-Type: application/json
 {
   "status": "qualified",
   "status_reason": null,
-  "internal_notes": "Perfect fit. Willing to test Sander D1.",
+  "internal_notes": "Perfect fit. Willing to test ForgeSand D1.",
   "contacted_at": "2026-08-03T19:35:00Z"
 }
 ```
@@ -170,7 +170,7 @@ Content-Type: application/json
   "sqm": 465,
   "grit_sequence": ["36", "80", "120"],
   "robot_id": "FF-S001",
-  "robot_type": "Sander D1",
+  "robot_type": "ForgeSand D1",
   "operator_ids": ["user-uuid-1", "user-uuid-2"],
   "estimated_duration_hours": 8,
   "status": "draft"

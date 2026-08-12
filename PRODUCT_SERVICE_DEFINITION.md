@@ -15,9 +15,42 @@ The first **pilotable offering is a three-part service:**
 
 1. **Interactive Simulation & ROI Modeling** – Available immediately, free/open to contractors
 2. **Pilot Qualification & Onboarding** – Structured intake for 3–5 early contractors (weeks 1–2)
-3. **Sander D1 Hardware Pilot** – First physical unit with live telemetry, dust logging, and quality reporting (weeks 3–12)
+3. **ForgeSand D1 Hardware Pilot** – First physical unit with live telemetry, dust logging, and quality reporting (weeks 3–12)
 
 No claims are made about performance, timeline, or cost beyond what is already in active development or field-tested.
+
+---
+
+## Platform naming — canonical
+
+**These are the only names.** Marketing copy, API examples, firmware documentation,
+roadmap line items and support conversations all use the same string. A pilot customer
+who opens a ticket about "my ForgeCoat C1" must land on a machine every one of these
+documents recognises.
+
+| Canonical name | Codename | `RobotPlatform` code | Role | Superseded names — do not use |
+|---|---|---|---|---|
+| **ForgeSand D1** | `D1` | `sand` | Autonomous multi-grit field sanding | Sander D1, Sander Pro |
+| **ForgeEdge E1** | `E1` | `edge` | Semi-autonomous edging and perimeter work | Edger E1, Edger D1 |
+| **ForgeCoat C1** | `C1` | `coat` | Finish application | Finisher F1, Finish F1, Finisher D1, Coater C1 |
+| **ForgeLay L1** | `L1` | `lay` | Plank placement gantry | Plank Layer L1, Plank Layer (L1) |
+| **ForgeScan S1** | `S1` | `scan` | Inspection, flatness and coverage QA | Inspector I1, Inspector (I1) |
+
+Before this table these documents used a second vocabulary that shared **no platform name
+at all** with the website, and two of the five differed in the codename letter itself —
+`Finisher F1` against `ForgeCoat C1`, `Inspector I1` against `ForgeScan S1`. The site's
+names won because `Forge*` is a system and `Sander` is a description
+(`audit/PRODUCT_TRUTH.md` T1-1).
+
+The `RobotPlatform` codes were already identical on both sides (`lib/types.ts:258` and
+`SHARED_INTERFACE_NOTES.md:387`); only the human-readable layer had drifted.
+
+> **Open — robot ID prefixes.** `lib/db/client.ts:357-363` maps `scan` to `FF-X`, which
+> exists only because `FF-S` was already taken by `sand`. Under the codename letters
+> there is no collision: `FF-D`, `FF-E`, `FF-C`, `FF-L`, `FF-S`. Switching would flip the
+> meaning of `FF-S` from sander to scanner, so it is **not** done here — every example in
+> `API_REFERENCE.md` and the `FF-S[0-9]{3}` regex at `SOFTWARE_HARDWARE_CONTRACT.md:100`
+> assume the current meaning. Decide before the first device ships a serial number.
 
 ---
 
@@ -25,13 +58,13 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 ### 1. Interactive 3D Robot Simulators
 
-**What it is:** Five fully interactive, browser-based simulations of robot platforms: Sander D1, Edger E1, Finisher F1, Plank Layer L1, Inspector I1.
+**What it is:** Five fully interactive, browser-based simulations of robot platforms: ForgeSand D1, ForgeEdge E1, ForgeCoat C1, ForgeLay L1, ForgeScan S1.
 
 **Available now:** ✅ Live at floorforge.ai/simulator and /pro-simulator
 
 **Features:**
 - 3D floor geometry with interactive controls (dimensions, wood type, damage patterns)
-- Real-time grit sequencing visualization (36 → 80 → 120 progression on Sander D1)
+- Real-time grit sequencing visualization (36 → 80 → 120 progression on ForgeSand D1)
 - Coverage heatmaps showing sanded areas and gaps
 - Dust capture modeling (aspirational, not validated)
 - Performance metrics display (time, pressure, temperature)
@@ -97,7 +130,7 @@ No claims are made about performance, timeline, or cost beyond what is already i
 - Step 1: Web form (floorforge.ai/#waitlist) – Name, email, company, monthly sqft, robot interests
 - Step 2: Qualification call (FloorForge team) – Assess operation size, safety readiness, data sharing consent
 - Step 3: Onboarding kit – Pilot T&Cs, hardware expectations, dashboard access, support contact info
-- Step 4: Hardware assignment – Assign Sander D1 unit and telemetry credentials
+- Step 4: Hardware assignment – Assign ForgeSand D1 unit and telemetry credentials
 
 **What qualifies a pilot customer:**
 - 2,000–10,000 sqft/month typical workload (or confirmed willingness to participate)
@@ -152,7 +185,7 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 ## Part B: Hardware-Dependent Services (Prototype & Field Validation Required)
 
-### 1. Autonomous Sanding — Sander D1 Unit
+### 1. Autonomous Sanding — ForgeSand D1 Unit
 
 **What it is:** A wheeled robot platform that executes a multi-grit sanding sequence on hardwood floors.
 
@@ -187,11 +220,11 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 **Customer value:** First hands-on validation of autonomous sanding; direct feedback on design priorities.
 
-**Included in pilot package:** 1 Sander D1 unit per pilot site, live telemetry, weekly support calls
+**Included in pilot package:** 1 ForgeSand D1 unit per pilot site, live telemetry, weekly support calls
 
 ---
 
-### 2. Autonomous Edging — Edger E1 Unit (Post-Sanding)
+### 2. Autonomous Edging — ForgeEdge E1 Unit (Post-Sanding)
 
 **What it is:** A robot that edges (sands along walls and furniture edges) after the main sanding pass.
 
@@ -208,7 +241,7 @@ No claims are made about performance, timeline, or cost beyond what is already i
 - Adds complexity (separate unit, logistics, integration)
 - Design requires contact sensors (riskier; more development needed)
 
-**Timeline:** Prototype Q4 2026 if Sander D1 validates; field pilot Q1 2027
+**Timeline:** Prototype Q4 2026 if ForgeSand D1 validates; field pilot Q1 2027
 
 **Customer value:** Complete autonomous sanding/edging chain; eliminates manual edge work (typically 20% of labor time).
 
@@ -216,7 +249,7 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 ---
 
-### 3. Autonomous Finishing — Finisher F1 Unit (Post-Sanding)
+### 3. Autonomous Finishing — ForgeCoat C1 Unit (Post-Sanding)
 
 **What it is:** A robot that applies finish (polyurethane, water-based, etc.) using spray or roll techniques.
 
@@ -243,7 +276,7 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 ### 4. Plank Placement & Inspection (Future Phases)
 
-**What it is:** Plank Layer (L1) positions replacement planks; Inspector (I1) scans for coverage gaps and defects.
+**What it is:** ForgeLay L1 positions replacement planks; ForgeScan S1 scans for coverage gaps and defects.
 
 **Current status:** Design concepts only; no hardware or timeline
 
@@ -285,7 +318,7 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 | Service | Pilot Cost | Normal Cost (TBD) | Notes |
 |---------|-----------|-------------------|-------|
-| **Sander D1 unit** | Free (2–3 month loan) | ~$15–25K (indicative) | Contractor owns logistics, consumables (sandpaper, dust bags) |
+| **ForgeSand D1 unit** | Free (2–3 month loan) | ~$15–25K (indicative) | Contractor owns logistics, consumables (sandpaper, dust bags) |
 | **Dashboard access** | Free | Free (SaaS) | Included with robot; multi-job, multi-user seats |
 | **Telemetry ingestion** | Free | Free (first 100 jobs/month) | Excess usage $ TBD post-pilot |
 | **Support & calls** | Weekly FloorForge calls | TBD (phone support tier) | Direct engineer access during pilot |
@@ -403,14 +436,14 @@ No claims are made about performance, timeline, or cost beyond what is already i
 
 ### Weeks 2–3
 
-- Hardware breadboard (Sander D1) in assembly
+- Hardware breadboard (ForgeSand D1) in assembly
 - First 3–5 pilot contractors qualified and onboarded
 - Dashboard users created; credentials sent
 - First test jobs logged to database
 
 ### Weeks 4–6
 
-- Sander D1 prototype functional (manual grit change, basic telemetry)
+- ForgeSand D1 prototype functional (manual grit change, basic telemetry)
 - First pilot contractor receives unit
 - Weekly feedback calls begin
 - Telemetry pipeline validated
@@ -465,7 +498,7 @@ See **PRODUCT_SERVICE_ROADMAP.md** for ranked engineering priorities, hardware m
 
 **Design target:** Aspirational specification; not yet measured in hardware.
 
-**Phase 1:** Pilot cohort (weeks 1–12); 3–5 contractors, Sander D1 only.
+**Phase 1:** Pilot cohort (weeks 1–12); 3–5 contractors, ForgeSand D1 only.
 
 **Phase 2:** Expansion (months 4–6); edging + finishing; 5–10 contractors; scaled operations.
 

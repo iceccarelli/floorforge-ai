@@ -57,7 +57,7 @@ Each page in the FloorForge public site has a **contract**: a clear definition o
   └─ CTA: Explore in 3D
 
 /simulator (EXISTING)
-  └─ Interactive 3D (Sander D1 + pro-sim option)
+  └─ Interactive 3D (ForgeSand D1 + pro-sim option)
 
 /early-access (NEW - PILOT LANDING PAGE)
   ├─ Pilot requirements
@@ -224,27 +224,27 @@ Each page in the FloorForge public site has a **contract**: a clear definition o
 
 **Must communicate:**
 1. **Five robot cards:**
-   - **Sander D1** (pilot-ready)
+   - **ForgeSand D1** (pilot-ready)
      - Job: Multi-grit sanding main floor
      - Status: Breadboard (weeks 3–4), field pilot (weeks 7–8)
      - Design targets: Pressure control, coverage mapping, dust logging
    
-   - **Edger E1** (prototype phase)
+   - **ForgeEdge E1** (prototype phase)
      - Job: Edge and transition sanding
      - Status: Design on paper, prototype Q4 2026
      - Design targets: Wall proximity detection, edge pressure control
    
-   - **Finisher F1** (future)
+   - **ForgeCoat C1** (future)
      - Job: Polyurethane application
      - Status: Design concept, prototype 2027
      - Design targets: Spray/roll modes, viscosity control, film thickness
    
-   - **Plank Layer L1** (future)
+   - **ForgeLay L1** (future)
      - Job: Specialty plank placement
      - Status: Concept only
      - Design targets: Precision alignment, strain detection
    
-   - **Inspector I1** (future)
+   - **ForgeScan S1** (future)
      - Job: Post-finish quality scan
      - Status: Concept only
      - Design targets: Gap detection, defect mapping
@@ -264,9 +264,9 @@ Each page in the FloorForge public site has a **contract**: a clear definition o
    - Never use "proven," "tested," "validated"
 
 5. **Development roadmap**
-   - Which robots in pilot? (Sander D1 in phase 1)
-   - Which next? (Edger E1 in phase 2)
-   - When are others expected? (Finish F1 in 2027)
+   - Which robots in pilot? (ForgeSand D1 in phase 1)
+   - Which next? (ForgeEdge E1 in phase 2)
+   - When are others expected? (ForgeCoat C1 in 2027)
 
 **Sections:**
 - Hero: "The platforms we're building"
@@ -360,7 +360,7 @@ Each page in the FloorForge public site has a **contract**: a clear definition o
 **Must communicate:**
 1. **Pilot overview**
    - 3–5 contractors, 8–12 weeks
-   - Sander D1 unit (hardware loaner)
+   - ForgeSand D1 unit (hardware loaner)
    - Live telemetry and dashboard access
    - Weekly check-ins with FloorForge team
    - Preferential launch pricing
@@ -476,7 +476,7 @@ ROBOTS (/platforms) [NEW]
 └─ CTA: Join pilot
 
 SIMULATOR (/simulator) [EXISTING]
-├─ Interactive 3D Sander D1
+├─ Interactive 3D ForgeSand D1
 ├─ Or: All 5 robots (pro-sim)
 └─ CTA: Apply for pilot
 

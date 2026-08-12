@@ -19,7 +19,7 @@ This roadmap ranks engineering work into **three phases** (Pilot, Expansion, Lau
 
 | Phase | Period | Focus | Success Metric |
 |-------|--------|-------|-----------------|
-| **Phase 1: Pilot** | Aug 3 – Oct 25 (12 weeks) | Recruit 3–5 contractors; validate Sander D1 hardware + dashboard | NPS ≥ 5; zero critical data loss; 100+ jobs logged |
+| **Phase 1: Pilot** | Aug 3 – Oct 25 (12 weeks) | Recruit 3–5 contractors; validate ForgeSand D1 hardware + dashboard | NPS ≥ 5; zero critical data loss; 100+ jobs logged |
 | **Phase 2: Expand** | Oct 26 – Jan 31 (14 weeks) | Add edger, finisher; scale to 5–10 contractors; measure ROI claims | Contractors report ≥ 50% time savings; extend 4+ months |
 | **Phase 3: Launch** | Feb 1 – Aug 31 (7 months) | Production hardware; public pricing; supply chain go-live | Ship 10+ units; first revenue; partnerships active |
 
@@ -141,7 +141,7 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 | **First bench test (4+ hour run)** | Hardware | P0 | 🟡 In progress | Logs data; no robot failures |
 | **Safety review (mechanical, electrical)** | Hardware | P1 | 🟡 In progress | Identify pinch points, hot surfaces |
 
-**Deliverable:** Sander D1 breadboard runs 4+ hours; logs telemetry; dashboard displays live progress.
+**Deliverable:** ForgeSand D1 breadboard runs 4+ hours; logs telemetry; dashboard displays live progress.
 
 **Risk:** First multi-hour run often reveals thermal issues (plan for iteration week 6 if needed).
 
@@ -156,9 +156,9 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 | **Firmware tuning (pressure, coverage algorithm)** | Firmware | P1 | 🟡 Placeholder | Based on bench test feedback |
 | **Consumable supply logistics** | Hardware | P1 | 🔴 Not started | Sandpaper, dust bags, spare parts |
 | **Operator manual draft** | Hardware | P1 | 🔴 Not started | For contractor onboarding |
-| **Unit 1 (Sander D1) field-ready** | Hardware | P0 | 🔴 In progress | Cleaned, tested, ready to ship |
+| **Unit 1 (ForgeSand D1) field-ready** | Hardware | P0 | 🔴 In progress | Cleaned, tested, ready to ship |
 
-**Deliverable:** First Sander D1 unit field-ready (or nearly); shipped to first pilot contractor by end of week 7.
+**Deliverable:** First ForgeSand D1 unit field-ready (or nearly); shipped to first pilot contractor by end of week 7.
 
 **Risk:** Enclosure seal leaks (common); budget 1 week for re-design if needed.
 
@@ -182,7 +182,7 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 
 #### Success Criteria (Week 12 Gate)
 
-- ✅ Sander D1 breadboard runs 40+ hours without critical failure
+- ✅ ForgeSand D1 breadboard runs 40+ hours without critical failure
 - ✅ Telemetry captured for every job; 100% data integrity
 - ✅ Contractor safely operates unit (no incidents)
 - ✅ Coverage maps are ≥ 70% accurate (rough measurement vs. visual inspection)
@@ -232,11 +232,11 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 
 ### 2B. Hardware Track
 
-#### Week 13–14: Edger D1 Prototype Assembly
+#### Week 13–14: ForgeEdge E1 Prototype Assembly
 
 | Component | Owner | Priority | Note |
 |-----------|-------|----------|------|
-| **Design finalization** | Hardware | P0 | Based on Sander D1 feedback |
+| **Design finalization** | Hardware | P0 | Based on ForgeSand D1 feedback |
 | **Pressure sensor for edge work** | Hardware | P0 | ±15% tolerance acceptable (edges more forgiving) |
 | **Proximity sensor for wall detection** | Hardware | P1 | Infrared or ultrasonic |
 | **Component sourcing & procurement** | Hardware | P0 | ~80% overlap with Sander BOM |
@@ -255,8 +255,8 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 | Component | Owner | Priority | Note |
 |-----------|-------|----------|------|
 | **Dust enclosure for edger** | Hardware | P1 | Capture edge dust (trickier than main) |
-| **Finisher D1 Prototype** | Hardware | P2 | Parallel; spray/roll mechanism |
-| **Unit 2 & 3 (if demand)** | Hardware | P1 | Sander D1 copies; scale manufacturing |
+| **ForgeCoat C1 Prototype** | Hardware | P2 | Parallel; spray/roll mechanism |
+| **Unit 2 & 3 (if demand)** | Hardware | P1 | ForgeSand D1 copies; scale manufacturing |
 
 #### Week 23–26: Field Deployment
 
@@ -264,7 +264,7 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 |-----------|-------|----------|------|
 | **Edger unit shipped to pilot contractor** | Hardware | P0 | After sanding success |
 | **Sander + Edger in sequence (first time)** | Product | P0 | Capture metrics, feedback |
-| **Finisher prototype test (if ready)** | Hardware | P1 | Parallel track; validate spray mechanism |
+| **ForgeCoat C1 prototype test (if ready)** | Hardware | P1 | Parallel track; validate spray mechanism |
 
 **Success Criteria (Week 26 Gate):**
 - ✅ Edger runs 4+ jobs; contractor reports positive feedback
@@ -327,7 +327,7 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 
 | Component | Owner | Priority | Note |
 |-----------|-------|----------|------|
-| **First production run (10 units)** | Manufacturing | P0 | Sander D1 + Edger E1 |
+| **First production run (10 units)** | Manufacturing | P0 | ForgeSand D1 + ForgeEdge E1 |
 | **CE / UL certification** | Compliance | P0 | Safety & EMC testing |
 | **Field service manual** | Hardware | P1 | Technician repair guide |
 | **Warranty policy** | Product | P1 | 1-year parts + labor? |
@@ -336,7 +336,7 @@ Runs concurrently with software; hardware is **not blocking** the dashboard and 
 
 | Component | Owner | Priority | Note |
 |-----------|-------|----------|------|
-| **Finisher F1 first units** | Manufacturing | P1 | If demand; else defer 2027 |
+| **ForgeCoat C1 first units** | Manufacturing | P1 | If demand; else defer 2027 |
 | **Parts inventory & logistics** | Supply Chain | P1 | Replacement motors, wheels, dust bags |
 | **Service network** (regional partnerships) | Business Dev | P2 | Authorized repair centers |
 | **Go-live: public pricing + pre-orders** | Product | P0 | Marketing site live |
@@ -464,11 +464,11 @@ Phase 1:
   Hardware breadboard (Week 3-4) ──→ Telemetry integration (Week 5-6)
   Firmware skeleton (Week 3-4) ───┘
   
-  Sander D1 field unit (Week 7) ──→ Contractor onboarding (Week 7-8)
+  ForgeSand D1 field unit (Week 7) ──→ Contractor onboarding (Week 7-8)
   Dashboard live (Week 1-2) ───────┘
 
 Phase 2:
-  Sander D1 feedback (Week 12) ──→ Edger design refinement
+  ForgeSand D1 feedback (Week 12) ──→ Edger design refinement
   Sander success metrics (Week 12) ┘
   
   Edger breadboard (Week 13-14) ──→ Edger field test (Week 23-26)
@@ -521,7 +521,7 @@ Phase 3:
 | Checkpoint | Target | Metric |
 |-----------|--------|--------|
 | **Week 4** | Backend live, telemetry flowing | Zero API 500 errors in 100 requests |
-| **Week 8** | Sander D1 running 20+ hours | Unit uptime ≥ 90% |
+| **Week 8** | ForgeSand D1 running 20+ hours | Unit uptime ≥ 90% |
 | **Week 12** | Pilot customers active | NPS ≥ 5; 3–5 signed; 100+ jobs logged |
 
 ### Phase 2 (Expand) – Success Checkpoints

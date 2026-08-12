@@ -1,8 +1,8 @@
-# Software-Hardware Contract: Sander D1 Pilot Interface
+# Software-Hardware Contract: ForgeSand D1 Pilot Interface
 
 **Date:** August 3, 2026  
 **Edition:** 0.1.0  
-**Scope:** Sander D1 pilot platform only  
+**Scope:** ForgeSand D1 pilot platform only  
 **Audience:** Firmware team, software backend team, hardware lead  
 **Status:** Working specification; subject to mutual refinement weeks 3–6
 
@@ -10,7 +10,7 @@
 
 ## Executive Summary
 
-This document defines the **minimum viable telemetry contract** between Sander D1 firmware and FloorForge software backend for the pilot phase. It specifies:
+This document defines the **minimum viable telemetry contract** between ForgeSand D1 firmware and FloorForge software backend for the pilot phase. It specifies:
 
 1. **What telemetry the software expects** (event types, JSON schemas, timing)
 2. **What job status signals the firmware must emit** (job lifecycle states)
@@ -24,7 +24,7 @@ This document defines the **minimum viable telemetry contract** between Sander D
 
 ## Part 1: Scope & Responsibilities
 
-### What Sander D1 Firmware Must Do
+### What ForgeSand D1 Firmware Must Do
 
 **In scope:**
 
@@ -239,7 +239,7 @@ Emitted when external dust sensor (connected to extraction system) sends reading
 **Frequency:** 1 Hz (or as fast as external sensor logs; firmware relays verbatim)
 
 **Notes:**
-- Dust sensor is **external** (not onboard Sander D1); firmware relays readings over WiFi
+- Dust sensor is **external** (not onboard ForgeSand D1); firmware relays readings over WiFi
 - This is **early data only** — actual dust capture ≥ 98% is not validated in pilot (measure actual HEPA filter performance separately)
 
 **Software action:** Log for post-job report; alert if spike > 50 µg/m³ (possible leak)
@@ -515,7 +515,7 @@ Authorization: Bearer <JWT>
 ### 5.3 Integration Test (Week 5–6)
 
 **Setup:**
-1. Firmware running on Sander D1 breadboard
+1. Firmware running on ForgeSand D1 breadboard
 2. Software API deployed to staging server
 3. WiFi connectivity between firmware and API
 
@@ -560,7 +560,7 @@ Result: All 8 events captured, aggregated, and visible in dashboard.
 
 ### 5.4 Field Validation (Week 7–8)
 
-- [ ] Contractor receives Sander D1 unit and onboarding video
+- [ ] Contractor receives ForgeSand D1 unit and onboarding video
 - [ ] Contractor runs first job (real floor, 100–500 sqft)
 - [ ] Dashboard shows real-time progress (coverage, pressure, dust)
 - [ ] Post-job report generated and contractor signs off
