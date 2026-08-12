@@ -1,3 +1,5 @@
+import { CONTACT_EMAIL } from "@/lib/contact";
+
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://floorforge-ai.vercel.app";
 
@@ -22,7 +24,9 @@ export default function StructuredData() {
           "@type": "Organization",
           name: "Grimaldi Engineering",
         },
-        email: "vince.ceccarelli@gmail.com",
+        // Same address as every visible CTA, from one constant. The address
+        // itself is unchanged — see lib/contact.ts and FINDINGS.md P1-6.
+        email: CONTACT_EMAIL,
         sameAs: ["https://github.com/iceccarelli"],
       },
       {

@@ -3,15 +3,30 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Mail, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import { contactHref, WAITLIST_SUBJECT } from "@/lib/contact";
 
 const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID;
-const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
+const hasFormBackend = Boolean(FORMSPREE_ID);
 
 /**
  * The single honest conversion path on the site. Posts to Formspree when
- * NEXT_PUBLIC_FORMSPREE_FORM_ID is set; otherwise falls back to mailto so
- * the CTA is never a dead button.
+ * NEXT_PUBLIC_FORMSPREE_FORM_ID is set; otherwise composes the same fields
+ * into a prefilled email, so the CTA is never a dead button.
+ *
+ * Why the fallback changed (audit/FINDINGS.md P1-6, mission II.2):
+ * production does not currently have NEXT_PUBLIC_FORMSPREE_FORM_ID set, which
+ * means the fallback *is* the live conversion path — and the old fallback threw
+ * the form away entirely, replacing it with a single "Email us" button. Every
+ * prospect landed in a blank compose window and had to work out for themselves
+ * what to say; the company, volume and interest fields that qualify the lead
+ * were simply never asked for. The fields now render in both modes and the
+ * fallback packs them into the message body.
+ *
+ * This does not make the mailto path as good as a real form backend. Setting
+ * NEXT_PUBLIC_FORMSPREE_FORM_ID in Vercel remains the single highest-value
+ * action available on this site, and it is a configuration change no patch can
+ * make. This narrows the gap; it does not close it.
  */
 export default function WaitlistCTA() {
   const [name, setName] = useState("");
@@ -22,6 +37,7 @@ export default function WaitlistCTA() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [composeHref, setComposeHref] = useState<string | null>(null);
 
   // Read ?interest=<platform> passed from the simulator CTA. Done via a
   // client effect (not useSearchParams) so the homepage stays static.
@@ -43,6 +59,27 @@ export default function WaitlistCTA() {
       return;
     }
     setEmailError(null);
+
+    if (!hasFormBackend) {
+      // No form backend configured. Compose the same payload as an email the
+      // prospect sends themselves. Labelled as exactly that on the button, so
+      // nobody thinks they have submitted something they have not.
+      const lines = [
+        `Name: ${name.trim() || "—"}`,
+        `Work email: ${email.trim()}`,
+        `Company: ${company.trim() || "—"}`,
+        `Monthly refinishing volume (sqft): ${volume.trim() || "—"}`,
+        `Interested in: ${interest || "the pilot program generally"}`,
+        "",
+        "I'd like to join the FloorForge pilot waitlist.",
+      ];
+      const href = contactHref(WAITLIST_SUBJECT, lines.join("\n"));
+      setComposeHref(href);
+      window.location.href = href;
+      setSubmitted(true);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
@@ -67,6 +104,31 @@ export default function WaitlistCTA() {
     }
   };
 
+  if (submitted && composeHref) {
+    // Mailto path. The message is drafted, not sent — saying "you're on the
+    // list" here would be a lie, and it is the kind of lie that loses the lead
+    // silently, because the prospect closes the tab believing they are done.
+    return (
+      <div role="status" className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
+        <div className="text-2xl font-semibold tracking-tight mb-2">
+          Your email is drafted.
+        </div>
+        <p className="text-muted-foreground">
+          We&apos;ve opened your email client with the details filled in. Send that
+          message and you&apos;re on the pilot waitlist.
+        </p>
+        <div className="mt-5">
+          {/* asChild, not a nested <button> inside an <a>: that is invalid HTML,
+              and the anchor — not the button — is what the browser sized, giving
+              this a 21px tall hit area (audit/FINDINGS.md P1-5, P2-1). */}
+          <Button asChild variant="secondary" className="h-12 px-6">
+            <a href={composeHref}>Didn&apos;t open? Draft it again</a>
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div role="status" className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
@@ -75,25 +137,6 @@ export default function WaitlistCTA() {
           Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
           program takes shape.
         </p>
-      </div>
-    );
-  }
-
-  if (!FORMSPREE_ID) {
-    // No form backend configured — honest mailto fallback, never a dead CTA.
-    return (
-      <div className="max-w-xl mx-auto text-center">
-        {/* asChild, not a nested <button> inside an <a>: that is invalid HTML,
-            and the anchor — not the button — is what the browser sized, giving
-            this a 21px tall hit area (audit/FINDINGS.md P1-5, P2-1). */}
-        <Button asChild variant="accent" size="lg" className="h-14 px-10 text-base">
-          <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
-            <Mail className="mr-2 h-4 w-4" /> Email us to join the pilot waitlist
-          </a>
-        </Button>
-        <div className="mt-3 text-xs text-muted-foreground">
-          Tell us your typical monthly refinishing volume and market.
-        </div>
       </div>
     );
   }
@@ -196,11 +239,17 @@ export default function WaitlistCTA() {
         disabled={submitting}
         aria-busy={submitting}
       >
-        {submitting ? "Submitting…" : "Join the pilot waitlist"}
+        {submitting
+          ? "Submitting…"
+          : hasFormBackend
+            ? "Join the pilot waitlist"
+            : "Draft my pilot waitlist email"}
         {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
       </Button>
       <div className="mt-3 text-center text-xs text-muted-foreground">
-        No spam. We&apos;ll contact you about the pilot program only.
+        {hasFormBackend
+          ? "No spam. We'll contact you about the pilot program only."
+          : "Opens your email client with these details filled in. Nothing is sent until you press send."}
       </div>
       </form>
     </div>

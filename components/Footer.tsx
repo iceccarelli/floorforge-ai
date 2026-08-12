@@ -5,8 +5,7 @@ import {
   FaTiktok, FaDiscord, FaGithub, FaRedditAlien,
 } from "react-icons/fa6";
 import type { IconType } from "react-icons";
-
-const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
+import { contactHref, CONTACT_SUBJECT } from "@/lib/contact";
 
 /**
  * The 9 primary social channels. An icon is rendered ONLY when its URL is
@@ -70,7 +69,7 @@ export default function Footer() {
             <ul className="space-y-0.5 text-sm text-white/80">
               <li><Link href="/#waitlist" className="inline-flex min-h-11 items-center hover:text-white transition">Join the Waitlist</Link></li>
               <li>
-                <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex min-h-11 items-center hover:text-white transition">
+                <a href={contactHref(CONTACT_SUBJECT)} className="inline-flex min-h-11 items-center hover:text-white transition">
                   Contact Us
                 </a>
               </li>
@@ -83,7 +82,7 @@ export default function Footer() {
             <ul className="space-y-0.5 text-sm text-white/80">
               <li>
                 <a
-                  href={`mailto:${CONTACT_EMAIL}`}
+                  href={contactHref(CONTACT_SUBJECT)}
                   className="inline-flex min-h-11 items-center gap-2 hover:text-white transition"
                 >
                   <Mail size={14} /> Email

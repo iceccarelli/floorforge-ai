@@ -674,6 +674,16 @@ textarea:focus-visible,
   outline-offset: 2px;
 }
 
+/* In-page CTAs move focus to the section they scroll to (lib/scroll.ts), so
+   that a keyboard user's next Tab continues inside that section instead of
+   back in the header. The section is a landing region, not a control: ringing
+   a whole 900px-tall <section> in amber reads as an error state, and the
+   controls inside it keep their own visible focus from the rule above. */
+[data-scroll-target]:focus,
+[data-scroll-target]:focus-visible {
+  outline: none;
+}
+
 /* Mobile optimizations */
 @media (max-width: 768px) {
   .section {

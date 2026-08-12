@@ -7,6 +7,8 @@ import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { authEnabled } from "@/lib/auth";
+import { contactHref, CONTACT_SUBJECT } from "@/lib/contact";
+import { scrollToElement } from "@/lib/scroll";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const navLinks = [
@@ -26,21 +28,22 @@ export default function Header() {
   const pathname = usePathname();
   const router = useRouter();
 
-  // Route-aware section navigation: smooth-scroll when we're already on the
-  // homepage, otherwise navigate to /#section so the link works from every
-  // page (e.g. /simulator, /dashboard) instead of being a dead button.
+  // Route-aware section navigation: scroll when we're already on the homepage,
+  // otherwise navigate to /#section so the link works from every page (e.g.
+  // /simulator, /dashboard) instead of being a dead button.
+  //
+  // This used to hand-roll `window.scrollTo({ behavior: "smooth" })` with a
+  // literal 80px offset. Two problems, both on the primary conversion path:
+  // it ignored prefers-reduced-motion (the one animation a user cannot look
+  // away from — audit/FINDINGS.md P2-7), and it moved the viewport without
+  // moving focus, so a keyboard user who pressed "Join waitlist" was looking
+  // at the form while their next Tab went to the next item in the header.
+  // lib/scroll.ts handles both, and the 80px offset it replaces is already
+  // expressed as `scroll-margin-top` on every `.section` target.
   const goToSection = (hash: string) => {
     setMobileMenuOpen(false);
     if (pathname === "/") {
-      const el = document.querySelector(hash);
-      if (el) {
-        const offset = 80;
-        const top =
-          el.getBoundingClientRect().top -
-          document.body.getBoundingClientRect().top -
-          offset;
-        window.scrollTo({ top, behavior: "smooth" });
-      }
+      scrollToElement(hash.replace(/^#/, ""));
     } else {
       router.push(`/${hash}`);
     }
@@ -92,7 +95,7 @@ export default function Header() {
           {/* Desktop CTAs */}
           <div className="hidden lg:flex items-center gap-3">
             <a
-              href="mailto:vince.ceccarelli@gmail.com"
+              href={contactHref(CONTACT_SUBJECT)}
               className="inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
             >
               Contact us
@@ -181,6 +184,17 @@ export default function Header() {
               >
                 Simulator (3D)
               </Link>
+              {/* The desktop header has carried a "Contact us" affordance since
+                  launch; the mobile menu never did, so on the viewport where
+                  most first visits happen there was no contact route at all
+                  above the footer (audit/FINDINGS.md P1-6). */}
+              <a
+                href={contactHref(CONTACT_SUBJECT)}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+              >
+                Contact us
+              </a>
               <div className="pt-4 border-t flex flex-col gap-3">
                 {authEnabled && (
                   <>

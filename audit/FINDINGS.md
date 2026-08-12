@@ -444,6 +444,26 @@ robotics site quoting $799/mo — a prospect reads it as "there is no company he
 domain address (`pilot@floorforge.ai`) costs nothing and changes the read entirely. Per
 Part VII.6 I am **not** changing the address; it is the owner's call.
 
+> **RESOLUTION (2026-08-11, `FLOORFORGE_10_conversion.patch`).** The owner elected to
+> keep the address for now, so it is unchanged in all four places. What changed is that
+> there are no longer four places: `lib/contact.ts` is the single constant, and the
+> header, both footer links and the JSON-LD node read from it. Swapping in a domain
+> address later is a one-line edit rather than a four-file search with a fifth copy
+> hiding in structured data.
+>
+> The same patch found a larger problem behind this one. Because production has never
+> had `NEXT_PUBLIC_FORMSPREE_FORM_ID` set, the *fallback* is the live conversion path —
+> and the old fallback discarded the entire form, replacing it with one "Email us"
+> button that opened a blank compose window. The four qualifying fields the site asks
+> for (name, company, monthly volume, platform interest) were never collected from a
+> single real visitor. They now render in both modes, and without a form backend they
+> are composed into a prefilled message. The button says `Draft my pilot waitlist email`
+> and the confirmation says the message is drafted, not sent, because it is not.
+>
+> This narrows the gap. It does not close it: `vercel env add
+> NEXT_PUBLIC_FORMSPREE_FORM_ID production` remains the highest-value action available
+> on this site and no patch can perform it.
+
 ### P1-7 · `/dashboard` has no `<h1>` and starts its heading hierarchy at `<h3>`
 
 `structure.mjs` → `/dashboard: h1Count=0, headings: h3`. `axe-scan.mjs` →
