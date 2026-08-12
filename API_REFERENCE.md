@@ -6,7 +6,7 @@ Quick reference for common operations. See `BACKEND_SKELETON_REPORT.md` for deta
 
 ```
 http://localhost:3000/api  (development)
-https://api.floorforge.io  (production, TBD)
+https://api.floorforge.ai  (production, TBD — domain not yet registered)
 ```
 
 ## Response Format

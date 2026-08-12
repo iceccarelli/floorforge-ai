@@ -346,8 +346,17 @@ export function validateTelemetryEvent(
     errors.push({ field: "job_id", message: "Job ID is required" });
   }
 
-  if (!input.robot_id || typeof input.robot_id !== "string") {
-    errors.push({ field: "robot_id", message: "Robot ID is required" });
+  // The firmware envelope calls this `device_id`
+  // (SOFTWARE_HARDWARE_CONTRACT.md:88, :100); the platform calls it `robot_id`
+  // (SHARED_INTERFACE_NOTES.md:259). A device following the contract to the
+  // letter was rejected with "Robot ID is required" before it ever reached the
+  // event-type check (audit/PRODUCT_TRUTH.md T3-1). Accept either; store one.
+  const robotId = input.robot_id ?? input.device_id;
+  if (!robotId || typeof robotId !== "string") {
+    errors.push({
+      field: "robot_id",
+      message: "Robot ID is required (accepted as robot_id or device_id)",
+    });
   }
 
   if (!input.timestamp || !isValidISODate(input.timestamp)) {
@@ -370,7 +379,7 @@ export function validateTelemetryEvent(
     valid: true,
     data: {
       job_id: String(input.job_id),
-      robot_id: String(input.robot_id),
+      robot_id: String(robotId),
       timestamp: String(input.timestamp),
       event_type: input.event_type as types.EventType,
       data: (input.data as Record<string, unknown>) || {},
@@ -436,17 +445,25 @@ function isValidJobStatus(status: unknown): boolean {
 }
 
 function isValidEventType(eventType: unknown): boolean {
+  // Must stay in lockstep with types.EventType. The four firmware-contract
+  // types were missing here, so a device following
+  // SOFTWARE_HARDWARE_CONTRACT.md:103 to the letter had its telemetry rejected
+  // with "Invalid event type" (audit/PRODUCT_TRUTH.md T3-1).
   const validTypes: types.EventType[] = [
     "pass_started",
     "pass_completed",
     "dust_reading",
+    "error",
+    "pressure_reading",
+    "coverage_checkpoint",
+    "job_paused",
+    "job_resumed",
     "coverage_check",
     "robot_paused",
     "robot_resumed",
     "finish_applied",
     "quality_approved",
     "quality_failed",
-    "error",
     "heartbeat",
   ];
   return typeof eventType === "string" && validTypes.includes(eventType as types.EventType);

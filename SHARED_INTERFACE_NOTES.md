@@ -297,7 +297,8 @@ interface PassCompletedEvent {
   actual_duration_sec: number;
   coverage_area_m2: number;
   coverage_pct: number;            // % of floor covered
-  avg_pressure_bar?: number;       // For sander telemetry
+  avg_pressure_psi?: number;   // PSI, matching SOFTWARE_HARDWARE_CONTRACT.md
+  peak_pressure_psi?: number;       // For sander telemetry
   dust_readings: DustReading[];    // Samples during pass
 }
 
@@ -475,7 +476,15 @@ type RecoveryAction = "retry" | "skip" | "manual" | "abort";
 
 ## 7. API Contract Summary
 
-**Base URL:** `https://floorforge.api.ecowoods.com` (or `https://api.floorforge.io`)
+**Base URL:** `https://api.floorforge.ai` (production, TBD — domain not yet registered)
+
+> Earlier drafts of this section gave the base URL as `https://floorforge.api.ecowoods.com`
+> and `https://api.floorforge.io`, while SOFTWARE_HARDWARE_CONTRACT.md gave
+> `https://api.floorforge.ai` — three hostnames for one API
+> (audit/PRODUCT_TRUTH.md T3-3). `.ai` wins because it is the one the firmware
+> contract already tells the hardware team to POST to, and firmware is the
+> hardest thing to change after it ships. None of the three is registered yet;
+> the live deployment is `https://floorforge-ai.vercel.app`.
 
 **Auth:** Bearer token (JWT from Clerk or EcoWoods SSO)
 

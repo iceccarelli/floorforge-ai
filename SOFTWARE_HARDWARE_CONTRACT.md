@@ -97,10 +97,10 @@ This document defines the **minimum viable telemetry contract** between ForgeSan
 
 | Field | Type | Required | Constraints | Notes |
 |-------|------|----------|-----------|-------|
-| `device_id` | string | ✅ Yes | UUID or `FF-S[0-9]{3}` (Sander 001–999) | Unique per robot; set at firmware init |
+| `device_id` | string | ✅ Yes | UUID or `FF-S[0-9]{3}` (ForgeSand D1, 001–999) | Unique per robot; set at firmware init. The platform stores this as `robot_id`; the ingest endpoint accepts either key. |
 | `job_id` | string | ✅ Yes | UUID or `job-[0-9]{4,}` | Provided by software in job parameters |
 | `timestamp` | ISO 8601 | ✅ Yes | UTC, millisecond precision (`.123Z`) | Firmware local time; software trusts it for ordering |
-| `event_type` | enum | ✅ Yes | One of: `pass_started`, `pass_completed`, `dust_reading`, `pressure_reading`, `coverage_checkpoint`, `error`, `job_paused`, `job_resumed` | Lowercase, underscores |
+| `event_type` | enum | ✅ Yes | One of: `pass_started`, `pass_completed`, `dust_reading`, `pressure_reading`, `coverage_checkpoint`, `error`, `job_paused`, `job_resumed` | Lowercase, underscores. The platform also defines `coverage_check`, `robot_paused`, `robot_resumed`, `finish_applied`, `quality_approved`, `quality_failed` and `heartbeat` — see `lib/types.ts` `EventType`, which is the union of both vocabularies. Firmware need only emit the eight above. |
 | `data` | object | ✅ Yes (may be `{}`) | Type depends on `event_type` | Schema defined per event type below |
 
 **Validation rules:**
@@ -425,7 +425,7 @@ Authorization: Bearer <JWT>
   "device_id": "FF-S001",
   "site_name": "Meridian Floor 12",
   "sqft": 12500,
-  "target_coverage_area_m2": 835,
+  "target_coverage_area_m2": 1161,
   "grit_sequence": ["36", "80", "120"],
   "target_pressure_psi": 3.0,
   "estimated_duration_sec": 10800,

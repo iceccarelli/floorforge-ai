@@ -172,17 +172,40 @@ export interface PostJobReport {
 // TELEMETRY EVENTS
 // ============================================================================
 
+/**
+ * Telemetry event vocabulary.
+ *
+ * Two vocabularies used to exist. This layer defined eleven types; the firmware
+ * contract (SOFTWARE_HARDWARE_CONTRACT.md:103) defined eight, four of which had
+ * no definition here at all — so the hardware team was told to emit
+ * `pressure_reading`, `coverage_checkpoint`, `job_paused` and `job_resumed`
+ * into an endpoint whose validator rejects them as "Invalid event type"
+ * (audit/PRODUCT_TRUTH.md T3-1).
+ *
+ * The union is now the union: fifteen types, every one of which appears in one
+ * of the two documents. Nothing was removed — `coverage_check` and
+ * `robot_paused`/`robot_resumed` are the platform's richer, post-processed
+ * forms and stay. The firmware's are the raw high-frequency forms it actually
+ * has the sensors to produce.
+ */
 export type EventType =
+  // Shared by both documents
   | "pass_started"
   | "pass_completed"
   | "dust_reading"
+  | "error"
+  // Firmware contract only — raw sensor stream, 1 Hz
+  | "pressure_reading"
+  | "coverage_checkpoint"
+  | "job_paused"
+  | "job_resumed"
+  // Platform only — derived and workflow events
   | "coverage_check"
   | "robot_paused"
   | "robot_resumed"
   | "finish_applied"
   | "quality_approved"
   | "quality_failed"
-  | "error"
   | "heartbeat";
 
 export interface TelemetryEvent {
@@ -208,9 +231,59 @@ export interface PassCompletedEvent {
   grit_tag: string;
   actual_duration_sec: number;
   coverage_area_m2: number;
-  coverage_pct: number;
-  avg_pressure_bar?: number;
+  /**
+   * PSI, not bar.
+   *
+   * This field was `avg_pressure_bar` while every threshold, worked example and
+   * approval criterion in SOFTWARE_HARDWARE_CONTRACT.md was written in PSI
+   * (":170" sensor range 0.0-10.0 psi; ":430" `target_pressure_psi: 3.0`;
+   * ":469" approval "Avg pressure 2-4 PSI"). Same quantity, two units, 14.5038x
+   * apart, with no conversion documented anywhere (audit/PRODUCT_TRUTH.md
+   * T3-1).
+   *
+   * Firmware sending a correct 3.0 PSI into a field named `_bar` would have
+   * been stored as 3.0 bar = 43.5 PSI, and every approval check would have
+   * failed for a machine that was operating perfectly. PSI wins because the
+   * hardware team is the one reading a gauge.
+   */
+  avg_pressure_psi?: number;
+  peak_pressure_psi?: number;
   dust_readings: DustReading[];
+}
+
+/**
+ * Raw 1 Hz pressure sample. SOFTWARE_HARDWARE_CONTRACT.md:160-171.
+ * `psi` range 0.0-10.0 — 0 means motor off, 2-5 is typical sanding.
+ */
+export interface PressureReadingEvent {
+  psi: number;
+  sensor_health: "ok" | "degraded" | "error";
+}
+
+/**
+ * Odometry-derived coverage estimate, emitted every 5-10 minutes.
+ * SOFTWARE_HARDWARE_CONTRACT.md:190-207. Distinct from `coverage_check`, which
+ * is the platform's post-processed verdict with gap locations.
+ */
+export interface CoverageCheckpointEvent {
+  pass_number: number;
+  distance_traveled_m: number;
+  estimated_coverage_pct: number;
+  location_x_pct?: number;
+  location_y_pct?: number;
+}
+
+/** SOFTWARE_HARDWARE_CONTRACT.md:345-359. */
+export interface JobPausedEvent {
+  pass_number: number;
+  pause_reason: "manual" | "error" | "battery_low";
+  elapsed_duration_sec: number;
+}
+
+/** SOFTWARE_HARDWARE_CONTRACT.md:377-389. */
+export interface JobResumedEvent {
+  pass_number: number;
+  resume_reason: "manual" | "auto";
 }
 
 export interface DustReadingEvent {
