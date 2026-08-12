@@ -1,0 +1,421 @@
+diff --git a/app/globals.css b/app/globals.css
+index 45b8d17..56c8819 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -674,6 +674,16 @@ textarea:focus-visible,
+   outline-offset: 2px;
+ }
+ 
++/* In-page CTAs move focus to the section they scroll to (lib/scroll.ts), so
++   that a keyboard user's next Tab continues inside that section instead of
++   back in the header. The section is a landing region, not a control: ringing
++   a whole 900px-tall <section> in amber reads as an error state, and the
++   controls inside it keep their own visible focus from the rule above. */
++[data-scroll-target]:focus,
++[data-scroll-target]:focus-visible {
++  outline: none;
++}
++
+ /* Mobile optimizations */
+ @media (max-width: 768px) {
+   .section {
+diff --git a/audit/FINDINGS.md b/audit/FINDINGS.md
+index 88d482e..8700190 100644
+--- a/audit/FINDINGS.md
++++ b/audit/FINDINGS.md
+@@ -444,6 +444,26 @@ robotics site quoting $799/mo — a prospect reads it as "there is no company he
+ domain address (`pilot@floorforge.ai`) costs nothing and changes the read entirely. Per
+ Part VII.6 I am **not** changing the address; it is the owner's call.
+ 
++> **RESOLUTION (2026-08-11, `FLOORFORGE_10_conversion.patch`).** The owner elected to
++> keep the address for now, so it is unchanged in all four places. What changed is that
++> there are no longer four places: `lib/contact.ts` is the single constant, and the
++> header, both footer links and the JSON-LD node read from it. Swapping in a domain
++> address later is a one-line edit rather than a four-file search with a fifth copy
++> hiding in structured data.
++>
++> The same patch found a larger problem behind this one. Because production has never
++> had `NEXT_PUBLIC_FORMSPREE_FORM_ID` set, the *fallback* is the live conversion path —
++> and the old fallback discarded the entire form, replacing it with one "Email us"
++> button that opened a blank compose window. The four qualifying fields the site asks
++> for (name, company, monthly volume, platform interest) were never collected from a
++> single real visitor. They now render in both modes, and without a form backend they
++> are composed into a prefilled message. The button says `Draft my pilot waitlist email`
++> and the confirmation says the message is drafted, not sent, because it is not.
++>
++> This narrows the gap. It does not close it: `vercel env add
++> NEXT_PUBLIC_FORMSPREE_FORM_ID production` remains the highest-value action available
++> on this site and no patch can perform it.
++
+ ### P1-7 · `/dashboard` has no `<h1>` and starts its heading hierarchy at `<h3>`
+ 
+ `structure.mjs` → `/dashboard: h1Count=0, headings: h3`. `axe-scan.mjs` →
+diff --git a/components/Footer.tsx b/components/Footer.tsx
+index 5dcd0f1..4aeb7a1 100644
+--- a/components/Footer.tsx
++++ b/components/Footer.tsx
+@@ -5,8 +5,7 @@ import {
+   FaTiktok, FaDiscord, FaGithub, FaRedditAlien,
+ } from "react-icons/fa6";
+ import type { IconType } from "react-icons";
+-
+-const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
++import { contactHref, CONTACT_SUBJECT } from "@/lib/contact";
+ 
+ /**
+  * The 9 primary social channels. An icon is rendered ONLY when its URL is
+@@ -70,7 +69,7 @@ export default function Footer() {
+             <ul className="space-y-0.5 text-sm text-white/80">
+               <li><Link href="/#waitlist" className="inline-flex min-h-11 items-center hover:text-white transition">Join the Waitlist</Link></li>
+               <li>
+-                <a href={`mailto:${CONTACT_EMAIL}`} className="inline-flex min-h-11 items-center hover:text-white transition">
++                <a href={contactHref(CONTACT_SUBJECT)} className="inline-flex min-h-11 items-center hover:text-white transition">
+                   Contact Us
+                 </a>
+               </li>
+@@ -83,7 +82,7 @@ export default function Footer() {
+             <ul className="space-y-0.5 text-sm text-white/80">
+               <li>
+                 <a
+-                  href={`mailto:${CONTACT_EMAIL}`}
++                  href={contactHref(CONTACT_SUBJECT)}
+                   className="inline-flex min-h-11 items-center gap-2 hover:text-white transition"
+                 >
+                   <Mail size={14} /> Email
+diff --git a/components/Header.tsx b/components/Header.tsx
+index efd2003..c4aea79 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -7,6 +7,8 @@ import { Menu, X } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+ import { authEnabled } from "@/lib/auth";
++import { contactHref, CONTACT_SUBJECT } from "@/lib/contact";
++import { scrollToElement } from "@/lib/scroll";
+ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+ 
+ const navLinks = [
+@@ -26,21 +28,22 @@ export default function Header() {
+   const pathname = usePathname();
+   const router = useRouter();
+ 
+-  // Route-aware section navigation: smooth-scroll when we're already on the
+-  // homepage, otherwise navigate to /#section so the link works from every
+-  // page (e.g. /simulator, /dashboard) instead of being a dead button.
++  // Route-aware section navigation: scroll when we're already on the homepage,
++  // otherwise navigate to /#section so the link works from every page (e.g.
++  // /simulator, /dashboard) instead of being a dead button.
++  //
++  // This used to hand-roll `window.scrollTo({ behavior: "smooth" })` with a
++  // literal 80px offset. Two problems, both on the primary conversion path:
++  // it ignored prefers-reduced-motion (the one animation a user cannot look
++  // away from — audit/FINDINGS.md P2-7), and it moved the viewport without
++  // moving focus, so a keyboard user who pressed "Join waitlist" was looking
++  // at the form while their next Tab went to the next item in the header.
++  // lib/scroll.ts handles both, and the 80px offset it replaces is already
++  // expressed as `scroll-margin-top` on every `.section` target.
+   const goToSection = (hash: string) => {
+     setMobileMenuOpen(false);
+     if (pathname === "/") {
+-      const el = document.querySelector(hash);
+-      if (el) {
+-        const offset = 80;
+-        const top =
+-          el.getBoundingClientRect().top -
+-          document.body.getBoundingClientRect().top -
+-          offset;
+-        window.scrollTo({ top, behavior: "smooth" });
+-      }
++      scrollToElement(hash.replace(/^#/, ""));
+     } else {
+       router.push(`/${hash}`);
+     }
+@@ -92,7 +95,7 @@ export default function Header() {
+           {/* Desktop CTAs */}
+           <div className="hidden lg:flex items-center gap-3">
+             <a
+-              href="mailto:vince.ceccarelli@gmail.com"
++              href={contactHref(CONTACT_SUBJECT)}
+               className="inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
+             >
+               Contact us
+@@ -181,6 +184,17 @@ export default function Header() {
+               >
+                 Simulator (3D)
+               </Link>
++              {/* The desktop header has carried a "Contact us" affordance since
++                  launch; the mobile menu never did, so on the viewport where
++                  most first visits happen there was no contact route at all
++                  above the footer (audit/FINDINGS.md P1-6). */}
++              <a
++                href={contactHref(CONTACT_SUBJECT)}
++                onClick={() => setMobileMenuOpen(false)}
++                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
++              >
++                Contact us
++              </a>
+               <div className="pt-4 border-t flex flex-col gap-3">
+                 {authEnabled && (
+                   <>
+diff --git a/components/StructuredData.tsx b/components/StructuredData.tsx
+index bd741df..a2703c4 100644
+--- a/components/StructuredData.tsx
++++ b/components/StructuredData.tsx
+@@ -1,3 +1,5 @@
++import { CONTACT_EMAIL } from "@/lib/contact";
++
+ const SITE_URL =
+   process.env.NEXT_PUBLIC_SITE_URL ?? "https://floorforge-ai.vercel.app";
+ 
+@@ -22,7 +24,9 @@ export default function StructuredData() {
+           "@type": "Organization",
+           name: "Grimaldi Engineering",
+         },
+-        email: "vince.ceccarelli@gmail.com",
++        // Same address as every visible CTA, from one constant. The address
++        // itself is unchanged — see lib/contact.ts and FINDINGS.md P1-6.
++        email: CONTACT_EMAIL,
+         sameAs: ["https://github.com/iceccarelli"],
+       },
+       {
+diff --git a/components/WaitlistCTA.tsx b/components/WaitlistCTA.tsx
+index daafb33..36b561f 100644
+--- a/components/WaitlistCTA.tsx
++++ b/components/WaitlistCTA.tsx
+@@ -3,15 +3,30 @@
+ import React, { useState, useEffect } from "react";
+ import { Button } from "@/components/ui/button";
+ import { toast } from "sonner";
+-import { Mail, ArrowRight } from "lucide-react";
++import { ArrowRight } from "lucide-react";
++import { contactHref, WAITLIST_SUBJECT } from "@/lib/contact";
+ 
+ const FORMSPREE_ID = process.env.NEXT_PUBLIC_FORMSPREE_FORM_ID;
+-const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
++const hasFormBackend = Boolean(FORMSPREE_ID);
+ 
+ /**
+  * The single honest conversion path on the site. Posts to Formspree when
+- * NEXT_PUBLIC_FORMSPREE_FORM_ID is set; otherwise falls back to mailto so
+- * the CTA is never a dead button.
++ * NEXT_PUBLIC_FORMSPREE_FORM_ID is set; otherwise composes the same fields
++ * into a prefilled email, so the CTA is never a dead button.
++ *
++ * Why the fallback changed (audit/FINDINGS.md P1-6, mission II.2):
++ * production does not currently have NEXT_PUBLIC_FORMSPREE_FORM_ID set, which
++ * means the fallback *is* the live conversion path — and the old fallback threw
++ * the form away entirely, replacing it with a single "Email us" button. Every
++ * prospect landed in a blank compose window and had to work out for themselves
++ * what to say; the company, volume and interest fields that qualify the lead
++ * were simply never asked for. The fields now render in both modes and the
++ * fallback packs them into the message body.
++ *
++ * This does not make the mailto path as good as a real form backend. Setting
++ * NEXT_PUBLIC_FORMSPREE_FORM_ID in Vercel remains the single highest-value
++ * action available on this site, and it is a configuration change no patch can
++ * make. This narrows the gap; it does not close it.
+  */
+ export default function WaitlistCTA() {
+   const [name, setName] = useState("");
+@@ -22,6 +37,7 @@ export default function WaitlistCTA() {
+   const [submitting, setSubmitting] = useState(false);
+   const [submitted, setSubmitted] = useState(false);
+   const [emailError, setEmailError] = useState<string | null>(null);
++  const [composeHref, setComposeHref] = useState<string | null>(null);
+ 
+   // Read ?interest=<platform> passed from the simulator CTA. Done via a
+   // client effect (not useSearchParams) so the homepage stays static.
+@@ -43,6 +59,27 @@ export default function WaitlistCTA() {
+       return;
+     }
+     setEmailError(null);
++
++    if (!hasFormBackend) {
++      // No form backend configured. Compose the same payload as an email the
++      // prospect sends themselves. Labelled as exactly that on the button, so
++      // nobody thinks they have submitted something they have not.
++      const lines = [
++        `Name: ${name.trim() || "—"}`,
++        `Work email: ${email.trim()}`,
++        `Company: ${company.trim() || "—"}`,
++        `Monthly refinishing volume (sqft): ${volume.trim() || "—"}`,
++        `Interested in: ${interest || "the pilot program generally"}`,
++        "",
++        "I'd like to join the FloorForge pilot waitlist.",
++      ];
++      const href = contactHref(WAITLIST_SUBJECT, lines.join("\n"));
++      setComposeHref(href);
++      window.location.href = href;
++      setSubmitted(true);
++      return;
++    }
++
+     setSubmitting(true);
+     try {
+       const res = await fetch(`https://formspree.io/f/${FORMSPREE_ID}`, {
+@@ -67,33 +104,39 @@ export default function WaitlistCTA() {
+     }
+   };
+ 
+-  if (submitted) {
++  if (submitted && composeHref) {
++    // Mailto path. The message is drafted, not sent — saying "you're on the
++    // list" here would be a lie, and it is the kind of lie that loses the lead
++    // silently, because the prospect closes the tab believing they are done.
+     return (
+       <div role="status" className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
+-        <div className="text-2xl font-semibold tracking-tight mb-2">You&apos;re on the list.</div>
++        <div className="text-2xl font-semibold tracking-tight mb-2">
++          Your email is drafted.
++        </div>
+         <p className="text-muted-foreground">
+-          Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
+-          program takes shape.
++          We&apos;ve opened your email client with the details filled in. Send that
++          message and you&apos;re on the pilot waitlist.
+         </p>
++        <div className="mt-5">
++          {/* asChild, not a nested <button> inside an <a>: that is invalid HTML,
++              and the anchor — not the button — is what the browser sized, giving
++              this a 21px tall hit area (audit/FINDINGS.md P1-5, P2-1). */}
++          <Button asChild variant="secondary" className="h-12 px-6">
++            <a href={composeHref}>Didn&apos;t open? Draft it again</a>
++          </Button>
++        </div>
+       </div>
+     );
+   }
+ 
+-  if (!FORMSPREE_ID) {
+-    // No form backend configured — honest mailto fallback, never a dead CTA.
++  if (submitted) {
+     return (
+-      <div className="max-w-xl mx-auto text-center">
+-        {/* asChild, not a nested <button> inside an <a>: that is invalid HTML,
+-            and the anchor — not the button — is what the browser sized, giving
+-            this a 21px tall hit area (audit/FINDINGS.md P1-5, P2-1). */}
+-        <Button asChild variant="accent" size="lg" className="h-14 px-10 text-base">
+-          <a href={`mailto:${CONTACT_EMAIL}?subject=FloorForge%20pilot%20waitlist`}>
+-            <Mail className="mr-2 h-4 w-4" /> Email us to join the pilot waitlist
+-          </a>
+-        </Button>
+-        <div className="mt-3 text-xs text-muted-foreground">
+-          Tell us your typical monthly refinishing volume and market.
+-        </div>
++      <div role="status" className="max-w-xl mx-auto text-center p-10 rounded-2xl border-2 border-accent/30 bg-card">
++        <div className="text-2xl font-semibold tracking-tight mb-2">You&apos;re on the list.</div>
++        <p className="text-muted-foreground">
++          Thanks for your interest in the FloorForge pilot. We&apos;ll reach out as the
++          program takes shape.
++        </p>
+       </div>
+     );
+   }
+@@ -196,11 +239,17 @@ export default function WaitlistCTA() {
+         disabled={submitting}
+         aria-busy={submitting}
+       >
+-        {submitting ? "Submitting…" : "Join the pilot waitlist"}
++        {submitting
++          ? "Submitting…"
++          : hasFormBackend
++            ? "Join the pilot waitlist"
++            : "Draft my pilot waitlist email"}
+         {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
+       </Button>
+       <div className="mt-3 text-center text-xs text-muted-foreground">
+-        No spam. We&apos;ll contact you about the pilot program only.
++        {hasFormBackend
++          ? "No spam. We'll contact you about the pilot program only."
++          : "Opens your email client with these details filled in. Nothing is sent until you press send."}
+       </div>
+       </form>
+     </div>
+diff --git a/lib/contact.ts b/lib/contact.ts
+new file mode 100644
+index 0000000..e223bf6
+--- /dev/null
++++ b/lib/contact.ts
+@@ -0,0 +1,38 @@
++/**
++ * Single source of truth for the outbound contact address.
++ *
++ * Before this file the same address was hardcoded in four places
++ * (`Header.tsx`, `Footer.tsx` ×2, `WaitlistCTA.tsx`) and a fifth time inside
++ * the JSON-LD `Organization` node (`StructuredData.tsx`). Four copies of a
++ * string that is going to change is four chances to change three of them.
++ *
++ * Per audit/FINDINGS.md P1-6 the address itself is a credibility problem on a
++ * B2B site quoting $799/mo: a personal Gmail reads as "there is no company
++ * here yet". That is the owner's call, not this patch's, and the owner has
++ * chosen to keep it for now. What this file changes is the *cost* of that
++ * decision later — swapping in `pilot@floorforge.ai` is now a one-line edit
++ * here, and every CTA, the mailto fallback and the structured data follow.
++ */
++export const CONTACT_EMAIL = "vince.ceccarelli@gmail.com";
++
++/**
++ * Build a `mailto:` href with the subject (and optionally body) prefilled.
++ *
++ * A bare `mailto:` opens an empty compose window with no subject, which puts
++ * the whole burden of explaining themselves on the prospect and produces an
++ * inbox where nothing is sortable. Prefilling costs nothing and is the
++ * difference between "hi" and a routable, qualified message.
++ */
++export function contactHref(subject: string, body?: string): string {
++  const params = new URLSearchParams({ subject });
++  if (body) params.set("body", body);
++  // URLSearchParams encodes spaces as "+", which some mail clients render
++  // literally in the subject line. Percent-encoding is what mailto expects.
++  return `mailto:${CONTACT_EMAIL}?${params.toString().replace(/\+/g, "%20")}`;
++}
++
++/** Subject line used by every general "Contact us" affordance. */
++export const CONTACT_SUBJECT = "FloorForge enquiry";
++
++/** Subject line used by the pilot waitlist path. */
++export const WAITLIST_SUBJECT = "FloorForge pilot waitlist";
+diff --git a/lib/scroll.ts b/lib/scroll.ts
+index 76133d9..1ea7294 100644
+--- a/lib/scroll.ts
++++ b/lib/scroll.ts
+@@ -12,10 +12,25 @@ export function prefersReducedMotion(): boolean {
+   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+ }
+ 
+-/** Scroll an element into view, instantly when motion is reduced. */
++/**
++ * Scroll an element into view, instantly when motion is reduced, and move
++ * focus to it.
++ *
++ * The focus half matters as much as the scroll half. Every in-page CTA on this
++ * site is a `<button>` that moves the viewport; focus stayed on the button, so
++ * a keyboard user who pressed "Join the pilot waitlist" was moved to the
++ * waitlist form visually while their next Tab went to the *next item in the
++ * header*. A screen-reader user got no announcement that anything had happened
++ * at all. Both are the same defect: the button moved the page but not the user.
++ *
++ * The target gets `tabindex="-1"` so it can receive programmatic focus without
++ * entering the tab order, and `data-scroll-target` so globals.css can suppress
++ * the focus ring on what is a landing region, not a control. Pass
++ * `{ focus: false }` for scrolls that are not navigation.
++ */
+ export function scrollToElement(
+   target: string | Element | null,
+-  opts: { block?: ScrollLogicalPosition } = {}
++  opts: { block?: ScrollLogicalPosition; focus?: boolean } = {}
+ ): void {
+   const el =
+     typeof target === "string" ? document.getElementById(target) : target;
+@@ -24,4 +39,11 @@ export function scrollToElement(
+     behavior: prefersReducedMotion() ? "auto" : "smooth",
+     block: opts.block ?? "start",
+   });
++  if (opts.focus === false) return;
++  if (!(el instanceof HTMLElement)) return;
++  if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
++  el.setAttribute("data-scroll-target", "");
++  // preventScroll: the scrollIntoView above already owns the movement, and
++  // letting focus() scroll too would cancel the smooth behaviour with a jump.
++  el.focus({ preventScroll: true });
+ }
