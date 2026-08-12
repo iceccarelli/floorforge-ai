@@ -1,0 +1,452 @@
+diff --git a/app/dashboard/page.tsx b/app/dashboard/page.tsx
+index dc4d6af..c4a3a39 100644
+--- a/app/dashboard/page.tsx
++++ b/app/dashboard/page.tsx
+@@ -7,6 +7,7 @@ import {
+   ArrowLeft, Clock, TrendingUp,
+   Zap, BarChart3
+ } from "lucide-react";
++import { shareOfOshaPel, OSHA_NUISANCE_DUST_PEL_UGM3 } from "@/lib/product";
+ 
+ interface Job {
+   id: string;
+@@ -116,7 +117,15 @@ export default function FloorForgeDashboard() {
+               </div>
+               <BarChart3 className="h-8 w-8 text-accent" />
+             </div>
+-            <div className="text-xs text-success mt-3">Well below OSHA limit</div>
++            {/* Was "Well below OSHA limit" beside a sibling tile claiming "87%
++                below OSHA action level". OSHA publishes no action level for
++                wood dust — it falls under the generic nuisance-dust PEL of
++                15 mg/m³ — and 87% matches no published limit
++                (audit/PRODUCT_TRUTH.md T0-3). The correct figure is stronger
++                than the wrong one was. */}
++            <div className="text-xs text-success mt-3">
++              {shareOfOshaPel(11.4)} of the OSHA nuisance-dust PEL
++            </div>
+           </div>
+           <div className="dashboard-card p-5">
+             <div className="flex justify-between items-start">
+@@ -204,7 +213,12 @@ export default function FloorForgeDashboard() {
+                   <Button variant="accent" className="h-auto w-full py-3 text-center leading-snug md:w-auto">
+                     Start walls &amp; ceilings quote in DryForge
+                   </Button>
+-                  <div className="text-xs text-center mt-2 text-foreground">Opens in new tab • Shared job context</div>
++                  {/* Was "Opens in new tab • Shared job context", which asserts
++                      a working deep-link into a product that has no definition
++                      in any document (audit/PRODUCT_TRUTH.md T2-2). */}
++                  <div className="text-xs text-center mt-2 text-foreground">
++                    DryForge is a concept for a future Forge product — not available today.
++                  </div>
+                 </div>
+               </div>
+             </div>
+@@ -224,7 +238,10 @@ export default function FloorForgeDashboard() {
+               <div>
+                 <div className="text-muted-foreground mb-2">Mean Dust Reading (active sanding)</div>
+                 <div className="text-6xl font-semibold tabular-nums tracking-tighter">12.1</div>
+-                <div className="text-xs">µg/m³ — 87% below OSHA action level</div>
++                <div className="text-xs">
++                  µg/m³ — {shareOfOshaPel(12.1)} of the {OSHA_NUISANCE_DUST_PEL_UGM3 / 1000} mg/m³ OSHA
++                  nuisance-dust PEL (8-hour TWA, total dust)
++                </div>
+               </div>
+               <div>
+                 <div className="text-muted-foreground mb-2">Finish Uniformity Score</div>
+@@ -257,7 +274,11 @@ export default function FloorForgeDashboard() {
+                   {["FF-03A", "FF-07B", "FF-12C", "FF-04A"].map((id, i) => (
+                     <tr key={i}>
+                       <td className="py-4 pr-4 font-mono text-xs">{id}</td>
+-                      <td className="py-4 pr-4">Sander Pro v4.2 • Online</td>
++                      {/* Was "Sander Pro v4.2" — a sixth name for the sanding
++                          platform, and a version number asserting that v1
++                          through v4.1 shipped and were superseded. The machine
++                          has not been built (audit/PRODUCT_TRUTH.md T2-2). */}
++                      <td className="py-4 pr-4">ForgeSand D1 • Online</td>
+                       <td className="py-4 pr-4 text-muted-foreground">{i === 0 ? "RF-2847" : i === 1 ? "RF-2849" : "Standby"}</td>
+                       <td className="py-4 pr-4 tabular-nums">847h</td>
+                       <td className="py-4 text-right"><span className="inline-block px-3 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700">98%</span></td>
+diff --git a/app/page.tsx b/app/page.tsx
+index 6a52a5e..7123aa9 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -13,6 +13,7 @@ import Reveal from "@/components/Reveal";
+ import ShowcaseCarousel from "@/components/ShowcaseCarousel";
+ import Link from "next/link";
+ import { ROBOTS } from "@/lib/robots";
++import { HARDWARE_UNIT_COST_LABEL } from "@/lib/product";
+ import { scrollToElement } from "@/lib/scroll";
+ import { openChatbot } from "@/lib/chatbot";
+ 
+@@ -23,7 +24,7 @@ const features = [
+     icon: Zap,
+     title: "Autonomous Multi-Grit Sanding",
+     description:
+-      "Designed around real-time load sensing and species detection, executing 36→180 grit sequences with consistent pressure and pass overlap — the same cut, every pass, every job.",
++      "Designed around real-time load sensing and species detection, executing the 36→80→120 grit sequence with consistent pressure and pass overlap — the same cut, every pass, every job.",
+   },
+   {
+     icon: Target,
+@@ -416,7 +417,26 @@ export default function FloorForgeLanding() {
+             </div>
+           </div>
+ 
+-          <p className="text-center text-xs text-muted-foreground mt-8">
++          {/* The table used to show only the monthly subscription, while the
++              product definition describes the post-pilot model as hardware sale
++              PLUS subscription (PRODUCT_SERVICE_DEFINITION.md:298-299). A
++              contractor reading "$799/mo" would not have budgeted for the
++              machine, and would find out during the sales call — the most
++              expensive possible moment (audit/PRODUCT_TRUTH.md T1-3). */}
++          <div className="mt-8 mx-auto max-w-2xl rounded-xl border border-border-strong bg-muted px-5 py-4 text-center">
++            <div className="text-xs font-semibold tracking-wider text-foreground">
++              HARDWARE IS PRICED SEPARATELY
++            </div>
++            <p className="mt-1.5 text-sm text-muted-foreground">
++              Subscription tiers above cover the software, fleet dashboard and support.
++              Robots are an indicative <strong className="text-foreground font-semibold">{HARDWARE_UNIT_COST_LABEL} per unit</strong>,
++              not yet locked — unit economics depend on manufacturing quotes the pilot
++              program is designed to produce. Pilot participants receive a loaner unit
++              at no hardware cost.
++            </p>
++          </div>
++
++          <p className="text-center text-xs text-muted-foreground mt-6">
+             Pilot participants receive preferential launch pricing.
+           </p>
+         </div>
+diff --git a/components/Chatbot.tsx b/components/Chatbot.tsx
+index 6c6a5e2..004e0f0 100644
+--- a/components/Chatbot.tsx
++++ b/components/Chatbot.tsx
+@@ -25,10 +25,10 @@ const quickReplies = [
+ // it makes no claims about deployed hardware or existing customers.
+ const demoResponses: Record<string, string> = {
+   what: "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning from a site scan, multi-grit sanding orchestration, edging assistance, finish application monitoring, and per-job dust and quality reporting. The hardware and software are in development — the pilot program is how refinishing crews get involved now.",
+-  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Pilot participants get preferential launch pricing. Want to join the waitlist?",
+-  grit: "A standard high-performance sequence for most North American hardwoods (oak, maple, ash) runs 36/40 grit for aggressive stock removal, then 60, 80, 120, and 150/180 for the final pass. Walnut and exotics often start at 60 grit to protect color. FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.",
++  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Those are software subscriptions — robots are priced separately at an indicative $15–25K per unit, not yet locked. Pilot participants get a loaner unit at no hardware cost and preferential launch pricing. Want to join the waitlist?",
++  grit: "FloorForge plans and logs a 36→80→120 sequence — 36 to strip the old finish, 80 to level, 120 to finish sand. That is the sequence the firmware reads and the post-job report writes back. Hand crews often run more steps (60, 150, 180) and walnut or exotics often start at 60 grit to protect color; species-adaptive sequences are a design goal, not something the first pilot units will do. FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.",
+   dust: "The design pairs HEPA filtration with cyclonic pre-separation and logs airborne particulate readings throughout the job, so dust performance is documented in the job record rather than promised verbally. Final specs will be validated during the pilot program.",
+-  roi: "The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a 62% baseline time-reduction target (adjusted by job type), a $78/hr blended labor rate, and a ~2,200 sqft/robot/day throughput target. Those are design assumptions, not measured field results — validating them is a core goal of the pilot.",
++  roi: "The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a 50% labor time-reduction baseline (reduced by 7 points for commercial complexity), a $78/hr blended labor rate, and a 1,579 sqft/robot/day throughput target across a 36→80→120 grit sequence — the same coverage rate the 3D simulator runs. Those are design assumptions, not measured field results — validating them is a core goal of the pilot.",
+   pilot: "Scroll to the waitlist section and drop your details, or use the button in the header. We're recruiting a small group of residential, commercial, and specialty refinishing operations to define requirements and test early workflows, in exchange for preferential launch terms.",
+   default: "I'm a scripted demo assistant for FloorForge, an early-stage autonomous floor refinishing platform. I can explain the concept, the planned workflow, grit sequencing, the transparent ROI model, planned pricing, or how to join the pilot program. What would you like to know?",
+ };
+diff --git a/components/ROICalculator.tsx b/components/ROICalculator.tsx
+index 74a2383..9279437 100644
+--- a/components/ROICalculator.tsx
++++ b/components/ROICalculator.tsx
+@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
+ import { Calculator, TrendingUp, Clock, Users, Award, ArrowRight } from "lucide-react";
+ import { scrollToElement } from "@/lib/scroll";
+ import { openChatbot } from "@/lib/chatbot";
++import {
++  LABOR_TIME_REDUCTION_PCT,
++  JOB_TYPE_ADJUSTMENT_PP,
++  BLENDED_LABOR_RATE_USD,
++  SANDING_SQFT_PER_ROBOT_DAY,
++  GRIT_SEQUENCE,
++} from "@/lib/product";
+ 
+ interface ROIInputs {
+   sqft: number;
+@@ -21,26 +28,37 @@ export default function ROICalculator() {
+ 
+   const results = useMemo(() => {
+     const { sqft, manualHours, jobType } = inputs;
+-    
+-    const complexityMultiplier = jobType === "commercial" ? 1.15 : 0.92;
+-    const baseRobotEfficiency = 0.38; // 62% time reduction baseline
+-    
+-    const adjustedEfficiency = baseRobotEfficiency * complexityMultiplier;
+-    const robotHours = Math.round(manualHours * adjustedEfficiency);
++
++    // Percentage points, not a multiplier, so every step is displayable.
++    //
++    // The old model multiplied retained time by 1.15 / 0.92 against a 0.38
++    // baseline. Two defects, both in audit/PRODUCT_TRUTH.md T0-1: the
++    // residential path displayed 64-67%, above the 60% figure
++    // PRODUCT_SERVICE_DEFINITION.md:276 names as a claim that must not be made;
++    // and the stated "62% baseline" was a number the tool could never actually
++    // display, which is a strange thing for a calculator that sells itself on
++    // transparency. 50% is now a ceiling — no input produces more.
++    const adjustmentPp = JOB_TYPE_ADJUSTMENT_PP[jobType];
++    const timeSavedPercent = LABOR_TIME_REDUCTION_PCT + adjustmentPp;
++
++    const robotHours = Math.round(manualHours * (1 - timeSavedPercent / 100));
+     const timeSavedHours = manualHours - robotHours;
+-    const timeSavedPercent = Math.round((timeSavedHours / manualHours) * 100);
+-    
+-    // Robot requirement: ~2200 sqft per robot per day for full multi-grit + finish
+-    const robotsRecommended = Math.max(1, Math.ceil(sqft / 2200));
+-    
+-    // Economics
+-    const blendedLaborRate = 78; // realistic crew blended
+-    const laborSaved = Math.round(timeSavedHours * blendedLaborRate);
+-    
++
++    // Derived in lib/product.ts from the simulator's own coverage rate, so the
++    // number quoted here and the number a visitor watches run on /simulator are
++    // the same number. Sanding passes only — finish coats are additional.
++    const robotsRecommended = Math.max(
++      1,
++      Math.ceil(sqft / SANDING_SQFT_PER_ROBOT_DAY)
++    );
++
++    const laborSaved = Math.round(timeSavedHours * BLENDED_LABOR_RATE_USD);
++
+     return {
+       robotHours,
+       timeSavedHours,
+       timeSavedPercent,
++      adjustmentPp,
+       robotsRecommended,
+       laborSaved,
+       jobTypeLabel: jobType === "commercial" ? "Commercial" : "Residential",
+@@ -173,6 +191,14 @@ export default function ROICalculator() {
+                 </div>
+                 <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.timeSavedPercent}<span className="text-3xl align-super">%</span></div>
+                 <div className="text-sm text-white/60 mt-1">{results.timeSavedHours} hours per job</div>
++                {/* The arithmetic, on screen. A transparent model should be one
++                    you can check without reading the source. */}
++                <div className="text-xs text-white/60 mt-1 tabular-nums">
++                  {LABOR_TIME_REDUCTION_PCT}% baseline
++                  {results.adjustmentPp !== 0 && (
++                    <> {results.adjustmentPp > 0 ? "+" : "−"}{Math.abs(results.adjustmentPp)} pts {results.jobTypeLabel.toLowerCase()}</>
++                  )}
++                </div>
+               </div>
+ 
+               <div className="roi-result">
+@@ -201,7 +227,7 @@ export default function ROICalculator() {
+             </div>
+ 
+             <div id="roi-assumptions" className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
+-              <span className="font-medium text-white/80">Model assumptions:</span> $78/hr blended labor rate; automation efficiency baseline of 62% time reduction adjusted by job type; ~2,200 sqft per robot per day throughput target for {results.jobTypeLabel.toLowerCase()} work. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
++              <span className="font-medium text-white/80">Model assumptions:</span> ${BLENDED_LABOR_RATE_USD}/hr blended labor rate; a {LABOR_TIME_REDUCTION_PCT}% labor time-reduction baseline{results.adjustmentPp !== 0 ? ` adjusted by ${Math.abs(results.adjustmentPp)} points for ${results.jobTypeLabel.toLowerCase()} complexity` : ""}, giving {results.timeSavedPercent}%; and {SANDING_SQFT_PER_ROBOT_DAY.toLocaleString()} sqft per robot per 8-hour day across a {GRIT_SEQUENCE.join("→")} grit sequence — the same coverage rate the 3D simulator runs, sanding passes only, finish coats additional. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
+             </div>
+ 
+             <div className="mt-6 flex flex-wrap gap-3">
+diff --git a/components/simulator/ProTeardown.tsx b/components/simulator/ProTeardown.tsx
+index 519b00c..a491113 100644
+--- a/components/simulator/ProTeardown.tsx
++++ b/components/simulator/ProTeardown.tsx
+@@ -40,7 +40,7 @@ function partsFor(id: string): { label: string; note: string }[] {
+   switch (id) {
+     case "sand":
+       return [
+-        { label: "Planetary drum", note: "ribbed abrasive · 36→120 grit" },
++        { label: "Planetary drum", note: "ribbed abrasive · 36→80→120 grit" },
+         { label: "Brushless motor + rotor", note: "revealed in cutaway" },
+         { label: "Reduction gear pair", note: "meshing spur gears" },
+         { label: "Dust shroud + hose", note: "routes to HEPA canister" },
+diff --git a/lib/product.ts b/lib/product.ts
+new file mode 100644
+index 0000000..ef43fc9
+--- /dev/null
++++ b/lib/product.ts
+@@ -0,0 +1,147 @@
++/**
++ * Canonical product numbers. One file, one value each, every figure cited.
++ *
++ * Before this file, the answer to "how long does my floor take" existed in four
++ * places with four different values, spread 21x once normalised to a per-job
++ * basis (audit/PRODUCT_TRUTH.md T0-2):
++ *
++ *   lib/robots.ts                55 m²/h per pass  ->   1,579 sqft/robot/day
++ *   ROICalculator.tsx            2,200 sqft/robot/day
++ *   API_REFERENCE.md:170-175     5,000 sqft in 8 h  ->  5,000 sqft/robot/day
++ *   SOFTWARE_HARDWARE_CONTRACT   12,500 sqft in 2h58m -> ~33,000 sqft/day
++ *
++ * Nobody had picked one, because the machine does not exist yet — which is
++ * exactly why it needs one owner rather than four. This file is the owner.
++ *
++ * The figure adopted is the most conservative of the four: the simulator's
++ * per-pass coverage rate. It has one property none of the others do — it is the
++ * number a visitor can literally watch run on /simulator. The number you can
++ * watch should be the number you quote.
++ *
++ * EVERY VALUE HERE IS A DESIGN TARGET for hardware in development. None is a
++ * measured specification and none is a record of a completed job. Anything
++ * derived from these values inherits that status.
++ *
++ * public/llms.txt is a static file and cannot import this module. If you change
++ * a value here, change it there too — it is the only place that duplicates.
++ */
++
++/** Square feet in one square metre. Not a product claim; a unit. */
++export const SQFT_PER_M2 = 1 / 0.09290304;
++
++/**
++ * The sanding platform's coverage rate for ONE pass, in m²/h.
++ *
++ * Source of record: lib/robots.ts `sand.coverageM2PerHour`, which drives the
++ * simulator's live coverage animation and its job estimate. Kept in sync by
++ * `audit/scripts/token-drift.mjs`-style review, not by import, because
++ * lib/robots.ts is the data file the 3D scene reads directly.
++ */
++export const SANDER_M2_PER_HOUR_PER_PASS = 55;
++
++/**
++ * Passes in a standard sanding sequence.
++ *
++ * SOFTWARE_HARDWARE_CONTRACT.md:429 and API_REFERENCE.md:171 both specify
++ * `"grit_sequence": ["36", "80", "120"]` — three passes. This is the field the
++ * firmware reads to plan the job and the field the post-job report writes back
++ * as `grit_sequence_executed`, so it is not a marketing number.
++ */
++export const GRIT_SEQUENCE = ["36", "80", "120"] as const;
++export const SANDING_PASSES = GRIT_SEQUENCE.length;
++
++/** Human-readable grit range, derived so it can never drift from the sequence. */
++export const GRIT_RANGE_LABEL = `${GRIT_SEQUENCE[0]} → ${GRIT_SEQUENCE[GRIT_SEQUENCE.length - 1]}`;
++
++/** A working day, for turning an hourly rate into a per-day figure. */
++export const WORKING_DAY_HOURS = 8;
++
++/**
++ * Sqft one robot completes in one 8-hour day, ALL sanding passes included.
++ *
++ * Derived, not asserted: 55 m²/h per pass ÷ 3 passes × 8 h × 10.764 sqft/m².
++ * Finish coats are additional and are NOT included — the previous figure
++ * (2,200 sqft/day "for full multi-grit + finish") conflated the two, which is
++ * part of why the four sources never reconciled.
++ */
++export const SANDING_SQFT_PER_ROBOT_DAY = Math.round(
++  (SANDER_M2_PER_HOUR_PER_PASS / SANDING_PASSES) * WORKING_DAY_HOURS * SQFT_PER_M2
++); // = 1579
++
++/**
++ * Labour time reduction, in percent, before job-type adjustment.
++ *
++ * PAGE_UX_CONTRACTS.md:115 sanctions exactly one figure for site copy:
++ * "Targeting 50% labor time savings". PRODUCT_SERVICE_ROADMAP.md:23 sets the
++ * same bar as a phase-2 success metric ("Contractors report ≥ 50% time
++ * savings").
++ *
++ * The previous baseline was 62%, which put the residential path at 64-67% —
++ * above the 60% figure PRODUCT_SERVICE_DEFINITION.md:276 names explicitly as a
++ * claim that must NOT be made (audit/PRODUCT_TRUTH.md T0-1). 50% is now a
++ * ceiling, not a midpoint: no input to the ROI model produces a larger number.
++ */
++export const LABOR_TIME_REDUCTION_PCT = 50;
++
++/**
++ * Job-type adjustment in PERCENTAGE POINTS, applied to the baseline above.
++ *
++ * Points, not a multiplier, so the arithmetic is displayable. The old model
++ * multiplied retained time by 1.15 / 0.92, which meant the stated "62%
++ * baseline" was a number the tool could never actually display — the one flaw
++ * that undoes a calculator whose selling point is transparency.
++ *
++ * Commercial work is scored lower: multi-floor jobs carry more transitions,
++ * more furniture, more staging and more stop-start than a single residence.
++ */
++export const JOB_TYPE_ADJUSTMENT_PP = {
++  residential: 0,
++  commercial: -7,
++} as const;
++
++/**
++ * Blended crew labour rate, $/hour. Unchanged from the previous model and
++ * still an assumption, not a survey — it is displayed as one.
++ */
++export const BLENDED_LABOR_RATE_USD = 78;
++
++/**
++ * Indicative hardware cost per unit, USD.
++ *
++ * PRODUCT_SERVICE_DEFINITION.md:288 — "~$15–25K (indicative)". The pricing
++ * table used to show only the monthly subscription, while
++ * PRODUCT_SERVICE_DEFINITION.md:298-299 describes the post-pilot model as
++ * hardware sale PLUS SaaS subscription. A contractor reading "$799/mo" would
++ * not have budgeted for the machine (audit/PRODUCT_TRUTH.md T1-3).
++ */
++export const HARDWARE_UNIT_COST_LABEL = "$15–25K";
++
++/**
++ * Dust capture design target.
++ *
++ * The one figure in this audit that already had a single value everywhere.
++ * PAGE_UX_CONTRACTS.md:114 sanctions the exact phrasing "Designed to achieve
++ * 98% dust capture"; PRODUCT_SERVICE_DEFINITION.md:278 lists "Dust is
++ * guaranteed 98% captured" as a claim that must not be made. Target, never
++ * guarantee.
++ */
++export const DUST_CAPTURE_TARGET_PCT = 98;
++
++/**
++ * OSHA permissible exposure limit for wood dust as nuisance dust, in µg/m³,
++ * 8-hour time-weighted average. Total dust; the respirable fraction limit is
++ * 5,000 µg/m³.
++ *
++ * Present because the dashboard used to claim a sample reading was "87% below
++ * OSHA action level". OSHA publishes no action level for wood dust — it falls
++ * under the generic nuisance-dust PEL — and 87% does not correspond to any
++ * published limit (audit/PRODUCT_TRUTH.md T0-3). Source: OSHA Woodworking
++ * eTool, Health Hazards — Wood Dust.
++ */
++export const OSHA_NUISANCE_DUST_PEL_UGM3 = 15000;
++
++/** Format a µg/m³ reading as a share of the OSHA PEL, correctly. */
++export function shareOfOshaPel(ugm3: number): string {
++  const pct = (ugm3 / OSHA_NUISANCE_DUST_PEL_UGM3) * 100;
++  return pct < 0.1 ? "<0.1%" : `${pct.toFixed(1)}%`;
++}
+diff --git a/lib/robots.ts b/lib/robots.ts
+index 579a9ab..8ca1886 100644
+--- a/lib/robots.ts
++++ b/lib/robots.ts
+@@ -89,7 +89,7 @@ export const ROBOTS: RobotSpec[] = [
+     speedMps: 0.25,
+     coverageM2PerHour: 55,
+     pattern: "boustrophedon",
+-    toolLabel: "Planetary drum \u00b7 36\u2192180 grit",
++    toolLabel: "Planetary drum \u00b7 36\u219280\u2192120 grit",
+     emitsDust: true,
+     passes: [
+       { label: "36 grit \u00b7 strip old finish", tag: "36", leaves: "#c9b083" },
+@@ -98,7 +98,7 @@ export const ROBOTS: RobotSpec[] = [
+     ],
+     chips: [
+       { label: "Working width", value: "0.50 m" },
+-      { label: "Grit range", value: "36 \u2192 180" },
++      { label: "Grit sequence", value: "36 \u2192 80 \u2192 120" },
+       { label: "Dust capture (target)", value: "98% HEPA" },
+       { label: "Coverage", value: "~55 m\u00b2/h" },
+     ],
+diff --git a/lib/showcase.ts b/lib/showcase.ts
+index 6c4a3e6..aba8210 100644
+--- a/lib/showcase.ts
++++ b/lib/showcase.ts
+@@ -36,8 +36,8 @@ export interface Frame {
+ export const CATEGORIES: ShowcaseCategory[] = [
+   { key: "sand", label: "Field Sanding", platform: "ForgeSand D1", eyebrow: "Autonomous multi-grit sanding",
+     blurb: "The flagship platform runs a full boustrophedon field pass on its own — load-sensing planetary drum, species and moisture detection, and adaptive pressure holding the same cut across every lap. Pass overlap is planned from the digital twin so no witness lines are left where lanes meet.",
+-    specs: [{ label: "Sanding width", value: "0.50 m" }, { label: "Grit sequence", value: "36 → 180" }, { label: "Dust capture", value: "98% HEPA (target)" }, { label: "Coverage", value: "~55 m²/h" }],
+-    sequence: ["36 · strip", "80 · level", "120 · finish", "180 · polish"] },
++    specs: [{ label: "Sanding width", value: "0.50 m" }, { label: "Grit sequence", value: "36 → 80 → 120" }, { label: "Dust capture", value: "98% HEPA (target)" }, { label: "Coverage", value: "~55 m²/h" }],
++    sequence: ["36 · strip", "80 · level", "120 · finish"] },
+   { key: "edge", label: "Edge & Perimeter", platform: "ForgeEdge E1", eyebrow: "Semi-autonomous edging",
+     blurb: "Where the drum can't reach, the E1 hugs baseboards, thresholds and transitions with an oscillating edge head, tracking the wall line by LiDAR and vision to hold a consistent gap. It runs with a human-oversight mode for complex perimeters, cutting the hand-scraping that eats the schedule.",
+     specs: [{ label: "Working width", value: "0.14 m" }, { label: "Edge follow", value: "LiDAR + vision" }, { label: "Mode", value: "human-oversight" }, { label: "Coverage", value: "~18 m²/h" }] },
+diff --git a/public/llms.txt b/public/llms.txt
+index b1f9096..1fc37e9 100644
+--- a/public/llms.txt
++++ b/public/llms.txt
+@@ -40,11 +40,13 @@ surface and would rather be described accurately than favourably.
+ Five platforms appear across the site. All figures are design targets.
+ 
+ - **ForgeSand D1** — autonomous multi-grit field sanding. 0.50 m sanding width,
+-  36 → 180 grit sequence, cyclonic + HEPA dust capture (98% target).
++  36 → 80 → 120 grit sequence, cyclonic + HEPA dust capture (98% target).
+ - **ForgeEdge E1** — semi-autonomous edging and perimeter work. 0.14 m working
+   width, LiDAR + vision edge following, human-oversight mode.
+ - **ForgeCoat C1** — finish application. 0.60 m working width, ±5% film build
+   (target), T-bar and spray modes.
++- **ForgeLay L1** — plank placement gantry. 0.45 m row pitch, vision-indexed
++  alignment, nail / staple fastening.
+ - **ForgeScan S1** — inspection and QA. 0.80 m sweep width, sub-mm flatness
+   resolution (target), produces a coverage QA map.
+ - Dust containment is handled at the point of contact on the D1 rather than as a
