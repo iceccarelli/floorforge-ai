@@ -1,0 +1,240 @@
+diff --git a/API_REFERENCE.md b/API_REFERENCE.md
+index e2bb1d0..82c54bc 100644
+--- a/API_REFERENCE.md
++++ b/API_REFERENCE.md
+@@ -6,7 +6,7 @@ Quick reference for common operations. See `BACKEND_SKELETON_REPORT.md` for deta
+ 
+ ```
+ http://localhost:3000/api  (development)
+-https://api.floorforge.io  (production, TBD)
++https://api.floorforge.ai  (production, TBD — domain not yet registered)
+ ```
+ 
+ ## Response Format
+diff --git a/SHARED_INTERFACE_NOTES.md b/SHARED_INTERFACE_NOTES.md
+index a99f9c7..d68eb43 100644
+--- a/SHARED_INTERFACE_NOTES.md
++++ b/SHARED_INTERFACE_NOTES.md
+@@ -297,7 +297,8 @@ interface PassCompletedEvent {
+   actual_duration_sec: number;
+   coverage_area_m2: number;
+   coverage_pct: number;            // % of floor covered
+-  avg_pressure_bar?: number;       // For sander telemetry
++  avg_pressure_psi?: number;   // PSI, matching SOFTWARE_HARDWARE_CONTRACT.md
++  peak_pressure_psi?: number;       // For sander telemetry
+   dust_readings: DustReading[];    // Samples during pass
+ }
+ 
+@@ -475,7 +476,15 @@ type RecoveryAction = "retry" | "skip" | "manual" | "abort";
+ 
+ ## 7. API Contract Summary
+ 
+-**Base URL:** `https://floorforge.api.ecowoods.com` (or `https://api.floorforge.io`)
++**Base URL:** `https://api.floorforge.ai` (production, TBD — domain not yet registered)
++
++> Earlier drafts of this section gave the base URL as `https://floorforge.api.ecowoods.com`
++> and `https://api.floorforge.io`, while SOFTWARE_HARDWARE_CONTRACT.md gave
++> `https://api.floorforge.ai` — three hostnames for one API
++> (audit/PRODUCT_TRUTH.md T3-3). `.ai` wins because it is the one the firmware
++> contract already tells the hardware team to POST to, and firmware is the
++> hardest thing to change after it ships. None of the three is registered yet;
++> the live deployment is `https://floorforge-ai.vercel.app`.
+ 
+ **Auth:** Bearer token (JWT from Clerk or EcoWoods SSO)
+ 
+diff --git a/SOFTWARE_HARDWARE_CONTRACT.md b/SOFTWARE_HARDWARE_CONTRACT.md
+index 28f8c0e..b2002c8 100644
+--- a/SOFTWARE_HARDWARE_CONTRACT.md
++++ b/SOFTWARE_HARDWARE_CONTRACT.md
+@@ -97,10 +97,10 @@ This document defines the **minimum viable telemetry contract** between ForgeSan
+ 
+ | Field | Type | Required | Constraints | Notes |
+ |-------|------|----------|-----------|-------|
+-| `device_id` | string | ✅ Yes | UUID or `FF-S[0-9]{3}` (Sander 001–999) | Unique per robot; set at firmware init |
++| `device_id` | string | ✅ Yes | UUID or `FF-S[0-9]{3}` (ForgeSand D1, 001–999) | Unique per robot; set at firmware init. The platform stores this as `robot_id`; the ingest endpoint accepts either key. |
+ | `job_id` | string | ✅ Yes | UUID or `job-[0-9]{4,}` | Provided by software in job parameters |
+ | `timestamp` | ISO 8601 | ✅ Yes | UTC, millisecond precision (`.123Z`) | Firmware local time; software trusts it for ordering |
+-| `event_type` | enum | ✅ Yes | One of: `pass_started`, `pass_completed`, `dust_reading`, `pressure_reading`, `coverage_checkpoint`, `error`, `job_paused`, `job_resumed` | Lowercase, underscores |
++| `event_type` | enum | ✅ Yes | One of: `pass_started`, `pass_completed`, `dust_reading`, `pressure_reading`, `coverage_checkpoint`, `error`, `job_paused`, `job_resumed` | Lowercase, underscores. The platform also defines `coverage_check`, `robot_paused`, `robot_resumed`, `finish_applied`, `quality_approved`, `quality_failed` and `heartbeat` — see `lib/types.ts` `EventType`, which is the union of both vocabularies. Firmware need only emit the eight above. |
+ | `data` | object | ✅ Yes (may be `{}`) | Type depends on `event_type` | Schema defined per event type below |
+ 
+ **Validation rules:**
+@@ -425,7 +425,7 @@ Authorization: Bearer <JWT>
+   "device_id": "FF-S001",
+   "site_name": "Meridian Floor 12",
+   "sqft": 12500,
+-  "target_coverage_area_m2": 835,
++  "target_coverage_area_m2": 1161,
+   "grit_sequence": ["36", "80", "120"],
+   "target_pressure_psi": 3.0,
+   "estimated_duration_sec": 10800,
+diff --git a/lib/types.ts b/lib/types.ts
+index 751b09c..ee73c6c 100644
+--- a/lib/types.ts
++++ b/lib/types.ts
+@@ -172,17 +172,40 @@ export interface PostJobReport {
+ // TELEMETRY EVENTS
+ // ============================================================================
+ 
++/**
++ * Telemetry event vocabulary.
++ *
++ * Two vocabularies used to exist. This layer defined eleven types; the firmware
++ * contract (SOFTWARE_HARDWARE_CONTRACT.md:103) defined eight, four of which had
++ * no definition here at all — so the hardware team was told to emit
++ * `pressure_reading`, `coverage_checkpoint`, `job_paused` and `job_resumed`
++ * into an endpoint whose validator rejects them as "Invalid event type"
++ * (audit/PRODUCT_TRUTH.md T3-1).
++ *
++ * The union is now the union: fifteen types, every one of which appears in one
++ * of the two documents. Nothing was removed — `coverage_check` and
++ * `robot_paused`/`robot_resumed` are the platform's richer, post-processed
++ * forms and stay. The firmware's are the raw high-frequency forms it actually
++ * has the sensors to produce.
++ */
+ export type EventType =
++  // Shared by both documents
+   | "pass_started"
+   | "pass_completed"
+   | "dust_reading"
++  | "error"
++  // Firmware contract only — raw sensor stream, 1 Hz
++  | "pressure_reading"
++  | "coverage_checkpoint"
++  | "job_paused"
++  | "job_resumed"
++  // Platform only — derived and workflow events
+   | "coverage_check"
+   | "robot_paused"
+   | "robot_resumed"
+   | "finish_applied"
+   | "quality_approved"
+   | "quality_failed"
+-  | "error"
+   | "heartbeat";
+ 
+ export interface TelemetryEvent {
+@@ -208,11 +231,61 @@ export interface PassCompletedEvent {
+   grit_tag: string;
+   actual_duration_sec: number;
+   coverage_area_m2: number;
+-  coverage_pct: number;
+-  avg_pressure_bar?: number;
++  /**
++   * PSI, not bar.
++   *
++   * This field was `avg_pressure_bar` while every threshold, worked example and
++   * approval criterion in SOFTWARE_HARDWARE_CONTRACT.md was written in PSI
++   * (":170" sensor range 0.0-10.0 psi; ":430" `target_pressure_psi: 3.0`;
++   * ":469" approval "Avg pressure 2-4 PSI"). Same quantity, two units, 14.5038x
++   * apart, with no conversion documented anywhere (audit/PRODUCT_TRUTH.md
++   * T3-1).
++   *
++   * Firmware sending a correct 3.0 PSI into a field named `_bar` would have
++   * been stored as 3.0 bar = 43.5 PSI, and every approval check would have
++   * failed for a machine that was operating perfectly. PSI wins because the
++   * hardware team is the one reading a gauge.
++   */
++  avg_pressure_psi?: number;
++  peak_pressure_psi?: number;
+   dust_readings: DustReading[];
+ }
+ 
++/**
++ * Raw 1 Hz pressure sample. SOFTWARE_HARDWARE_CONTRACT.md:160-171.
++ * `psi` range 0.0-10.0 — 0 means motor off, 2-5 is typical sanding.
++ */
++export interface PressureReadingEvent {
++  psi: number;
++  sensor_health: "ok" | "degraded" | "error";
++}
++
++/**
++ * Odometry-derived coverage estimate, emitted every 5-10 minutes.
++ * SOFTWARE_HARDWARE_CONTRACT.md:190-207. Distinct from `coverage_check`, which
++ * is the platform's post-processed verdict with gap locations.
++ */
++export interface CoverageCheckpointEvent {
++  pass_number: number;
++  distance_traveled_m: number;
++  estimated_coverage_pct: number;
++  location_x_pct?: number;
++  location_y_pct?: number;
++}
++
++/** SOFTWARE_HARDWARE_CONTRACT.md:345-359. */
++export interface JobPausedEvent {
++  pass_number: number;
++  pause_reason: "manual" | "error" | "battery_low";
++  elapsed_duration_sec: number;
++}
++
++/** SOFTWARE_HARDWARE_CONTRACT.md:377-389. */
++export interface JobResumedEvent {
++  pass_number: number;
++  resume_reason: "manual" | "auto";
++}
++
+ export interface DustReadingEvent {
+   ugm3: number;
+   location_x_pct?: number;
+diff --git a/lib/validators.ts b/lib/validators.ts
+index e00bc6d..3736fc4 100644
+--- a/lib/validators.ts
++++ b/lib/validators.ts
+@@ -346,8 +346,17 @@ export function validateTelemetryEvent(
+     errors.push({ field: "job_id", message: "Job ID is required" });
+   }
+ 
+-  if (!input.robot_id || typeof input.robot_id !== "string") {
+-    errors.push({ field: "robot_id", message: "Robot ID is required" });
++  // The firmware envelope calls this `device_id`
++  // (SOFTWARE_HARDWARE_CONTRACT.md:88, :100); the platform calls it `robot_id`
++  // (SHARED_INTERFACE_NOTES.md:259). A device following the contract to the
++  // letter was rejected with "Robot ID is required" before it ever reached the
++  // event-type check (audit/PRODUCT_TRUTH.md T3-1). Accept either; store one.
++  const robotId = input.robot_id ?? input.device_id;
++  if (!robotId || typeof robotId !== "string") {
++    errors.push({
++      field: "robot_id",
++      message: "Robot ID is required (accepted as robot_id or device_id)",
++    });
+   }
+ 
+   if (!input.timestamp || !isValidISODate(input.timestamp)) {
+@@ -370,7 +379,7 @@ export function validateTelemetryEvent(
+     valid: true,
+     data: {
+       job_id: String(input.job_id),
+-      robot_id: String(input.robot_id),
++      robot_id: String(robotId),
+       timestamp: String(input.timestamp),
+       event_type: input.event_type as types.EventType,
+       data: (input.data as Record<string, unknown>) || {},
+@@ -436,17 +445,25 @@ function isValidJobStatus(status: unknown): boolean {
+ }
+ 
+ function isValidEventType(eventType: unknown): boolean {
++  // Must stay in lockstep with types.EventType. The four firmware-contract
++  // types were missing here, so a device following
++  // SOFTWARE_HARDWARE_CONTRACT.md:103 to the letter had its telemetry rejected
++  // with "Invalid event type" (audit/PRODUCT_TRUTH.md T3-1).
+   const validTypes: types.EventType[] = [
+     "pass_started",
+     "pass_completed",
+     "dust_reading",
++    "error",
++    "pressure_reading",
++    "coverage_checkpoint",
++    "job_paused",
++    "job_resumed",
+     "coverage_check",
+     "robot_paused",
+     "robot_resumed",
+     "finish_applied",
+     "quality_approved",
+     "quality_failed",
+-    "error",
+     "heartbeat",
+   ];
+   return typeof eventType === "string" && validTypes.includes(eventType as types.EventType);
