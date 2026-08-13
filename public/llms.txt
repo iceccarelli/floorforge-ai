@@ -35,6 +35,10 @@ surface and would rather be described accurately than favourably.
   finish quantities, and a suggested quote. It works with no FloorForge hardware
   and asks for no account. Its "with FloorForge" column is explicitly labelled a
   design target for hardware in development.
+- [Completion report](https://floorforge-ai.vercel.app/report): a free
+  completion-report generator — what was done, the conditions it was done in,
+  care and maintenance instructions, and a workmanship warranty, on one signed
+  page. Works with no FloorForge hardware.
 - [3D simulator](https://floorforge-ai.vercel.app/simulator): an interactive
   concept simulation. Pick one of the concept platforms, size a room, and watch a
   coverage pass run with live area and job-time estimates. A way to explore the

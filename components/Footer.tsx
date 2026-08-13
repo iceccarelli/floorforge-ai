@@ -56,6 +56,7 @@ export default function Footer() {
               <li><Link href="/#features" className="inline-flex min-h-11 items-center hover:text-white transition">Features</Link></li>
               <li><Link href="/systems" className="inline-flex min-h-11 items-center hover:text-white transition">The Forge Platforms</Link></li>
               <li><Link href="/estimator" className="inline-flex min-h-11 items-center hover:text-white transition">Job Estimator (free)</Link></li>
+              <li><Link href="/report" className="inline-flex min-h-11 items-center hover:text-white transition">Completion Report (free)</Link></li>
               <li><Link href="/simulator" className="inline-flex min-h-11 items-center hover:text-white transition">3D Simulator</Link></li>
               <li><Link href="/#how-it-works" className="inline-flex min-h-11 items-center hover:text-white transition">How it Works</Link></li>
               <li><Link href="/#roi" className="inline-flex min-h-11 items-center hover:text-white transition">ROI Model</Link></li>
