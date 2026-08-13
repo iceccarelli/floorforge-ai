@@ -39,6 +39,39 @@ behind a sample-data banner, not a defect. The other 66-point deduction is the a
 
 ---
 
+## 1b. CORRECTION (2026-08-12) — the mobile numbers above are n=1 and I should not have published them as findings
+
+The desktop table is safe: **100 on 4 of 4 routes**, and a ceiling cannot be inflated by
+noise. The mobile table is not.
+
+Re-running the homepage three times against an **unchanged** build gave:
+
+```
+perf  90, 90, 76      LCP  2024, 2581, 4577 ms      TBT  384, 323, 320 ms
+```
+
+A 14-point spread on identical code. The single run reported above as **69** sits inside
+that spread. This container shares a CPU, and Lighthouse's simulated throttling amplifies
+host contention rather than isolating from it.
+
+**What this retracts.** §3's claim that "the site fails its own documented performance
+target on mobile, on every route" is **not supported by the evidence I collected.** One
+run per route cannot distinguish 69 from 90. The correct statement is: mobile performance
+was measured once per route and the measurement is too noisy to score against a
+threshold. Whether the site clears >90 on mobile is **still unknown**.
+
+**What survives.** Everything measured as a count or a ceiling rather than a timing:
+accessibility 100 on 8 of 8 runs, best practices 100, SEO 100 (bar the intentional
+`/dashboard` noindex), **CLS 0**, transfer weight, request counts, and the
+main-thread/bootup breakdown's *relative* ordering.
+
+**How to get a real number.** Run Lighthouse on a machine that is not shared — a laptop
+with `npx lighthouse http://localhost:3111 --view`, or Vercel's Speed Insights against
+production once there is traffic. Three runs minimum; report the median. Until then this
+document reports mobile timings as measurements, not as a grade.
+
+---
+
 ## 2. What passes, and what it took
 
 **Accessibility is 100 on every route, on both form factors.** That is a second,
@@ -104,6 +137,36 @@ the point of this document.
 
 ---
 
+## 3b. Patch 17 — the chatbot panel leaves the first load
+
+`components/Chatbot.tsx` now ships only the launcher; the panel, `framer-motion` and the
+scripted-response table load on first open (`components/ChatbotPanel.tsx`).
+
+Measured n=3 on each build, same container, same session:
+
+| Metric | Before (median) | After (median) | Verdict |
+|---|---|---|---|
+| **TBT** | 323 ms `[320, 323, 384]` | **242 ms** `[135, 242, 252]` | **Real.** The ranges do not overlap — every run of the split build beat every run of the baseline. ~25% less main-thread blocking. |
+| LCP | 2,581 ms `[2024, 2581, 4577]` | 3,328 ms `[3225, 3328, 4015]` | **Inconclusive.** Ranges overlap heavily. |
+| Performance score | 90 `[76, 90, 90]` | 87 `[83, 87, 92]` | **Inconclusive.** Ranges overlap heavily. |
+
+So: the change does what it was designed to do — less JavaScript executed on a page the
+visitor has not asked the chatbot for — and that shows up in the one metric that measures
+exactly that. It is **not** claimed to move the Lighthouse score, because this environment
+cannot demonstrate that either way.
+
+`framer-motion` still ships on first load via `Header.tsx` (mobile menu) and
+`ShowcaseCarousel.tsx` (image rail + Radix Dialog lightbox). Splitting those two is the
+remaining work, and each should be measured the same way: n=3, compare ranges, and say
+"inconclusive" when they overlap.
+
+Behaviour verified, 10 assertions: the launcher is mounted on first paint and the panel is
+not; the "Ask the demo assistant" CTA opens it; the chunk is fetched once, not per open;
+the conversation survives close/re-open; the "Scripted demo — not a live agent" label and
+the patch-12 pricing correction both survive; the launcher is 56×56.
+
+---
+
 ## 4. Still not measured
 
 Shorter than it was, and stated exactly.
@@ -112,7 +175,9 @@ Shorter than it was, and stated exactly.
   needs real interaction traces or field data (CrUX). Neither exists for a site with no
   traffic. TBT above is the lab proxy.
 - **Real devices.** Simulated throttling models a mid-tier phone on a slow 4G link. It is
-  a standard, not a Pixel.
+  a standard, not a Pixel — and per §1b, not a reliable one on shared hardware.
+- **A trustworthy mobile performance score.** See §1b. This is now the largest open gap
+  in this document, and it is an environment problem, not a code problem.
 - **Screen readers.** 100 on the accessibility category is a floor. VoiceOver and NVDA
   remain unrun.
 - **Field CrUX data.** Requires production traffic that does not yet exist.
