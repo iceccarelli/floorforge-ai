@@ -1,0 +1,937 @@
+diff --git a/app/live/page.tsx b/app/live/page.tsx
+new file mode 100644
+index 0000000..6f81187
+--- /dev/null
++++ b/app/live/page.tsx
+@@ -0,0 +1,52 @@
++import type { Metadata } from "next";
++import WorkspaceShell from "@/components/WorkspaceShell";
++import LiveJobConsole from "@/components/LiveJobConsole";
++
++export const metadata: Metadata = {
++  title: "Live Job Console | FloorForge — Watch a Simulated D1 Run a Floor",
++  description:
++    "A simulated ForgeSand D1 runs a multi-grit job and emits telemetry in the exact shape the firmware contract specifies, then fills in the completion report from what it emitted. No hardware is connected; the data path is real.",
++  alternates: { canonical: "/live" },
++};
++
++/**
++ * The demonstration that closes the loop.
++ *
++ * The completion report tells contractors three of its fields are "auto later",
++ * filled from telemetry when hardware exists. Until now that was a promise the
++ * site could not show. This runs it: a simulated machine emits contract-shaped
++ * events, the console consumes them, and the finished run writes those exact
++ * fields into the job's report.
++ *
++ * The machine is simulated and the page says so twice — in the note above the
++ * console and in lib/simulation.ts. What is NOT simulated is the data path: the
++ * event vocabulary, the envelope and the cadences are the ones in
++ * SOFTWARE_HARDWARE_CONTRACT.md and lib/types.ts, which is what makes this a
++ * demonstration rather than an animation.
++ */
++export default function LivePage() {
++  return (
++    <WorkspaceShell
++      active="live"
++      eyebrow="FREE TOOL · SIMULATED MACHINE"
++      title="Watch a D1 run the floor."
++      intro={
++        <>
++          A simulated ForgeSand D1 works through the grit sequence for your job, reporting
++          pressure, dust and coverage the whole way — then hands the results to the
++          completion report.
++        </>
++      }
++      note={
++        <>
++          No FloorForge machine has refinished a floor, and none is connected here. The
++          numbers are generated from the design targets published elsewhere on this site.
++          What is real is the shape of the data — the same events, envelope and cadences
++          the firmware contract specifies.
++        </>
++      }
++    >
++      <LiveJobConsole />
++    </WorkspaceShell>
++  );
++}
+diff --git a/app/page.tsx b/app/page.tsx
+index 3c0af70..ee43a04 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -4,7 +4,7 @@ import React from "react";
+ import {
+   Zap, Shield, Target, Layers, Bot, BarChart3,
+   CheckCircle, ArrowRight, ArrowDown,
+-  ClipboardList, Calculator, FileSignature, ClipboardCheck,
++  ClipboardList, Calculator, FileSignature, ClipboardCheck, Cpu,
+ } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import ROICalculator from "@/components/ROICalculator";
+@@ -60,6 +60,19 @@ const tools = [
+     ],
+     cta: "Build a proposal",
+   },
++  {
++    href: "/live",
++    icon: Cpu,
++    title: "Live job console",
++    description:
++      "Watch a simulated ForgeSand D1 work through the grit sequence for your job — pressure, dust and coverage the whole way — then hand its results to the completion report.",
++    bullets: [
++      "Real firmware-contract telemetry",
++      "Fills the report automatically",
++      "Simulated machine, real data path",
++    ],
++    cta: "Run a job",
++  },
+   {
+     href: "/report",
+     icon: ClipboardCheck,
+@@ -85,6 +98,7 @@ const freeTierIncludes = [
+   "Job estimator with editable assumptions",
+   "Client proposals on your letterhead",
+   "Completion reports with care guidance",
++  "Live job console with simulated telemetry",
+   "Unlimited jobs",
+   "Print or save any document as PDF",
+ ];
+@@ -270,7 +284,7 @@ export default function FloorForgeLanding() {
+               The hardware is in development. The software is not.
+             </h2>
+             <p className="mt-4 text-xl text-muted-foreground">
+-              Four tools a refinishing crew can use on the next job, with no FloorForge
++              Five tools a refinishing crew can use on the next job, with no FloorForge
+               machine anywhere near the site. Nothing to install, no account to create,
+               and none of your work leaves your browser.
+             </p>
+diff --git a/app/sitemap.ts b/app/sitemap.ts
+index 0badf2d..2d17c3b 100644
+--- a/app/sitemap.ts
++++ b/app/sitemap.ts
+@@ -42,6 +42,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
+       changeFrequency: "monthly",
+       priority: 0.9,
+     },
++    {
++      url: `${SITE_URL}/live`,
++      lastModified: now,
++      changeFrequency: "monthly",
++      priority: 0.9,
++    },
+     {
+       url: `${SITE_URL}/report`,
+       lastModified: now,
+diff --git a/audit/scripts/viewports.mjs b/audit/scripts/viewports.mjs
+index 0950c22..55d7e16 100644
+--- a/audit/scripts/viewports.mjs
++++ b/audit/scripts/viewports.mjs
+@@ -17,6 +17,7 @@ export const ROUTES = [
+   "/systems",
+   "/estimator",
+   "/jobs",
++  "/live",
+   "/report",
+   "/simulator",
+   "/pro-simulator",
+diff --git a/components/Footer.tsx b/components/Footer.tsx
+index 8a610c7..58a02df 100644
+--- a/components/Footer.tsx
++++ b/components/Footer.tsx
+@@ -57,6 +57,7 @@ export default function Footer() {
+               <li><Link href="/systems" className="inline-flex min-h-11 items-center hover:text-white transition">The Forge Platforms</Link></li>
+               <li><Link href="/jobs" className="inline-flex min-h-11 items-center hover:text-white transition">Jobs (free)</Link></li>
+               <li><Link href="/estimator" className="inline-flex min-h-11 items-center hover:text-white transition">Job Estimator (free)</Link></li>
++              <li><Link href="/live" className="inline-flex min-h-11 items-center hover:text-white transition">Live Job Console (free)</Link></li>
+               <li><Link href="/report" className="inline-flex min-h-11 items-center hover:text-white transition">Completion Report (free)</Link></li>
+               <li><Link href="/simulator" className="inline-flex min-h-11 items-center hover:text-white transition">3D Simulator</Link></li>
+               <li><Link href="/#how-it-works" className="inline-flex min-h-11 items-center hover:text-white transition">How it Works</Link></li>
+diff --git a/components/Header.tsx b/components/Header.tsx
+index 87be4fd..ad76db0 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -194,6 +194,13 @@ export default function Header() {
+               >
+                 Jobs
+               </Link>
++              <Link
++                href="/live"
++                onClick={() => setMobileMenuOpen(false)}
++                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
++              >
++                Live job console
++              </Link>
+               <Link
+                 href="/report"
+                 onClick={() => setMobileMenuOpen(false)}
+diff --git a/components/LiveJobConsole.tsx b/components/LiveJobConsole.tsx
+new file mode 100644
+index 0000000..469f38e
+--- /dev/null
++++ b/components/LiveJobConsole.tsx
+@@ -0,0 +1,400 @@
++"use client";
++
++import React, { useEffect, useMemo, useRef, useState } from "react";
++import Link from "next/link";
++import { Button } from "@/components/ui/button";
++import { Play, Pause, RotateCcw, Cpu, ArrowRight } from "lucide-react";
++import { JobSimulation, makeConfig, type SimSnapshot } from "@/lib/simulation";
++import { gritSequenceFor } from "@/lib/estimator";
++import { getJob, updateJob, type JobRecord } from "@/lib/jobs";
++import { GRIT_SEQUENCE } from "@/lib/product";
++
++const SPEEDS = [
++  { label: "60×", value: 60 },
++  { label: "300×", value: 300 },
++  { label: "1200×", value: 1200 },
++];
++
++function hms(sec: number): string {
++  const s = Math.max(0, Math.round(sec));
++  const h = Math.floor(s / 3600);
++  const m = Math.floor((s % 3600) / 60);
++  const r = s % 60;
++  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m ${String(r).padStart(2, "0")}s`;
++}
++
++export default function LiveJobConsole() {
++  const [job, setJob] = useState<JobRecord | null>(null);
++  const [ready, setReady] = useState(false);
++  const [running, setRunning] = useState(false);
++  const [speed, setSpeed] = useState(300);
++  const [t, setT] = useState(0);
++  const [written, setWritten] = useState(false);
++  const raf = useRef<number | null>(null);
++  const last = useRef<number>(0);
++
++  useEffect(() => {
++    let alive = true;
++    void Promise.resolve().then(() => {
++      if (!alive) return;
++      const id = new URLSearchParams(window.location.search).get("job");
++      setJob(getJob(id));
++      setReady(true);
++    });
++    return () => {
++      alive = false;
++    };
++  }, []);
++
++  // The machine is built from the job when there is one, and from a
++  // representative floor when a visitor arrives cold — the demo must run for
++  // someone who has never used the estimator.
++  const sim = useMemo(() => {
++    if (!ready) return null;
++    const sqft = job?.estimate.sqft ?? 1200;
++    const grits = job
++      ? gritSequenceFor(job.estimate.species, job.estimate.condition)
++      : [...GRIT_SEQUENCE];
++    return new JobSimulation(
++      makeConfig(sqft, grits, job?.id ?? "job-demo-0001", new Date(2026, 7, 3, 8, 0, 0))
++    );
++  }, [ready, job]);
++
++  useEffect(() => {
++    if (!running || !sim) return;
++    last.current = performance.now();
++    const tick = (now: number) => {
++      const dt = (now - last.current) / 1000;
++      last.current = now;
++      setT((prev) => {
++        const next = prev + dt * speed;
++        if (next >= sim.totalDurationSec) {
++          setRunning(false);
++          return sim.totalDurationSec;
++        }
++        return next;
++      });
++      raf.current = requestAnimationFrame(tick);
++    };
++    raf.current = requestAnimationFrame(tick);
++    return () => {
++      if (raf.current !== null) cancelAnimationFrame(raf.current);
++    };
++  }, [running, speed, sim]);
++
++  if (!ready || !sim) {
++    return (
++      <div className="card p-8 bg-card border-2 border-border-strong">
++        <div className="h-5 w-48 rounded bg-muted" />
++        <div className="mt-4 h-24 w-full rounded bg-muted" />
++      </div>
++    );
++  }
++
++  const s: SimSnapshot = sim.snapshotAt(t);
++  const fields = sim.reportFields();
++
++  const writeReport = () => {
++    if (!job) return;
++    updateJob(job.id, {
++      stage: "complete",
++      report: {
++        ...job.report,
++        gritsExecuted: fields.gritsExecuted,
++        avgDustUgm3: fields.avgDustUgm3,
++        approvalScore: fields.approvalScore,
++        sqft: job.report.sqft || job.estimate.sqft,
++        clientName: job.report.clientName || job.clientName,
++        siteAddress: job.report.siteAddress || job.siteAddress,
++      },
++    });
++    setWritten(true);
++  };
++
++  const totalEvents = Object.values(s.counts).reduce((a, b) => a + b, 0);
++
++  return (
++    <div className="space-y-6">
++      {/* The label a visitor cannot miss, above everything the machine produces. */}
++      <div
++        role="note"
++        className="rounded-xl border-2 border-accent bg-accent-light px-5 py-4"
++      >
++        <div className="flex items-start gap-3">
++          <Cpu className="mt-0.5 h-5 w-5 flex-shrink-0 text-accent" aria-hidden="true" />
++          <p className="text-sm text-foreground">
++            <strong className="font-semibold">
++              Simulated machine. No hardware is connected.
++            </strong>{" "}
++            A ForgeSand D1 does not exist yet. What is real here is the data path: every
++            event below matches the shape, payload and cadence in the firmware contract,
++            in the same vocabulary <code className="font-mono text-xs">/api/telemetry</code>{" "}
++            accepts. The day a physical unit posts to that endpoint, nothing downstream
++            changes.
++          </p>
++        </div>
++      </div>
++
++      {/* Transport */}
++      <div className="card p-5 bg-card border-2 border-border-strong">
++        <div className="flex flex-wrap items-center gap-3">
++          <Button
++            variant="accent"
++            className="h-12"
++            onClick={() => setRunning((r) => !r)}
++            disabled={s.finished}
++          >
++            {running ? (
++              <>
++                <Pause className="mr-2 h-4 w-4" /> Pause
++              </>
++            ) : (
++              <>
++                <Play className="mr-2 h-4 w-4" /> {t > 0 ? "Resume" : "Run the job"}
++              </>
++            )}
++          </Button>
++          <Button
++            variant="secondary"
++            className="h-12"
++            onClick={() => {
++              setRunning(false);
++              setT(0);
++              setWritten(false);
++            }}
++          >
++            <RotateCcw className="mr-2 h-4 w-4" /> Reset
++          </Button>
++
++          <div className="flex items-center gap-2">
++            <span className="text-xs font-semibold tracking-wider text-muted-foreground">
++              SPEED
++            </span>
++            <div role="radiogroup" aria-label="Playback speed" className="flex gap-1.5">
++              {SPEEDS.map((sp) => (
++                <button
++                  key={sp.value}
++                  type="button"
++                  role="radio"
++                  aria-checked={speed === sp.value}
++                  onClick={() => setSpeed(sp.value)}
++                  className={`min-h-11 rounded-lg border px-3 text-sm font-medium transition-colors ${
++                    speed === sp.value
++                      ? "border-accent bg-accent-light text-accent"
++                      : "border-border-strong text-muted-foreground hover:text-foreground"
++                  }`}
++                >
++                  {sp.label}
++                </button>
++              ))}
++            </div>
++          </div>
++
++          <div className="ml-auto text-sm text-muted-foreground tabular-nums">
++            {hms(s.t)} / {hms(sim.totalDurationSec)} simulated
++          </div>
++        </div>
++
++        {/* Overall progress */}
++        <div className="mt-5">
++          <div
++            className="h-3 w-full overflow-hidden rounded-full bg-muted"
++            role="progressbar"
++            aria-valuenow={Math.round(s.overallPct)}
++            aria-valuemin={0}
++            aria-valuemax={100}
++            aria-label="Job progress"
++          >
++            <div
++              className="h-full rounded-full bg-accent transition-[width] duration-150"
++              style={{ width: `${s.overallPct}%` }}
++            />
++          </div>
++          <div className="mt-2 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
++            <span>
++              Pass <strong className="text-foreground">{s.pass}</strong> of {s.passCount} ·{" "}
++              <strong className="text-foreground">{s.grit} grit</strong>
++            </span>
++            <span className="tabular-nums">{s.passPct.toFixed(1)}% of this pass</span>
++            <span className="tabular-nums">
++              {s.areaDoneM2.toFixed(0)} / {s.totalAreaM2.toFixed(0)} m²
++            </span>
++          </div>
++        </div>
++      </div>
++
++      {/* Live sensors */}
++      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
++        {[
++          { label: "COVERAGE", value: `${s.overallPct.toFixed(1)}%`, sub: "whole job" },
++          { label: "PRESSURE", value: `${s.psi.toFixed(2)}`, sub: "psi · target 2–5" },
++          { label: "AIRBORNE DUST", value: `${s.ugm3.toFixed(1)}`, sub: "µg/m³ at extraction" },
++          { label: "TELEMETRY EVENTS", value: totalEvents.toLocaleString(), sub: "emitted so far" },
++        ].map((m) => (
++          <div key={m.label} className="card p-5 bg-card border border-border-strong">
++            <div className="text-xs font-semibold tracking-wider text-muted-foreground">
++              {m.label}
++            </div>
++            <div className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
++              {m.value}
++            </div>
++            <div className="text-xs text-muted-foreground">{m.sub}</div>
++          </div>
++        ))}
++      </div>
++
++      <div className="grid min-w-0 gap-6 lg:grid-cols-2">
++        {/* Pass results */}
++        <div className="card p-6 bg-card border-2 border-border-strong">
++          <h2 className="text-lg font-semibold tracking-tight">Completed passes</h2>
++          {s.passResults.length === 0 ? (
++            <p className="mt-3 text-sm text-muted-foreground">
++              Nothing yet. Press <strong className="text-foreground">Run the job</strong>{" "}
++              and the machine works through the sequence.
++            </p>
++          ) : (
++            <table className="mt-4 w-full text-sm">
++              <caption className="sr-only">
++                Results reported by the simulated machine for each completed pass
++              </caption>
++              <thead>
++                <tr className="text-left text-xs text-muted-foreground">
++                  <th scope="col" className="pb-2 font-medium">Grit</th>
++                  <th scope="col" className="pb-2 font-medium text-right">Coverage</th>
++                  <th scope="col" className="pb-2 font-medium text-right">Avg psi</th>
++                  <th scope="col" className="pb-2 font-medium text-right">Avg dust</th>
++                </tr>
++              </thead>
++              <tbody>
++                {s.passResults.map((pr) => (
++                  <tr key={pr.pass} className="border-t border-border">
++                    <td className="py-2.5 font-medium">{pr.grit}</td>
++                    <td className="py-2.5 text-right tabular-nums">{pr.coveragePct}%</td>
++                    <td className="py-2.5 text-right tabular-nums">{pr.avgPressurePsi}</td>
++                    <td className="py-2.5 text-right tabular-nums">{pr.avgDustUgm3}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          )}
++        </div>
++
++        {/* Raw event stream */}
++        <div className="card min-w-0 p-6 bg-card border-2 border-border-strong">
++          <div className="flex items-baseline justify-between gap-3">
++            <h2 className="text-lg font-semibold tracking-tight">Telemetry stream</h2>
++            <span className="text-xs text-muted-foreground tabular-nums">
++              newest first · {totalEvents.toLocaleString()} total
++            </span>
++          </div>
++          <p className="mt-1 text-xs text-muted-foreground">
++            Exactly the envelope in SOFTWARE_HARDWARE_CONTRACT.md §2.2 —{" "}
++            <code className="font-mono">device_id</code>,{" "}
++            <code className="font-mono">job_id</code>,{" "}
++            <code className="font-mono">timestamp</code>,{" "}
++            <code className="font-mono">event_type</code>,{" "}
++            <code className="font-mono">data</code>.
++          </p>
++          {/* tabIndex=0: a scrollable region must be reachable by keyboard, or a
++              keyboard-only user cannot scroll it at all (axe
++              scrollable-region-focusable). The global :focus-visible rule in
++              globals.css already gives it a ring. aria-live is off on purpose —
++              announcing 7,200 events per pass would make the page unusable with
++              a screen reader; the progress bar and pass table carry the state. */}
++          <ul
++            tabIndex={0}
++            aria-label="Telemetry event stream, newest first"
++            aria-live="off"
++            // min-h: adding tabIndex made this a focusable target, and empty it
++            // measured 42.8px — under the 44px floor (audit/scripts/tap-targets.mjs).
++            // A fixed floor also stops the panel jumping as the stream fills.
++            className="mt-4 min-h-[180px] max-h-72 space-y-1.5 overflow-y-auto font-mono text-[11px] leading-relaxed"
++          >
++            {s.log.length === 0 && (
++              <li className="font-sans text-sm text-muted-foreground">
++                No events yet.
++              </li>
++            )}
++            {s.log.map((e) => (
++              <li key={e.seq} className="break-all border-b border-border pb-1.5">
++                <span className="text-accent">{e.event_type}</span>{" "}
++                <span className="text-muted-foreground">{e.timestamp.slice(11, 19)}</span>{" "}
++                <span className="text-foreground">{JSON.stringify(e.data)}</span>
++              </li>
++            ))}
++          </ul>
++        </div>
++      </div>
++
++      {/* The payoff */}
++      <div className="card p-6 md:p-8 bg-card border-2 border-accent">
++        <h2 className="text-xl font-semibold tracking-tight">
++          What the machine fills in for you
++        </h2>
++        <p className="mt-2 text-muted-foreground">
++          The completion report marks three fields{" "}
++          <span className="font-semibold text-accent">auto later</span>. These are those
++          fields, derived from the run above and nothing else.
++        </p>
++        <dl className="mt-5 grid gap-4 sm:grid-cols-3">
++          {[
++            ["Grit sequence run", fields.gritsExecuted, "from pass_completed"],
++            ["Average dust", `${fields.avgDustUgm3} µg/m³`, "from dust_reading"],
++            ["Approval score", `${fields.approvalScore} / 100`, "from coverage_checkpoint"],
++          ].map(([k, v, src]) => (
++            <div key={k} className="rounded-xl border border-border-strong p-4">
++              <dt className="text-xs font-semibold tracking-wider text-muted-foreground">
++                {k}
++              </dt>
++              <dd className="mt-1 text-xl font-semibold tabular-nums tracking-tight">
++                {s.finished ? v : "—"}
++              </dd>
++              <dd className="text-xs text-muted-foreground">{src}</dd>
++            </div>
++          ))}
++        </dl>
++
++        <div className="mt-6 flex flex-wrap items-center gap-3">
++          {job ? (
++            <>
++              <Button
++                variant="accent"
++                className="h-12"
++                onClick={writeReport}
++                disabled={!s.finished || written}
++              >
++                {written ? "Written to the report" : "Fill the completion report"}
++              </Button>
++              {written && (
++                <Button asChild variant="secondary" className="h-12">
++                  <Link href={`/report?job=${job.id}`}>
++                    Open the report <ArrowRight className="ml-2 h-4 w-4" />
++                  </Link>
++                </Button>
++              )}
++            </>
++          ) : (
++            <>
++              {/* h-auto + whitespace-normal: the Button primitive sets
++                  whitespace-nowrap, and this label is 302px wide — 31px past a
++                  320px viewport. Same treatment patch 12 gave the dashboard
++                  cross-sell button. */}
++              <Button
++                asChild
++                variant="secondary"
++                className="h-auto whitespace-normal py-3 text-center leading-snug"
++              >
++                <Link href="/jobs">Start a job to write these into a report</Link>
++              </Button>
++            </>
++          )}
++          {!s.finished && (
++            <span className="text-sm text-muted-foreground">
++              Available once the run completes.
++            </span>
++          )}
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/WorkspaceShell.tsx b/components/WorkspaceShell.tsx
+index 1ee2772..95776d7 100644
+--- a/components/WorkspaceShell.tsx
++++ b/components/WorkspaceShell.tsx
+@@ -2,7 +2,7 @@
+ 
+ import React, { useEffect, useState } from "react";
+ import Link from "next/link";
+-import { ArrowLeft, ClipboardList, Calculator, ClipboardCheck } from "lucide-react";
++import { ArrowLeft, ClipboardList, Calculator, ClipboardCheck, Cpu } from "lucide-react";
+ import {
+   getJob,
+   jobSummary,
+@@ -32,6 +32,7 @@ import {
+ const TOOLS = [
+   { key: "jobs", href: "/jobs", label: "Jobs", icon: ClipboardList, jobScoped: false },
+   { key: "estimator", href: "/estimator", label: "Estimate & proposal", icon: Calculator, jobScoped: true },
++  { key: "live", href: "/live", label: "Live job console", icon: Cpu, jobScoped: true },
+   { key: "report", href: "/report", label: "Completion report", icon: ClipboardCheck, jobScoped: true },
+ ] as const;
+ 
+diff --git a/lib/simulation.ts b/lib/simulation.ts
+new file mode 100644
+index 0000000..42cb9a3
+--- /dev/null
++++ b/lib/simulation.ts
+@@ -0,0 +1,314 @@
++import {
++  GRIT_SEQUENCE,
++  SANDER_M2_PER_HOUR_PER_PASS,
++  SQFT_PER_M2,
++  DUST_CAPTURE_TARGET_PCT,
++} from "@/lib/product";
++import type { EventType } from "@/lib/types";
++
++/**
++ * A simulated ForgeSand D1 running a job.
++ *
++ * WHAT THIS IS. A deterministic model of a machine that does not exist,
++ * emitting telemetry in exactly the shape SOFTWARE_HARDWARE_CONTRACT.md
++ * specifies, at the cadence it specifies, into the same event vocabulary
++ * `lib/types.ts` defines and `POST /api/telemetry` accepts.
++ *
++ * WHAT THIS IS NOT. A recording of hardware. No FloorForge machine has
++ * refinished a floor. Every number below is generated from the design targets
++ * in lib/product.ts plus bounded noise — the console labels it as simulated on
++ * every surface, and this comment is the second place that is written down.
++ *
++ * WHY IT EARNS ITS PLACE. The completion report tells contractors that three of
++ * its fields are "auto later" — filled from `pass_completed`, `dust_reading`
++ * and `coverage_check` telemetry when hardware exists. That is a promise the
++ * site could not previously demonstrate. This runs the loop for real: the
++ * simulated machine emits the events, the console consumes them, and the
++ * finished run writes those exact fields into the job's completion report. The
++ * data path is genuine even though the machine is not, which means the day a
++ * real D1 posts to /api/telemetry, nothing downstream changes.
++ *
++ * Cadences and payloads follow the contract:
++ *   pressure_reading      1 Hz     psi, sensor_health
++ *   dust_reading          1 Hz     ugm3, location
++ *   coverage_checkpoint   ~5 min   pass_number, distance_traveled_m, estimated_coverage_pct
++ *   pass_started/completed per pass
++ */
++
++/** Deterministic PRNG so a given job always runs the same way. */
++function mulberry32(seed: number) {
++  return function () {
++    seed |= 0;
++    seed = (seed + 0x6d2b79f5) | 0;
++    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
++    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++  };
++}
++
++export interface SimEvent {
++  seq: number;
++  /** Simulated seconds since job start. */
++  t: number;
++  device_id: string;
++  job_id: string;
++  timestamp: string;
++  event_type: EventType;
++  data: Record<string, unknown>;
++}
++
++export interface SimSnapshot {
++  t: number;
++  pass: number;
++  passCount: number;
++  grit: string;
++  /** Coverage of the CURRENT pass, 0-100. */
++  passPct: number;
++  /** Coverage of the whole job across all passes, 0-100. */
++  overallPct: number;
++  areaDoneM2: number;
++  totalAreaM2: number;
++  psi: number;
++  ugm3: number;
++  distanceM: number;
++  finished: boolean;
++  /** Per-type counts, matching the contract's volume table. */
++  counts: Record<string, number>;
++  /** Newest first, capped — a 3-hour job emits ~14,000 events. */
++  log: SimEvent[];
++  passResults: PassResult[];
++}
++
++export interface PassResult {
++  pass: number;
++  grit: string;
++  durationSec: number;
++  coveragePct: number;
++  avgPressurePsi: number;
++  peakPressurePsi: number;
++  avgDustUgm3: number;
++}
++
++const LOG_CAP = 60;
++const CHECKPOINT_EVERY_SEC = 300;
++
++export interface SimConfig {
++  sqft: number;
++  grits: string[];
++  deviceId: string;
++  jobId: string;
++  startedAt: Date;
++  seed: number;
++}
++
++export function makeConfig(
++  sqft: number,
++  grits: string[] | undefined,
++  jobId: string,
++  startedAt: Date
++): SimConfig {
++  const seq = grits && grits.length ? grits : [...GRIT_SEQUENCE];
++  // Seed from the job so a run is reproducible — a demo that shows different
++  // numbers every reload reads as a random-number generator, not a machine.
++  let h = 0;
++  for (let i = 0; i < jobId.length; i++) h = (h * 31 + jobId.charCodeAt(i)) >>> 0;
++  return {
++    sqft: Math.max(100, sqft || 1200),
++    grits: seq,
++    deviceId: "FF-S001",
++    jobId,
++    startedAt,
++    seed: h || 1,
++  };
++}
++
++/**
++ * The whole run, computed up front.
++ *
++ * Generating the full event stream once and then replaying it against a clock
++ * keeps the UI trivially seekable and pausable, and means the completion-report
++ * summary is derived from the same events the console displayed — not from a
++ * second, parallel calculation that could disagree with it.
++ */
++export class JobSimulation {
++  readonly cfg: SimConfig;
++  readonly totalAreaM2: number;
++  readonly passDurationSec: number;
++  readonly totalDurationSec: number;
++  private readonly events: SimEvent[];
++  private readonly rand: () => number;
++
++  constructor(cfg: SimConfig) {
++    this.cfg = cfg;
++    this.rand = mulberry32(cfg.seed);
++    this.totalAreaM2 = cfg.sqft / SQFT_PER_M2;
++    this.passDurationSec = Math.round(
++      (this.totalAreaM2 / SANDER_M2_PER_HOUR_PER_PASS) * 3600
++    );
++    this.totalDurationSec = this.passDurationSec * cfg.grits.length;
++    this.events = this.generate();
++  }
++
++  private iso(t: number): string {
++    return new Date(this.cfg.startedAt.getTime() + t * 1000).toISOString();
++  }
++
++  /** Pressure rises with coarser grit; bounded to the contract's 0-10 psi range. */
++  private psiFor(passIdx: number, jitter: number): number {
++    const base = 3.4 - passIdx * 0.25;
++    return Math.min(10, Math.max(0, Number((base + (jitter - 0.5) * 0.5).toFixed(2))));
++  }
++
++  /** Dust falls as grit gets finer; the coarse pass throws the most. */
++  private dustFor(passIdx: number, jitter: number): number {
++    const base = 17 - passIdx * 2.2;
++    return Math.max(0, Number((base + (jitter - 0.5) * 3).toFixed(1)));
++  }
++
++  private generate(): SimEvent[] {
++    const out: SimEvent[] = [];
++    let seq = 0;
++    const push = (t: number, event_type: EventType, data: Record<string, unknown>) => {
++      out.push({
++        seq: seq++,
++        t,
++        device_id: this.cfg.deviceId,
++        job_id: this.cfg.jobId,
++        timestamp: this.iso(t),
++        event_type,
++        data,
++      });
++    };
++
++    this.cfg.grits.forEach((grit, i) => {
++      const t0 = i * this.passDurationSec;
++      push(t0, "pass_started", {
++        pass_number: i + 1,
++        grit_tag: grit,
++        target_coverage_area_m2: Number(this.totalAreaM2.toFixed(1)),
++        estimated_duration_sec: this.passDurationSec,
++      });
++
++      const psiSamples: number[] = [];
++      const dustSamples: number[] = [];
++      // 1 Hz sensor stream, per SOFTWARE_HARDWARE_CONTRACT.md:33 and :239. A
++      // real 3-hour job is ~7,200 of each; we generate them all so the counts
++      // shown match the contract's volume table rather than a prettier number.
++      for (let s = 1; s <= this.passDurationSec; s++) {
++        const t = t0 + s;
++        const psi = this.psiFor(i, this.rand());
++        const ugm3 = this.dustFor(i, this.rand());
++        psiSamples.push(psi);
++        dustSamples.push(ugm3);
++        push(t, "pressure_reading", { psi, sensor_health: "ok" });
++        push(t, "dust_reading", { ugm3, location: "extraction_point" });
++
++        if (s % CHECKPOINT_EVERY_SEC === 0) {
++          const pct = Number(((s / this.passDurationSec) * 100).toFixed(1));
++          push(t, "coverage_checkpoint", {
++            pass_number: i + 1,
++            distance_traveled_m: Number(
++              ((this.totalAreaM2 * (s / this.passDurationSec)) / 0.5).toFixed(1)
++            ),
++            estimated_coverage_pct: pct,
++          });
++        }
++      }
++
++      const avg = (a: number[]) => a.reduce((x, y) => x + y, 0) / (a.length || 1);
++      const coverage = Number((97.4 + this.rand() * 2.2).toFixed(1));
++      push(t0 + this.passDurationSec, "pass_completed", {
++        pass_number: i + 1,
++        grit_tag: grit,
++        duration_sec: this.passDurationSec,
++        coverage_area_m2: Number((this.totalAreaM2 * (coverage / 100)).toFixed(1)),
++        coverage_pct: coverage,
++        avg_pressure_psi: Number(avg(psiSamples).toFixed(2)),
++        peak_pressure_psi: Number(Math.max(...psiSamples).toFixed(2)),
++        avg_dust_ugm3: Number(avg(dustSamples).toFixed(1)),
++      });
++    });
++
++    return out;
++  }
++
++  /** State of the machine at simulated time `t`. */
++  snapshotAt(t: number): SimSnapshot {
++    const clamped = Math.max(0, Math.min(t, this.totalDurationSec));
++    const seen = this.events.filter((e) => e.t <= clamped);
++    const counts: Record<string, number> = {};
++    for (const e of seen) counts[e.event_type] = (counts[e.event_type] ?? 0) + 1;
++
++    const passIdx = Math.min(
++      this.cfg.grits.length - 1,
++      Math.floor(clamped / this.passDurationSec)
++    );
++    const inPass = clamped - passIdx * this.passDurationSec;
++    const passPct = Math.min(100, (inPass / this.passDurationSec) * 100);
++
++    const lastPsi = [...seen].reverse().find((e) => e.event_type === "pressure_reading");
++    const lastDust = [...seen].reverse().find((e) => e.event_type === "dust_reading");
++
++    const passResults: PassResult[] = seen
++      .filter((e) => e.event_type === "pass_completed")
++      .map((e) => ({
++        pass: e.data.pass_number as number,
++        grit: e.data.grit_tag as string,
++        durationSec: e.data.duration_sec as number,
++        coveragePct: e.data.coverage_pct as number,
++        avgPressurePsi: e.data.avg_pressure_psi as number,
++        peakPressurePsi: e.data.peak_pressure_psi as number,
++        avgDustUgm3: e.data.avg_dust_ugm3 as number,
++      }));
++
++    return {
++      t: clamped,
++      pass: passIdx + 1,
++      passCount: this.cfg.grits.length,
++      grit: this.cfg.grits[passIdx],
++      passPct,
++      overallPct: Math.min(100, (clamped / this.totalDurationSec) * 100),
++      areaDoneM2: this.totalAreaM2 * (passPct / 100),
++      totalAreaM2: this.totalAreaM2,
++      psi: (lastPsi?.data.psi as number) ?? 0,
++      ugm3: (lastDust?.data.ugm3 as number) ?? 0,
++      distanceM: (this.totalAreaM2 / 0.5) * (clamped / this.passDurationSec),
++      finished: clamped >= this.totalDurationSec,
++      counts,
++      log: seen.slice(-LOG_CAP).reverse(),
++      passResults,
++    };
++  }
++
++  /**
++   * The completion-report fields this run produces.
++   *
++   * These are exactly the three the report marks "auto later", derived from the
++   * events above and nothing else — which is the point of the whole exercise.
++   */
++  reportFields(): {
++    gritsExecuted: string;
++    avgDustUgm3: string;
++    approvalScore: string;
++    totalHours: number;
++    overallCoveragePct: number;
++  } {
++    const s = this.snapshotAt(this.totalDurationSec);
++    const avgDust =
++      s.passResults.reduce((a, p) => a + p.avgDustUgm3, 0) / (s.passResults.length || 1);
++    const overall =
++      s.passResults.reduce((a, p) => a + p.coveragePct, 0) / (s.passResults.length || 1);
++    return {
++      gritsExecuted: this.cfg.grits.join(", "),
++      avgDustUgm3: avgDust.toFixed(1),
++      // Coverage is the dominant term; a job that covers 98% of the floor does
++      // not score 98/100 on its own, so this is deliberately conservative.
++      approvalScore: String(Math.min(100, Math.round(overall - 1))),
++      totalHours: Number((this.totalDurationSec / 3600).toFixed(2)),
++      overallCoveragePct: Number(overall.toFixed(1)),
++    };
++  }
++}
++
++/** Design target the dust figures are generated against, for display. */
++export const DUST_TARGET_PCT = DUST_CAPTURE_TARGET_PCT;
+diff --git a/public/llms.txt b/public/llms.txt
+index d5ed514..8f4da8e 100644
+--- a/public/llms.txt
++++ b/public/llms.txt
+@@ -49,7 +49,7 @@ surface and would rather be described accurately than favourably.
+ 
+ ## Software that works today
+ 
+-FloorForge ships four free tools that require no FloorForge hardware, no account
++FloorForge ships five free tools that require no FloorForge hardware, no account
+ and no installation. They are the only part of the product that exists as a
+ working thing rather than a design target, and a contractor can use them on the
+ next job:
+@@ -58,6 +58,9 @@ next job:
+ - Job estimator — grit sequence, crew hours, abrasive and finish quantities, price.
+ - Client proposal — the estimate as a document for a homeowner, without the cost basis.
+ - Completion report — what was done, care instructions, and a workmanship warranty.
++- Live job console — a SIMULATED ForgeSand D1 runs a job and emits telemetry in
++  the firmware contract's own shape, then fills in the completion report from it.
++  No hardware is connected; the machine does not exist. The data path is real.
+ 
+ All work stays in the visitor's own browser. Nothing is uploaded.
+ 
