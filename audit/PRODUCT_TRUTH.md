@@ -91,43 +91,6 @@ depends on.
 
 ---
 
-### T0-4 · The site has a complete lead pipeline and the waitlist form does not use it
-
-| Side | Evidence |
-|---|---|
-| **Built** | `POST /api/applications` with full validation (`app/api/applications/route.ts:14-55`); `pilot_applications` table (`lib/db/client.ts:33`); a ten-state lifecycle `new → contacted → engaged → qualified → accepted → onboarded → piloting → completed/declined/churned` (`lib/types.ts:63-73`); an operator console to triage it (`app/operator/applications/page.tsx:76`) |
-| **Used** | The waitlist posts to `https://formspree.io/f/${FORMSPREE_ID}` (`components/WaitlistCTA.tsx:85`) |
-
-The `source` enum's first value is literally `"floorforge-site"` (`lib/types.ts:86`,
-`lib/validators.ts:412`). Every field the form collects has a home in
-`PilotApplication`:
-
-| Form sends | `PilotApplication` field |
-|---|---|
-| `name` | `name` |
-| `email` | `email` |
-| `company` | `company` |
-| `monthly_sqft` | `monthly_sqft_target` |
-| `interest` | `robot_interest` |
-| `source` | `source` — the enum value `"floorforge-site"` exists for exactly this |
-
-**The form was designed for this endpoint and was never connected to it.**
-
-**What it costs.** The operator console has never had a row to triage. The ten-state
-lifecycle has never advanced once. And the site's only conversion path depends on a
-third-party service nobody configured — while the equivalent system FloorForge owns,
-tested and shipped sits idle behind it.
-
-It also reframes the environment-variable problem that has led every report in this
-engagement. `NEXT_PUBLIC_FORMSPREE_FORM_ID` buys one thing: form submissions. Supabase
-credentials buy the same submissions *plus* the dashboard, the operator console,
-telemetry ingestion and the job pipeline — and the product needs them regardless.
-Formspree is a second dependency that duplicates a system already built.
-
-**Resolved in `FLOORFORGE_16_lead_pipeline.patch`** — three tiers, in order: the pilot
-API, then Formspree if configured, then a prefilled mailto. The CTA is dead at no tier,
-and no tier claims a submission that did not happen.
-
 ### T0-2 · Four sources of truth give four different answers to "how long does my floor take", spread 15×
 
 This is the first question every contractor asks. The site, the API reference, the
@@ -199,6 +162,45 @@ worst of both.
 **Fixable without a judgement call?** Removing an unsupported regulatory claim does not
 weaken an honesty disclaimer; it removes an over-claim. But it changes rendered copy, so
 it is listed as Decision 3 rather than executed.
+
+---
+
+### T0-4 · The site has a complete lead pipeline and the waitlist form does not use it
+
+| Side | Evidence |
+|---|---|
+| **Built** | `POST /api/applications` with full validation (`app/api/applications/route.ts:14-55`); `pilot_applications` table (`lib/db/client.ts:33`); a ten-state lifecycle `new → contacted → engaged → qualified → accepted → onboarded → piloting → completed/declined/churned` (`lib/types.ts:63-73`); an operator console to triage it (`app/operator/applications/page.tsx:76`) |
+| **Used** | The waitlist posts to `https://formspree.io/f/${FORMSPREE_ID}` (`components/WaitlistCTA.tsx:85`) |
+
+The `source` enum's first value is literally `"floorforge-site"` (`lib/types.ts:86`,
+`lib/validators.ts:412`). Every field the form collects has a home in
+`PilotApplication`:
+
+| Form sends | `PilotApplication` field |
+|---|---|
+| `name` | `name` |
+| `email` | `email` |
+| `company` | `company` |
+| `monthly_sqft` | `monthly_sqft_target` |
+| `interest` | `robot_interest` |
+| `source` | `source` — the enum value `"floorforge-site"` exists for exactly this |
+
+**The form was designed for this endpoint and was never connected to it.**
+
+**What it costs.** The operator console has never had a row to triage. The ten-state
+lifecycle has never advanced once. And the site's only conversion path depends on a
+third-party service nobody configured — while the equivalent system FloorForge owns,
+tested and shipped sits idle behind it.
+
+It also reframes the environment-variable problem that has led every report in this
+engagement. `NEXT_PUBLIC_FORMSPREE_FORM_ID` buys one thing: form submissions. Supabase
+credentials buy the same submissions *plus* the dashboard, the operator console,
+telemetry ingestion and the job pipeline — and the product needs them regardless.
+Formspree is a second dependency that duplicates a system already built.
+
+**Resolved in `FLOORFORGE_16_lead_pipeline.patch`** — three tiers, in order: the pilot
+API, then Formspree if configured, then a prefilled mailto. The CTA is dead at no tier,
+and no tier claims a submission that did not happen.
 
 ---
 

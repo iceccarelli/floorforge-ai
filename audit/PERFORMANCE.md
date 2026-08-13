@@ -32,10 +32,21 @@ have now.
 | `/simulator` | 76 | **100** | **100** | **100** | 2,713 ms | 763 ms | 850 ms | **0** | 1,210 ms |
 | `/dashboard` | 83 | **100** | **100** | 66 ✱ | 3,306 ms | 789 ms | 380 ms | **0** | 789 ms |
 
-✱ `/dashboard` fails one SEO audit — `is-crawlable` — because `app/robots.ts:12`
-deliberately disallows it. That is the intended behaviour for a product-preview page
-behind a sample-data banner, not a defect. The other 66-point deduction is the absent
-`metadata` export; `/dashboard` is the one route without one.
+✱ `/dashboard` scores 66 on SEO. Two causes, and only one was a defect.
+
+The defect: it was the only route on the site with **no title and no description**,
+because it is a client component and a client component cannot export `metadata`.
+Fixed in patch 18 by adding `app/dashboard/layout.tsx` — the tab now reads
+"Dashboard Preview | FloorForge" instead of a bare URL, which matters when a pilot
+customer is sent the link.
+
+The non-defect: the remaining failure is `is-crawlable`, and **the score stays 66 after
+the fix** — verified. `app/robots.ts:12` disallows `/dashboard` on purpose, because it
+renders sample data behind a PRODUCT PREVIEW banner and a preview of a product that does
+not exist has no business in an index. Patch 18 also declares `robots: { index: false }`
+in the page's own head, so a crawler that never fetches robots.txt gets the message too —
+which makes the audit fail *harder*, and correctly. This score cannot reach 100 without
+doing something wrong.
 
 ---
 
