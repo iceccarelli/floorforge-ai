@@ -1,0 +1,628 @@
+diff --git a/app/jobs/page.tsx b/app/jobs/page.tsx
+new file mode 100644
+index 0000000..a9eafc6
+--- /dev/null
++++ b/app/jobs/page.tsx
+@@ -0,0 +1,57 @@
++import type { Metadata } from "next";
++import Link from "next/link";
++import { ArrowLeft } from "lucide-react";
++import JobsWorkspace from "@/components/JobsWorkspace";
++
++export const metadata: Metadata = {
++  title: "Jobs | FloorForge — One Record From Estimate to Sign-off",
++  description:
++    "Track refinishing jobs from estimate through proposal to completion report. Enter the floor once; every document reads the same record. Saved in your browser — no account, no server.",
++  alternates: { canonical: "/jobs" },
++};
++
++/**
++ * The workspace that turns three tools into one workflow.
++ *
++ * Before this, the estimator, the proposal and the completion report were
++ * separate forms: the same floor was typed three times. That is the most
++ * reliable way to lose a user by their second job, and polishing the individual
++ * tools would not have fixed it.
++ *
++ * A JobRecord mirrors types.Job, so when Supabase credentials exist these
++ * records sync to POST /api/jobs rather than needing migration. Local-first is
++ * the starting point, not a substitute for the backend.
++ */
++export default function JobsPage() {
++  return (
++    <div className="mx-auto max-w-5xl px-6 py-12 md:py-16">
++      <Link
++        href="/"
++        className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
++      >
++        <ArrowLeft size={16} /> Back to FloorForge
++      </Link>
++
++      <header className="mt-6 max-w-3xl">
++        <div className="text-accent text-xs tracking-[3px] font-semibold">
++          FREE TOOL · NO ACCOUNT NEEDED
++        </div>
++        <h1 className="mt-2 text-4xl sm:text-5xl font-semibold tracking-[-0.03em]">
++          One record, estimate to sign-off.
++        </h1>
++        <p className="mt-4 text-xl text-muted-foreground">
++          Measure the floor once. The estimate becomes the proposal, the proposal becomes
++          the completion report, and nothing gets typed twice.
++        </p>
++        <p className="mt-4 text-sm text-muted-foreground">
++          Jobs are saved in this browser and never sent anywhere. There is no account to
++          create and no server holding your work.
++        </p>
++      </header>
++
++      <div className="mt-10">
++        <JobsWorkspace />
++      </div>
++    </div>
++  );
++}
+diff --git a/app/sitemap.ts b/app/sitemap.ts
+index ff777b1..0badf2d 100644
+--- a/app/sitemap.ts
++++ b/app/sitemap.ts
+@@ -36,6 +36,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
+       changeFrequency: "monthly",
+       priority: 0.9,
+     },
++    {
++      url: `${SITE_URL}/jobs`,
++      lastModified: now,
++      changeFrequency: "monthly",
++      priority: 0.9,
++    },
+     {
+       url: `${SITE_URL}/report`,
+       lastModified: now,
+diff --git a/audit/scripts/viewports.mjs b/audit/scripts/viewports.mjs
+index 02c1224..0950c22 100644
+--- a/audit/scripts/viewports.mjs
++++ b/audit/scripts/viewports.mjs
+@@ -16,6 +16,7 @@ export const ROUTES = [
+   "/",
+   "/systems",
+   "/estimator",
++  "/jobs",
+   "/report",
+   "/simulator",
+   "/pro-simulator",
+diff --git a/components/Footer.tsx b/components/Footer.tsx
+index d5b62d5..8a610c7 100644
+--- a/components/Footer.tsx
++++ b/components/Footer.tsx
+@@ -55,6 +55,7 @@ export default function Footer() {
+             <ul className="space-y-0.5 text-sm text-white/80">
+               <li><Link href="/#features" className="inline-flex min-h-11 items-center hover:text-white transition">Features</Link></li>
+               <li><Link href="/systems" className="inline-flex min-h-11 items-center hover:text-white transition">The Forge Platforms</Link></li>
++              <li><Link href="/jobs" className="inline-flex min-h-11 items-center hover:text-white transition">Jobs (free)</Link></li>
+               <li><Link href="/estimator" className="inline-flex min-h-11 items-center hover:text-white transition">Job Estimator (free)</Link></li>
+               <li><Link href="/report" className="inline-flex min-h-11 items-center hover:text-white transition">Completion Report (free)</Link></li>
+               <li><Link href="/simulator" className="inline-flex min-h-11 items-center hover:text-white transition">3D Simulator</Link></li>
+diff --git a/components/Header.tsx b/components/Header.tsx
+index 99f23e8..aa0040f 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -90,6 +90,12 @@ export default function Header() {
+                 Free
+               </span>
+             </Link>
++            <Link
++              href="/jobs"
++              className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
++            >
++              Jobs
++            </Link>
+             <Link
+               href="/report"
+               className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+@@ -199,6 +205,13 @@ export default function Header() {
+               >
+                 Estimator (free tool)
+               </Link>
++              <Link
++                href="/jobs"
++                onClick={() => setMobileMenuOpen(false)}
++                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
++              >
++                Jobs
++              </Link>
+               <Link
+                 href="/report"
+                 onClick={() => setMobileMenuOpen(false)}
+diff --git a/components/JobEstimator.tsx b/components/JobEstimator.tsx
+index 81133b3..7c7861b 100644
+--- a/components/JobEstimator.tsx
++++ b/components/JobEstimator.tsx
+@@ -21,6 +21,7 @@ import {
+   saveProfile,
+   type ContractorProfile,
+ } from "@/lib/proposal";
++import { getJob, updateJob, type JobRecord } from "@/lib/jobs";
+ 
+ const SPECIES = Object.keys(SPECIES_LABEL) as Species[];
+ const CONDITIONS = Object.keys(CONDITION_LABEL) as Condition[];
+@@ -101,6 +102,8 @@ export default function JobEstimator() {
+     today: Date | null;
+   }>({ profile: EMPTY_PROFILE, today: null });
+ 
++  const [jobId, setJobId] = useState<string | null>(null);
++
+   useEffect(() => {
+     // Deferred past a microtask so React has committed before the state lands —
+     // the same pattern FLOORFORGE_02 established for the operator routes when
+@@ -108,13 +111,38 @@ export default function JobEstimator() {
+     // triggers a cascading render on every mount.
+     let active = true;
+     void Promise.resolve().then(() => {
+-      if (active) setBrowserState({ profile: loadProfile(), today: new Date() });
++      if (!active) return;
++      setBrowserState({ profile: loadProfile(), today: new Date() });
++
++      // ?job=<id> opens an existing record. Read from location rather than
++      // useSearchParams so this page stays statically prerenderable.
++      const id = new URLSearchParams(window.location.search).get("job");
++      const job: JobRecord | null = getJob(id);
++      if (job) {
++        setJobId(job.id);
++        setInput(job.estimate);
++        setA(job.assumptions);
++        setClientName(job.clientName);
++        setSiteAddress(job.siteAddress);
++      }
+     });
+     return () => {
+       active = false;
+     };
+   }, []);
+ 
++  // Write back whenever anything the job owns changes. One localStorage round
++  // trip, and it means a contractor never loses work by navigating away.
++  useEffect(() => {
++    if (!jobId) return;
++    updateJob(jobId, {
++      estimate: input,
++      assumptions: a,
++      clientName,
++      siteAddress,
++    });
++  }, [jobId, input, a, clientName, siteAddress]);
++
+   const { profile, today } = browserState;
+ 
+   const setProfileField = (k: keyof ContractorProfile, v: string) => {
+diff --git a/components/JobReport.tsx b/components/JobReport.tsx
+index 89b49b2..76604ca 100644
+--- a/components/JobReport.tsx
++++ b/components/JobReport.tsx
+@@ -19,6 +19,8 @@ import {
+   proposalNumber,
+   type ContractorProfile,
+ } from "@/lib/proposal";
++import { getJob, updateJob, reportSeededFrom } from "@/lib/jobs";
++import { gritSequenceFor } from "@/lib/estimator";
+ 
+ function Field({
+   id,
+@@ -72,18 +74,37 @@ export default function JobReport() {
+     today: Date | null;
+   }>({ profile: EMPTY_PROFILE, today: null });
+ 
++  const [jobId, setJobId] = useState<string | null>(null);
++
+   useEffect(() => {
+     // Deferred past a microtask so React commits first — the pattern
+     // FLOORFORGE_02 established for react-hooks/set-state-in-effect.
+     let active = true;
+     void Promise.resolve().then(() => {
+-      if (active) setBrowserState({ profile: loadProfile(), today: new Date() });
++      if (!active) return;
++      setBrowserState({ profile: loadProfile(), today: new Date() });
++
++      const id = new URLSearchParams(window.location.search).get("job");
++      const job = getJob(id);
++      if (job) {
++        setJobId(job.id);
++        // Seed the blanks from what was already estimated. Anything typed on
++        // the report wins — this document records what happened, not what was
++        // planned, and the two are allowed to differ.
++        const grits = gritSequenceFor(job.estimate.species, job.estimate.condition);
++        setF(reportSeededFrom(job, grits));
++      }
+     });
+     return () => {
+       active = false;
+     };
+   }, []);
+ 
++  useEffect(() => {
++    if (!jobId) return;
++    updateJob(jobId, { report: f });
++  }, [jobId, f]);
++
+   const { profile, today } = browserState;
+   const set = (k: keyof ReportInput, v: string | number) =>
+     setF((p) => ({ ...p, [k]: v }));
+diff --git a/components/JobsWorkspace.tsx b/components/JobsWorkspace.tsx
+new file mode 100644
+index 0000000..f90331b
+--- /dev/null
++++ b/components/JobsWorkspace.tsx
+@@ -0,0 +1,158 @@
++"use client";
++
++import React, { useEffect, useState } from "react";
++import Link from "next/link";
++import { Button } from "@/components/ui/button";
++import { Plus, FileText, ClipboardCheck, Trash2 } from "lucide-react";
++import {
++  listJobs,
++  createJob,
++  deleteJob,
++  updateJob,
++  jobSummary,
++  STAGE_LABEL,
++  STAGE_TONE,
++  STAGES,
++  type JobRecord,
++  type JobStage,
++} from "@/lib/jobs";
++
++function stageClass(stage: JobStage): string {
++  const tone = STAGE_TONE[stage];
++  return `status status-${tone}`;
++}
++
++export default function JobsWorkspace() {
++  const [jobs, setJobs] = useState<JobRecord[] | null>(null);
++
++  useEffect(() => {
++    // Deferred past a microtask so React commits before the state lands — the
++    // pattern FLOORFORGE_02 established for react-hooks/set-state-in-effect.
++    let active = true;
++    void Promise.resolve().then(() => {
++      if (active) setJobs(listJobs());
++    });
++    return () => {
++      active = false;
++    };
++  }, []);
++
++  const refresh = () => setJobs(listJobs());
++
++  const onNew = () => {
++    const job = createJob();
++    window.location.href = `/estimator?job=${job.id}`;
++  };
++
++  const onDelete = (job: JobRecord) => {
++    const label = job.clientName || jobSummary(job);
++    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
++    deleteJob(job.id);
++    refresh();
++  };
++
++  const onStage = (job: JobRecord, stage: JobStage) => {
++    updateJob(job.id, { stage });
++    refresh();
++  };
++
++  // Server render and first paint: nothing, because localStorage does not exist
++  // on the server. The skeleton keeps the layout from jumping (CLS is 0 across
++  // this site and this route is not going to be the one that breaks it).
++  if (jobs === null) {
++    return (
++      <div className="card p-8 bg-card border-2 border-border-strong">
++        <div className="h-5 w-40 rounded bg-muted" />
++        <div className="mt-4 h-11 w-full rounded bg-muted" />
++        <div className="mt-2 h-11 w-full rounded bg-muted" />
++      </div>
++    );
++  }
++
++  if (jobs.length === 0) {
++    return (
++      <div className="card p-10 bg-card border-2 border-border-strong text-center">
++        <h2 className="text-2xl font-semibold tracking-tight">No jobs yet.</h2>
++        <p className="mx-auto mt-2 max-w-md text-muted-foreground">
++          Start one and the floor you measure carries straight through to the client
++          proposal and the completion report. You enter it once.
++        </p>
++        <div className="mt-6">
++          <Button variant="accent" onClick={onNew} className="h-12 px-6">
++            <Plus className="mr-2 h-4 w-4" /> Start a job
++          </Button>
++        </div>
++      </div>
++    );
++  }
++
++  return (
++    <>
++      <div className="flex flex-wrap items-center justify-between gap-4">
++        <p className="text-sm text-muted-foreground">
++          {jobs.length} {jobs.length === 1 ? "job" : "jobs"}, saved in this browser.
++        </p>
++        <Button variant="accent" onClick={onNew}>
++          <Plus className="mr-2 h-4 w-4" /> New job
++        </Button>
++      </div>
++
++      <ul className="mt-5 space-y-4">
++        {jobs.map((job) => (
++          <li key={job.id} className="card p-5 bg-card border-2 border-border-strong">
++            <div className="flex flex-wrap items-start justify-between gap-4">
++              <div className="min-w-0">
++                <div className="text-lg font-semibold tracking-tight">
++                  {job.clientName || "Untitled job"}
++                </div>
++                <div className="mt-0.5 text-sm text-muted-foreground">
++                  {job.siteAddress || "No site address yet"}
++                </div>
++                <div className="mt-2 text-sm tabular-nums">{jobSummary(job)}</div>
++              </div>
++
++              <div className="flex flex-col items-end gap-2">
++                <label htmlFor={`stage-${job.id}`} className="sr-only">
++                  Stage for {job.clientName || "this job"}
++                </label>
++                <span className={stageClass(job.stage)}>{STAGE_LABEL[job.stage]}</span>
++                <select
++                  id={`stage-${job.id}`}
++                  className="input min-h-11 text-sm"
++                  value={job.stage}
++                  onChange={(e) => onStage(job, e.target.value as JobStage)}
++                >
++                  {STAGES.map((s) => (
++                    <option key={s} value={s}>
++                      {STAGE_LABEL[s]}
++                    </option>
++                  ))}
++                </select>
++              </div>
++            </div>
++
++            <div className="mt-5 flex flex-wrap gap-2">
++              <Button asChild variant="secondary">
++                <Link href={`/estimator?job=${job.id}`}>
++                  <FileText className="mr-2 h-4 w-4" /> Estimate &amp; proposal
++                </Link>
++              </Button>
++              <Button asChild variant="secondary">
++                <Link href={`/report?job=${job.id}`}>
++                  <ClipboardCheck className="mr-2 h-4 w-4" /> Completion report
++                </Link>
++              </Button>
++              <button
++                type="button"
++                onClick={() => onDelete(job)}
++                className="inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:text-[color:var(--status-bad-ink)]"
++              >
++                <Trash2 className="h-4 w-4" /> Delete
++              </button>
++            </div>
++          </li>
++        ))}
++      </ul>
++    </>
++  );
++}
+diff --git a/lib/jobs.ts b/lib/jobs.ts
+new file mode 100644
+index 0000000..2b2ff8a
+--- /dev/null
++++ b/lib/jobs.ts
+@@ -0,0 +1,178 @@
++"use client";
++
++import {
++  DEFAULT_ASSUMPTIONS,
++  type Assumptions,
++  type EstimatorInputs,
++} from "@/lib/estimator";
++import { EMPTY_REPORT, type ReportInput } from "@/lib/report";
++
++/**
++ * The job record — one floor, all the way through.
++ *
++ * The estimator, the proposal and the completion report were three separate
++ * forms. A contractor who measured a 1,450 sqft oak floor typed it into the
++ * estimator, typed it again to produce a proposal, and typed it a third time at
++ * completion. That is the most reliable way to lose a user by the second job,
++ * and no amount of polish on the individual tools fixes it.
++ *
++ * So there is now one record. Enter the floor once; every surface reads it.
++ *
++ * WHY THE SHAPE LOOKS LIKE THIS. `JobRecord` deliberately mirrors
++ * `types.Job` (lib/types.ts:114): `site_name`, `site_address`, `sqft`,
++ * `grit_sequence`, `status`, `post_job_report`. It is stored in the browser
++ * today because the product has no accounts and needs none to be useful. When
++ * Supabase credentials exist, `POST /api/jobs` takes almost exactly this
++ * object, and these records sync rather than migrate. Local-first is the
++ * starting point, not a substitute.
++ *
++ * Nothing here leaves the browser. No account, no server, no telemetry.
++ */
++
++export type JobStage = "estimate" | "proposal" | "in_progress" | "complete";
++
++export const STAGE_LABEL: Record<JobStage, string> = {
++  estimate: "Estimating",
++  proposal: "Proposal sent",
++  in_progress: "In progress",
++  complete: "Complete",
++};
++
++/** Maps onto the status token classes in globals.css. */
++export const STAGE_TONE: Record<JobStage, string> = {
++  estimate: "neutral",
++  proposal: "info",
++  in_progress: "active",
++  complete: "good",
++};
++
++export const STAGES: JobStage[] = ["estimate", "proposal", "in_progress", "complete"];
++
++export interface JobRecord {
++  id: string;
++  createdAt: string;
++  updatedAt: string;
++  stage: JobStage;
++  clientName: string;
++  siteAddress: string;
++  estimate: EstimatorInputs;
++  assumptions: Assumptions;
++  report: ReportInput;
++}
++
++const KEY = "floorforge.jobs.v1";
++
++const DEFAULT_ESTIMATE: EstimatorInputs = {
++  sqft: 1200,
++  edgingLinearFt: 180,
++  species: "oak",
++  condition: "refinish",
++  jobType: "residential",
++  coats: 3,
++};
++
++function nowISO(): string {
++  return new Date().toISOString();
++}
++
++/** Short, sortable, readable. Not a UUID: contractors see these. */
++export function newJobId(): string {
++  const t = Date.now().toString(36);
++  const r = Math.random().toString(36).slice(2, 6);
++  return `job-${t}${r}`;
++}
++
++export function listJobs(): JobRecord[] {
++  if (typeof window === "undefined") return [];
++  try {
++    const raw = window.localStorage.getItem(KEY);
++    if (!raw) return [];
++    const parsed = JSON.parse(raw);
++    if (!Array.isArray(parsed)) return [];
++    // Merge against defaults so a record written by an older build — one that
++    // predates a field — still opens instead of throwing on a missing key.
++    return parsed.map((j: Partial<JobRecord>) => ({
++      id: String(j.id ?? newJobId()),
++      createdAt: String(j.createdAt ?? nowISO()),
++      updatedAt: String(j.updatedAt ?? nowISO()),
++      stage: (STAGES.includes(j.stage as JobStage) ? j.stage : "estimate") as JobStage,
++      clientName: String(j.clientName ?? ""),
++      siteAddress: String(j.siteAddress ?? ""),
++      estimate: { ...DEFAULT_ESTIMATE, ...(j.estimate ?? {}) },
++      assumptions: { ...DEFAULT_ASSUMPTIONS, ...(j.assumptions ?? {}) },
++      report: { ...EMPTY_REPORT, ...(j.report ?? {}) },
++    }));
++  } catch {
++    return [];
++  }
++}
++
++function persist(jobs: JobRecord[]): void {
++  if (typeof window === "undefined") return;
++  try {
++    window.localStorage.setItem(KEY, JSON.stringify(jobs));
++  } catch {
++    /* storage full or unavailable — the tools still work, they just forget */
++  }
++}
++
++export function getJob(id: string | null): JobRecord | null {
++  if (!id) return null;
++  return listJobs().find((j) => j.id === id) ?? null;
++}
++
++export function createJob(partial?: Partial<JobRecord>): JobRecord {
++  const job: JobRecord = {
++    id: newJobId(),
++    createdAt: nowISO(),
++    updatedAt: nowISO(),
++    stage: "estimate",
++    clientName: "",
++    siteAddress: "",
++    estimate: { ...DEFAULT_ESTIMATE },
++    assumptions: { ...DEFAULT_ASSUMPTIONS },
++    report: { ...EMPTY_REPORT },
++    ...partial,
++  };
++  persist([job, ...listJobs()]);
++  return job;
++}
++
++/** Merge a partial update into a job. Returns the saved record, or null. */
++export function updateJob(id: string, patch: Partial<JobRecord>): JobRecord | null {
++  const jobs = listJobs();
++  const i = jobs.findIndex((j) => j.id === id);
++  if (i === -1) return null;
++  const next: JobRecord = { ...jobs[i], ...patch, updatedAt: nowISO() };
++  jobs[i] = next;
++  persist(jobs);
++  return next;
++}
++
++export function deleteJob(id: string): void {
++  persist(listJobs().filter((j) => j.id !== id));
++}
++
++/**
++ * Seed the completion report from the estimate, so the fields a contractor
++ * already answered are not asked again. Only fills blanks — anything typed on
++ * the report itself wins, because that is the record of what actually happened
++ * rather than what was planned.
++ */
++export function reportSeededFrom(job: JobRecord, grits: string[]): ReportInput {
++  const r = job.report;
++  return {
++    ...r,
++    clientName: r.clientName || job.clientName,
++    siteAddress: r.siteAddress || job.siteAddress,
++    sqft: r.sqft || job.estimate.sqft,
++    coatsApplied: r.coatsApplied || job.estimate.coats,
++    gritsExecuted: r.gritsExecuted || grits.join(", "),
++  };
++}
++
++/** "1,450 sqft oak · standard refinish" — the one-line identity of a job. */
++export function jobSummary(job: JobRecord): string {
++  const e = job.estimate;
++  return `${e.sqft.toLocaleString()} sqft · ${e.species} · ${e.condition}`;
++}
+diff --git a/lib/report.ts b/lib/report.ts
+index 6aa35e3..48e6fa4 100644
+--- a/lib/report.ts
++++ b/lib/report.ts
+@@ -55,7 +55,12 @@ export const EMPTY_REPORT: ReportInput = {
+   completionDate: "",
+   sqft: 0,
+   species: "Red / white oak",
+-  gritsExecuted: "36, 80, 120",
++  // Empty, not "36, 80, 120". reportSeededFrom() only fills BLANK fields, so a
++  // non-empty default silently beat the sequence carried over from the
++  // estimate — and a walnut floor's report would have claimed a 36-grit pass,
++  // which is precisely what the estimator's species rule exists to prevent.
++  // The input carries "36, 80, 120" as a placeholder instead.
++  gritsExecuted: "",
+   finishProduct: "",
+   coatsApplied: 3,
+   sheen: "Satin",
+diff --git a/public/llms.txt b/public/llms.txt
+index 9495bd2..b7480c6 100644
+--- a/public/llms.txt
++++ b/public/llms.txt
+@@ -35,6 +35,9 @@ surface and would rather be described accurately than favourably.
+   finish quantities, and a suggested quote. It works with no FloorForge hardware
+   and asks for no account. Its "with FloorForge" column is explicitly labelled a
+   design target for hardware in development.
++- [Jobs](https://floorforge-ai.vercel.app/jobs): a free workspace tying the
++  estimator, the client proposal and the completion report to a single job
++  record. Saved in the visitor's own browser; no account and no server.
+ - [Completion report](https://floorforge-ai.vercel.app/report): a free
+   completion-report generator — what was done, the conditions it was done in,
+   care and maintenance instructions, and a workmanship warranty, on one signed
