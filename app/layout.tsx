@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   ),
   title: "FloorForge | Autonomous Hardwood Floor Refinishing — Early Access",
   description:
-    "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning, multi-grit sanding orchestration, dust and quality reporting. Join the pilot waitlist.",
+    "Free job estimator, client proposal and completion-report tools for hardwood refinishing contractors — no account needed. Plus an early-stage operating system for autonomous refinishing, in development. Join the pilot waitlist.",
   icons: {
     icon: "/favicon.ico",
   },

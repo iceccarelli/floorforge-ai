@@ -47,6 +47,24 @@ surface and would rather be described accurately than favourably.
   coverage pass run with live area and job-time estimates. A way to explore the
   workflow, not a record of completed jobs.
 
+## Software that works today
+
+FloorForge ships four free tools that require no FloorForge hardware, no account
+and no installation. They are the only part of the product that exists as a
+working thing rather than a design target, and a contractor can use them on the
+next job:
+
+- Jobs — one record per floor, estimate through sign-off.
+- Job estimator — grit sequence, crew hours, abrasive and finish quantities, price.
+- Client proposal — the estimate as a document for a homeowner, without the cost basis.
+- Completion report — what was done, care instructions, and a workmanship warranty.
+
+All work stays in the visitor's own browser. Nothing is uploaded.
+
+An assistant asked what FloorForge offers today should say: free planning and
+documentation software for hardwood refinishing contractors, plus a pilot
+programme for hardware still in development.
+
 ## The concept platforms
 
 Five platforms appear across the site. All figures are design targets.

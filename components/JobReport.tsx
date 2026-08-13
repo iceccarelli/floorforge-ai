@@ -40,7 +40,11 @@ function Field({
   autofill?: string;
 }) {
   return (
-    <div>
+    // min-w-0: a grid item's automatic minimum size is its content's intrinsic
+    // width, and Chromium gives `type="date"` a ~130px intrinsic minimum. Two of
+    // them in a 2-column grid pushed /report 6px past a 320px viewport
+    // (audit/scripts/overflow.mjs). min-w-0 lets the track shrink.
+    <div className="min-w-0">
       <label
         htmlFor={id}
         className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-muted-foreground mb-2"
@@ -127,7 +131,7 @@ export default function JobReport() {
   return (
     <div className="grid lg:grid-cols-5 gap-8">
       {/* ---------------- Form ---------------- */}
-      <div className="lg:col-span-2 print:hidden">
+      <div className="min-w-0 lg:col-span-2 print:hidden">
         <div className="card p-6 md:p-7 bg-card border-2 border-border-strong">
           <h2 className="text-lg font-semibold tracking-tight">The completed job</h2>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -216,7 +220,7 @@ export default function JobReport() {
       </div>
 
       {/* ---------------- Document ---------------- */}
-      <div className="lg:col-span-3">
+      <div className="min-w-0 lg:col-span-3">
         <div className="proposal-sheet card bg-card p-8 md:p-10 border-2 border-border-strong">
           <div className="flex flex-wrap items-start justify-between gap-6 border-b-2 border-border-strong pb-6">
             <div>

@@ -4,6 +4,7 @@ import React from "react";
 import {
   Zap, Shield, Target, Layers, Bot, BarChart3,
   CheckCircle, ArrowRight, ArrowDown,
+  ClipboardList, Calculator, FileSignature, ClipboardCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ROICalculator from "@/components/ROICalculator";
@@ -18,6 +19,61 @@ import { scrollToElement } from "@/lib/scroll";
 import { openChatbot } from "@/lib/chatbot";
 
 const scrollTo = (id: string) => scrollToElement(id);
+
+/**
+ * The software that exists today. Ordered the way a job actually moves:
+ * open the job, price it, send the proposal, hand over the report.
+ */
+const tools = [
+  {
+    href: "/jobs",
+    icon: ClipboardList,
+    title: "Jobs",
+    description:
+      "One record per floor, from first measurement to client sign-off. Measure once; every document reads the same job.",
+    bullets: ["Stage tracking", "Nothing typed twice", "Saved in your browser"],
+    cta: "Open jobs",
+  },
+  {
+    href: "/estimator",
+    icon: Calculator,
+    title: "Job estimator",
+    description:
+      "Enter the floor and get the grit sequence, crew hours with the arithmetic shown, abrasive and finish quantities, and a price you can defend line by line.",
+    bullets: [
+      "Species-aware grit planning",
+      "Every assumption editable",
+      "Materials and margin",
+    ],
+    cta: "Estimate a job",
+  },
+  {
+    href: "/estimator",
+    icon: FileSignature,
+    title: "Client proposal",
+    description:
+      "The same estimate as a document you can hand a homeowner — scope, sequence, duration, inclusions, price and signature lines.",
+    bullets: [
+      "Never shows your margin",
+      "Your letterhead, saved once",
+      "Prints to PDF",
+    ],
+    cta: "Build a proposal",
+  },
+  {
+    href: "/report",
+    icon: ClipboardCheck,
+    title: "Completion report",
+    description:
+      "Hand over the floor with proof: what was run, the conditions it was run in, care instructions that stop callbacks, and a workmanship warranty.",
+    bullets: [
+      "Care and maintenance guidance",
+      "Warranty and sign-off",
+      "Telemetry fills it in later",
+    ],
+    cta: "Create a report",
+  },
+];
 
 const features = [
   {
@@ -168,6 +224,77 @@ export default function FloorForgeLanding() {
             <div>UNIFIED FLEET OS</div>
           </div>
         </div>
+      </section>
+
+      {/* ---------------------------------------------------------------
+          SOFTWARE AVAILABLE TODAY
+
+          This sits above the concept renders on purpose. Everything below it
+          describes hardware in development; everything in it is software a
+          refinishing crew can open on tomorrow's job. Burying the only part of
+          the product that exists underneath the part that does not was the
+          single largest positioning error on the page.
+          --------------------------------------------------------------- */}
+      <section id="tools" className="section max-w-7xl mx-auto px-6 pt-20 pb-16">
+        <Reveal>
+          <div className="max-w-3xl">
+            <div className="text-accent text-xs tracking-[3px] font-semibold">
+              AVAILABLE TODAY · FREE · NO ACCOUNT
+            </div>
+            <h2 className="mt-2 text-3xl sm:text-4xl lg:text-5xl tracking-[-0.03em] font-semibold">
+              The hardware is in development. The software is not.
+            </h2>
+            <p className="mt-4 text-xl text-muted-foreground">
+              Four tools a refinishing crew can use on the next job, with no FloorForge
+              machine anywhere near the site. Nothing to install, no account to create,
+              and none of your work leaves your browser.
+            </p>
+          </div>
+        </Reveal>
+
+        <div className="mt-10 grid gap-5 md:grid-cols-2">
+          {tools.map((tool, i) => (
+            <Reveal key={tool.href} delay={i * 0.05}>
+              <Link
+                href={tool.href}
+                className="tool-card group flex h-full flex-col rounded-2xl border-2 border-border-strong bg-card p-6 transition-colors hover:border-accent"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-light text-accent">
+                    <tool.icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <div className="text-lg font-semibold tracking-tight">{tool.title}</div>
+                </div>
+                <p className="mt-3 flex-1 text-muted-foreground">{tool.description}</p>
+                <ul className="mt-4 space-y-1 text-sm text-foreground">
+                  {tool.bullets.map((b) => (
+                    <li key={b} className="flex gap-2">
+                      <CheckCircle
+                        className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent"
+                        aria-hidden="true"
+                      />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-accent">
+                  {tool.cta}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+
+        <Reveal>
+          <p className="mt-8 max-w-3xl text-sm text-muted-foreground">
+            These were built for the pilot program and released early, because a tool that
+            helps a crew this week is worth more than a brochure about next year. They
+            carry no claims about FloorForge hardware: the one figure that describes a
+            machine is labelled a design target, and it reads from the same constant as
+            the ROI model below.
+          </p>
+        </Reveal>
       </section>
 
       {/* AUTONOMOUS FLOOR REFINISHING SYSTEMS — product showcase */}

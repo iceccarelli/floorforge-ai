@@ -12,6 +12,9 @@ import { scrollToElement } from "@/lib/scroll";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 const navLinks = [
+  // "Tools" first, deliberately: it is the only entry that leads to software a
+  // visitor can use today. Everything else describes hardware in development.
+  { href: "#tools", label: "Tools" },
   { href: "#features", label: "Features" },
   { href: "#how-it-works", label: "How it Works" },
   { href: "#roi", label: "ROI" },
@@ -80,27 +83,6 @@ export default function Header() {
               className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
             >
               Systems
-            </Link>
-            <Link
-              href="/estimator"
-              className="inline-flex min-h-11 items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
-            >
-              Estimator
-              <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
-                Free
-              </span>
-            </Link>
-            <Link
-              href="/jobs"
-              className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
-            >
-              Jobs
-            </Link>
-            <Link
-              href="/report"
-              className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
-            >
-              Report
             </Link>
             <Link
               href="/simulator"
