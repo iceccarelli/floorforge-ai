@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Printer, RotateCcw } from "lucide-react";
@@ -14,6 +14,13 @@ import {
   type EstimatorInputs,
   type Species,
 } from "@/lib/estimator";
+import ProposalSheet from "@/components/ProposalSheet";
+import {
+  EMPTY_PROFILE,
+  loadProfile,
+  saveProfile,
+  type ContractorProfile,
+} from "@/lib/proposal";
 
 const SPECIES = Object.keys(SPECIES_LABEL) as Species[];
 const CONDITIONS = Object.keys(CONDITION_LABEL) as Condition[];
@@ -77,6 +84,46 @@ export default function JobEstimator() {
   });
   const [a, setA] = useState<Assumptions>(DEFAULT_ASSUMPTIONS);
   const [showAssumptions, setShowAssumptions] = useState(false);
+  const [view, setView] = useState<"worksheet" | "proposal">("worksheet");
+  const [clientName, setClientName] = useState("");
+  const [siteAddress, setSiteAddress] = useState("");
+
+  /**
+   * Browser-only state, read once on mount.
+   *
+   * `localStorage` and the current date both differ between the server render
+   * and the first client paint, so neither can be read during render without
+   * desynchronising a statically prerendered page. One state object rather than
+   * two so the effect makes a single setState call.
+   */
+  const [browserState, setBrowserState] = useState<{
+    profile: ContractorProfile;
+    today: Date | null;
+  }>({ profile: EMPTY_PROFILE, today: null });
+
+  useEffect(() => {
+    // Deferred past a microtask so React has committed before the state lands —
+    // the same pattern FLOORFORGE_02 established for the operator routes when
+    // react-hooks/set-state-in-effect first fired. A synchronous setState here
+    // triggers a cascading render on every mount.
+    let active = true;
+    void Promise.resolve().then(() => {
+      if (active) setBrowserState({ profile: loadProfile(), today: new Date() });
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const { profile, today } = browserState;
+
+  const setProfileField = (k: keyof ContractorProfile, v: string) => {
+    setBrowserState((prev) => {
+      const next = { ...prev.profile, [k]: v };
+      saveProfile(next);
+      return { ...prev, profile: next };
+    });
+  };
 
   const r = useMemo(() => estimate(input, a), [input, a]);
   const set = <K extends keyof EstimatorInputs>(k: K, v: EstimatorInputs[K]) =>
@@ -327,15 +374,38 @@ export default function JobEstimator() {
 
       {/* ---------------- Output ---------------- */}
       <div className="lg:col-span-3">
+        {/* View switch — the worksheet is internal, the proposal is the
+            document a client sees. They print separately on purpose: the
+            worksheet shows the rate, the hours and the margin. */}
+        <div role="tablist" aria-label="Estimate view" className="mb-4 flex gap-2 print:hidden">
+          {(["worksheet", "proposal"] as const).map((v) => (
+            <button
+              key={v}
+              role="tab"
+              aria-selected={view === v}
+              onClick={() => setView(v)}
+              className={`min-h-11 rounded-lg border px-4 text-sm font-semibold capitalize transition-colors ${
+                view === v
+                  ? "border-accent bg-accent-light text-accent"
+                  : "border-border-strong text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {v === "worksheet" ? "Worksheet (internal)" : "Client proposal"}
+            </button>
+          ))}
+        </div>
+
         <div
           id="estimate-sheet"
           aria-live="polite"
+          data-print-view="worksheet"
+          hidden={view !== "worksheet"}
           className="card p-6 md:p-8 bg-card border-2 border-border-strong"
         >
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-accent text-xs tracking-[3px] font-semibold">
-                JOB ESTIMATE
+                JOB ESTIMATE · INTERNAL WORKSHEET
               </div>
               <h2 className="mt-1 text-2xl font-semibold tracking-tight">
                 {input.sqft.toLocaleString()} sqft · {SPECIES_LABEL[input.species]}
@@ -535,6 +605,90 @@ export default function JobEstimator() {
               <Link href="/#roi">See the ROI model</Link>
             </Button>
           </div>
+        </div>
+
+        {/* ---------------- Client proposal ---------------- */}
+        <div data-print-view="proposal" hidden={view !== "proposal"}>
+          <div className="card p-6 bg-muted border border-border-strong mb-4 print:hidden">
+            <h3 className="text-sm font-semibold tracking-tight">
+              Your details &amp; the client
+            </h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your company details are saved in this browser so you only type them once.
+              They are never sent anywhere — this tool has no account and no server.
+            </p>
+            <div className="mt-4 grid sm:grid-cols-2 gap-4">
+              {(
+                [
+                  ["company", "COMPANY NAME"],
+                  ["contactName", "YOUR NAME"],
+                  ["phone", "PHONE"],
+                  ["email", "EMAIL"],
+                  ["license", "LICENSE #"],
+                ] as const
+              ).map(([k, label]) => (
+                <div key={k}>
+                  <label
+                    htmlFor={`pf-${k}`}
+                    className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+                  >
+                    {label}
+                  </label>
+                  <input
+                    id={`pf-${k}`}
+                    className="input min-h-11 w-full text-base"
+                    value={profile[k]}
+                    onChange={(e) => setProfileField(k, e.target.value)}
+                  />
+                </div>
+              ))}
+              <div>
+                <label
+                  htmlFor="pf-client"
+                  className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+                >
+                  CLIENT NAME
+                </label>
+                <input
+                  id="pf-client"
+                  className="input min-h-11 w-full text-base"
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label
+                  htmlFor="pf-site"
+                  className="block text-xs font-semibold tracking-wider text-muted-foreground mb-2"
+                >
+                  SITE ADDRESS
+                </label>
+                <input
+                  id="pf-site"
+                  className="input min-h-11 w-full text-base"
+                  value={siteAddress}
+                  onChange={(e) => setSiteAddress(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="mt-5">
+              <Button variant="secondary" onClick={() => window.print()}>
+                <Printer className="mr-2 h-4 w-4" /> Print proposal / save as PDF
+              </Button>
+            </div>
+          </div>
+
+          {today && (
+            <ProposalSheet
+              input={input}
+              result={r}
+              profile={profile}
+              clientName={clientName}
+              siteAddress={siteAddress}
+              validDays={30}
+              today={today}
+            />
+          )}
         </div>
       </div>
     </div>
