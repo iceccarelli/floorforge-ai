@@ -15,6 +15,7 @@ export const VIEWPORTS = [
 export const ROUTES = [
   "/",
   "/systems",
+  "/estimator",
   "/simulator",
   "/pro-simulator",
   "/dashboard",

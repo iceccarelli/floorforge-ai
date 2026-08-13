@@ -30,6 +30,11 @@ surface and would rather be described accurately than favourably.
   library of concept renders, sorted by what the machine is doing — field
   sanding, edge and perimeter, dust containment, finish application, inspection
   and result. Every image is a concept render, not a photograph of hardware.
+- [Job estimator](https://floorforge-ai.vercel.app/estimator): a free planning
+  tool for refinishing contractors — grit sequence, crew hours, abrasive and
+  finish quantities, and a suggested quote. It works with no FloorForge hardware
+  and asks for no account. Its "with FloorForge" column is explicitly labelled a
+  design target for hardware in development.
 - [3D simulator](https://floorforge-ai.vercel.app/simulator): an interactive
   concept simulation. Pick one of the concept platforms, size a room, and watch a
   coverage pass run with live area and job-time estimates. A way to explore the

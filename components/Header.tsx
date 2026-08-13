@@ -82,6 +82,15 @@ export default function Header() {
               Systems
             </Link>
             <Link
+              href="/estimator"
+              className="inline-flex min-h-11 items-center gap-1.5 text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+            >
+              Estimator
+              <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                Free
+              </span>
+            </Link>
+            <Link
               href="/simulator"
               className="inline-flex min-h-11 items-center gap-1.5 text-accent transition-colors hover:text-accent-hover relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
             >
@@ -176,6 +185,13 @@ export default function Header() {
                 className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
               >
                 Systems
+              </Link>
+              <Link
+                href="/estimator"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+              >
+                Estimator (free tool)
               </Link>
               <Link
                 href="/simulator"
