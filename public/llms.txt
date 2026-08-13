@@ -49,7 +49,7 @@ surface and would rather be described accurately than favourably.
 
 ## Software that works today
 
-FloorForge ships four free tools that require no FloorForge hardware, no account
+FloorForge ships five free tools that require no FloorForge hardware, no account
 and no installation. They are the only part of the product that exists as a
 working thing rather than a design target, and a contractor can use them on the
 next job:
@@ -58,6 +58,9 @@ next job:
 - Job estimator — grit sequence, crew hours, abrasive and finish quantities, price.
 - Client proposal — the estimate as a document for a homeowner, without the cost basis.
 - Completion report — what was done, care instructions, and a workmanship warranty.
+- Live job console — a SIMULATED ForgeSand D1 runs a job and emits telemetry in
+  the firmware contract's own shape, then fills in the completion report from it.
+  No hardware is connected; the machine does not exist. The data path is real.
 
 All work stays in the visitor's own browser. Nothing is uploaded.
 

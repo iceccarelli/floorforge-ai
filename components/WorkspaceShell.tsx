@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ClipboardList, Calculator, ClipboardCheck } from "lucide-react";
+import { ArrowLeft, ClipboardList, Calculator, ClipboardCheck, Cpu } from "lucide-react";
 import {
   getJob,
   jobSummary,
@@ -32,6 +32,7 @@ import {
 const TOOLS = [
   { key: "jobs", href: "/jobs", label: "Jobs", icon: ClipboardList, jobScoped: false },
   { key: "estimator", href: "/estimator", label: "Estimate & proposal", icon: Calculator, jobScoped: true },
+  { key: "live", href: "/live", label: "Live job console", icon: Cpu, jobScoped: true },
   { key: "report", href: "/report", label: "Completion report", icon: ClipboardCheck, jobScoped: true },
 ] as const;
 

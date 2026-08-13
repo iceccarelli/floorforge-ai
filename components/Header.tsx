@@ -195,6 +195,13 @@ export default function Header() {
                 Jobs
               </Link>
               <Link
+                href="/live"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+              >
+                Live job console
+              </Link>
+              <Link
                 href="/report"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"

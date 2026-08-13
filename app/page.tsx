@@ -4,7 +4,7 @@ import React from "react";
 import {
   Zap, Shield, Target, Layers, Bot, BarChart3,
   CheckCircle, ArrowRight, ArrowDown,
-  ClipboardList, Calculator, FileSignature, ClipboardCheck,
+  ClipboardList, Calculator, FileSignature, ClipboardCheck, Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ROICalculator from "@/components/ROICalculator";
@@ -61,6 +61,19 @@ const tools = [
     cta: "Build a proposal",
   },
   {
+    href: "/live",
+    icon: Cpu,
+    title: "Live job console",
+    description:
+      "Watch a simulated ForgeSand D1 work through the grit sequence for your job — pressure, dust and coverage the whole way — then hand its results to the completion report.",
+    bullets: [
+      "Real firmware-contract telemetry",
+      "Fills the report automatically",
+      "Simulated machine, real data path",
+    ],
+    cta: "Run a job",
+  },
+  {
     href: "/report",
     icon: ClipboardCheck,
     title: "Completion report",
@@ -85,6 +98,7 @@ const freeTierIncludes = [
   "Job estimator with editable assumptions",
   "Client proposals on your letterhead",
   "Completion reports with care guidance",
+  "Live job console with simulated telemetry",
   "Unlimited jobs",
   "Print or save any document as PDF",
 ];
@@ -270,7 +284,7 @@ export default function FloorForgeLanding() {
               The hardware is in development. The software is not.
             </h2>
             <p className="mt-4 text-xl text-muted-foreground">
-              Four tools a refinishing crew can use on the next job, with no FloorForge
+              Five tools a refinishing crew can use on the next job, with no FloorForge
               machine anywhere near the site. Nothing to install, no account to create,
               and none of your work leaves your browser.
             </p>
