@@ -55,6 +55,7 @@ export default function Footer() {
             <ul className="space-y-0.5 text-sm text-white/80">
               <li><Link href="/#features" className="inline-flex min-h-11 items-center hover:text-white transition">Features</Link></li>
               <li><Link href="/systems" className="inline-flex min-h-11 items-center hover:text-white transition">The Forge Platforms</Link></li>
+              <li><Link href="/jobs" className="inline-flex min-h-11 items-center hover:text-white transition">Jobs (free)</Link></li>
               <li><Link href="/estimator" className="inline-flex min-h-11 items-center hover:text-white transition">Job Estimator (free)</Link></li>
               <li><Link href="/report" className="inline-flex min-h-11 items-center hover:text-white transition">Completion Report (free)</Link></li>
               <li><Link href="/simulator" className="inline-flex min-h-11 items-center hover:text-white transition">3D Simulator</Link></li>

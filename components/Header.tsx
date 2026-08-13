@@ -91,6 +91,12 @@ export default function Header() {
               </span>
             </Link>
             <Link
+              href="/jobs"
+              className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+            >
+              Jobs
+            </Link>
+            <Link
               href="/report"
               className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
             >
@@ -198,6 +204,13 @@ export default function Header() {
                 className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
               >
                 Estimator (free tool)
+              </Link>
+              <Link
+                href="/jobs"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+              >
+                Jobs
               </Link>
               <Link
                 href="/report"

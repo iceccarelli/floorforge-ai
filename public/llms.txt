@@ -35,6 +35,9 @@ surface and would rather be described accurately than favourably.
   finish quantities, and a suggested quote. It works with no FloorForge hardware
   and asks for no account. Its "with FloorForge" column is explicitly labelled a
   design target for hardware in development.
+- [Jobs](https://floorforge-ai.vercel.app/jobs): a free workspace tying the
+  estimator, the client proposal and the completion report to a single job
+  record. Saved in the visitor's own browser; no account and no server.
 - [Completion report](https://floorforge-ai.vercel.app/report): a free
   completion-report generator — what was done, the conditions it was done in,
   care and maintenance instructions, and a workmanship warranty, on one signed

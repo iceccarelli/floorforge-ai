@@ -21,6 +21,7 @@ import {
   saveProfile,
   type ContractorProfile,
 } from "@/lib/proposal";
+import { getJob, updateJob, type JobRecord } from "@/lib/jobs";
 
 const SPECIES = Object.keys(SPECIES_LABEL) as Species[];
 const CONDITIONS = Object.keys(CONDITION_LABEL) as Condition[];
@@ -101,6 +102,8 @@ export default function JobEstimator() {
     today: Date | null;
   }>({ profile: EMPTY_PROFILE, today: null });
 
+  const [jobId, setJobId] = useState<string | null>(null);
+
   useEffect(() => {
     // Deferred past a microtask so React has committed before the state lands —
     // the same pattern FLOORFORGE_02 established for the operator routes when
@@ -108,12 +111,37 @@ export default function JobEstimator() {
     // triggers a cascading render on every mount.
     let active = true;
     void Promise.resolve().then(() => {
-      if (active) setBrowserState({ profile: loadProfile(), today: new Date() });
+      if (!active) return;
+      setBrowserState({ profile: loadProfile(), today: new Date() });
+
+      // ?job=<id> opens an existing record. Read from location rather than
+      // useSearchParams so this page stays statically prerenderable.
+      const id = new URLSearchParams(window.location.search).get("job");
+      const job: JobRecord | null = getJob(id);
+      if (job) {
+        setJobId(job.id);
+        setInput(job.estimate);
+        setA(job.assumptions);
+        setClientName(job.clientName);
+        setSiteAddress(job.siteAddress);
+      }
     });
     return () => {
       active = false;
     };
   }, []);
+
+  // Write back whenever anything the job owns changes. One localStorage round
+  // trip, and it means a contractor never loses work by navigating away.
+  useEffect(() => {
+    if (!jobId) return;
+    updateJob(jobId, {
+      estimate: input,
+      assumptions: a,
+      clientName,
+      siteAddress,
+    });
+  }, [jobId, input, a, clientName, siteAddress]);
 
   const { profile, today } = browserState;
 

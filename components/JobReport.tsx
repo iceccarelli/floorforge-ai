@@ -19,6 +19,8 @@ import {
   proposalNumber,
   type ContractorProfile,
 } from "@/lib/proposal";
+import { getJob, updateJob, reportSeededFrom } from "@/lib/jobs";
+import { gritSequenceFor } from "@/lib/estimator";
 
 function Field({
   id,
@@ -72,17 +74,36 @@ export default function JobReport() {
     today: Date | null;
   }>({ profile: EMPTY_PROFILE, today: null });
 
+  const [jobId, setJobId] = useState<string | null>(null);
+
   useEffect(() => {
     // Deferred past a microtask so React commits first — the pattern
     // FLOORFORGE_02 established for react-hooks/set-state-in-effect.
     let active = true;
     void Promise.resolve().then(() => {
-      if (active) setBrowserState({ profile: loadProfile(), today: new Date() });
+      if (!active) return;
+      setBrowserState({ profile: loadProfile(), today: new Date() });
+
+      const id = new URLSearchParams(window.location.search).get("job");
+      const job = getJob(id);
+      if (job) {
+        setJobId(job.id);
+        // Seed the blanks from what was already estimated. Anything typed on
+        // the report wins — this document records what happened, not what was
+        // planned, and the two are allowed to differ.
+        const grits = gritSequenceFor(job.estimate.species, job.estimate.condition);
+        setF(reportSeededFrom(job, grits));
+      }
     });
     return () => {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!jobId) return;
+    updateJob(jobId, { report: f });
+  }, [jobId, f]);
 
   const { profile, today } = browserState;
   const set = (k: keyof ReportInput, v: string | number) =>

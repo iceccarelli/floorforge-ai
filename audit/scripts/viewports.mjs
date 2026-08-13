@@ -16,6 +16,7 @@ export const ROUTES = [
   "/",
   "/systems",
   "/estimator",
+  "/jobs",
   "/report",
   "/simulator",
   "/pro-simulator",

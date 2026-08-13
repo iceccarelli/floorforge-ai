@@ -55,7 +55,12 @@ export const EMPTY_REPORT: ReportInput = {
   completionDate: "",
   sqft: 0,
   species: "Red / white oak",
-  gritsExecuted: "36, 80, 120",
+  // Empty, not "36, 80, 120". reportSeededFrom() only fills BLANK fields, so a
+  // non-empty default silently beat the sequence carried over from the
+  // estimate — and a walnut floor's report would have claimed a 36-grit pass,
+  // which is precisely what the estimator's species rule exists to prevent.
+  // The input carries "36, 80, 120" as a placeholder instead.
+  gritsExecuted: "",
   finishProduct: "",
   coatsApplied: 3,
   sheen: "Satin",
