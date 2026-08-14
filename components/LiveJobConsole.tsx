@@ -8,6 +8,8 @@ import { JobSimulation, makeConfig, type SimSnapshot } from "@/lib/simulation";
 import { gritSequenceFor } from "@/lib/estimator";
 import { getJob, updateJob, type JobRecord } from "@/lib/jobs";
 import { GRIT_SEQUENCE } from "@/lib/product";
+import { ROBOTS } from "@/lib/robots";
+import LiveFloorView from "@/components/LiveFloorView";
 
 const SPEEDS = [
   { label: "60×", value: 60 },
@@ -113,6 +115,14 @@ export default function LiveJobConsole() {
 
   const totalEvents = Object.values(s.counts).reduce((a, b) => a + b, 0);
 
+  // Displayed coverage is floored below 100 until the run is genuinely over.
+  // toFixed(1) rounds 99.97 to "100.0", which put "100.0%" on screen next to a
+  // chip still reading "Sanding" — a contradiction a viewer notices instantly.
+  const shownPct = s.finished ? 100 : Math.min(99.9, s.overallPct);
+  // The canonical record — same object the 3D simulator, the systems library
+  // and the homepage chips read. There is one description of this machine.
+  const robot = ROBOTS.find((r) => r.id === "sand")!;
+
   return (
     <div className="space-y-6">
       {/* The label a visitor cannot miss, above everything the machine produces. */}
@@ -200,14 +210,14 @@ export default function LiveJobConsole() {
           <div
             className="h-3 w-full overflow-hidden rounded-full bg-muted"
             role="progressbar"
-            aria-valuenow={Math.round(s.overallPct)}
+            aria-valuenow={Math.round(shownPct)}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-label="Job progress"
           >
             <div
               className="h-full rounded-full bg-accent transition-[width] duration-150"
-              style={{ width: `${s.overallPct}%` }}
+              style={{ width: `${shownPct}%` }}
             />
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 text-sm text-muted-foreground">
@@ -223,10 +233,60 @@ export default function LiveJobConsole() {
         </div>
       </div>
 
+      {/* WHAT THE MACHINE IS — the console showed a job running without ever
+          saying which machine was running it. */}
+      <div className="card p-6 bg-card border-2 border-border-strong">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-xl font-semibold tracking-tight">{robot.name}</h2>
+              <span className="chip">{robot.codename}</span>
+              <span className={`status status-${s.finished ? "good" : running ? "active" : "neutral"}`}>
+                {s.finished ? "Job complete" : running ? robot.jobVerb : "Idle"}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">{robot.role}</p>
+            <p className="mt-2 max-w-2xl text-sm">{robot.task}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{robot.toolLabel}</p>
+          </div>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4 lg:grid-cols-2">
+            {robot.chips.map((c) => (
+              <div key={c.label}>
+                <dt className="text-xs font-semibold tracking-wider text-muted-foreground">
+                  {c.label}
+                </dt>
+                <dd className="tabular-nums">{c.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </div>
+
+      {/* WHAT IT IS DOING — the floor, drawn to the machine's own dimensions. */}
+      <div className="card p-6 bg-card border-2 border-border-strong">
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 className="text-lg font-semibold tracking-tight">The floor, from above</h2>
+          <span className="text-sm text-muted-foreground tabular-nums">
+            Pass {s.pass} of {s.passCount} · {s.grit} grit
+          </span>
+        </div>
+        <div className="mt-4">
+          <LiveFloorView
+            robot={robot}
+            areaM2={s.totalAreaM2}
+            pass={s.pass}
+            passCount={s.passCount}
+            passPct={s.passPct}
+            grit={s.grit}
+            running={running}
+          />
+        </div>
+      </div>
+
       {/* Live sensors */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: "COVERAGE", value: `${s.overallPct.toFixed(1)}%`, sub: "whole job" },
+          { label: "COVERAGE", value: `${shownPct.toFixed(1)}%`, sub: "whole job" },
           { label: "PRESSURE", value: `${s.psi.toFixed(2)}`, sub: "psi · target 2–5" },
           { label: "AIRBORNE DUST", value: `${s.ugm3.toFixed(1)}`, sub: "µg/m³ at extraction" },
           { label: "TELEMETRY EVENTS", value: totalEvents.toLocaleString(), sub: "emitted so far" },
