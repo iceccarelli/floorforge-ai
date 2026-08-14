@@ -1,0 +1,1337 @@
+diff --git a/components/LiveFloorView.tsx b/components/LiveFloorView.tsx
+index 6cd4fe4..923f3bb 100644
+--- a/components/LiveFloorView.tsx
++++ b/components/LiveFloorView.tsx
+@@ -2,6 +2,7 @@
+ 
+ import React from "react";
+ import type { RobotSpec } from "@/lib/robots";
++import { planFloor, pose, laneDirection } from "@/lib/floorPlan";
+ 
+ /**
+  * Top-down view of the floor, with the machine on it.
+@@ -52,32 +53,14 @@ export default function LiveFloorView({
+   grit,
+   running,
+ }: FloorViewProps) {
+-  // Room proportioned 4:3 from the job's area. Stated on the page — a real
+-  // floor plan would come from the site scan, which does not exist yet.
+-  const roomW = Math.sqrt((areaM2 * 4) / 3);
+-  const roomH = areaM2 / roomW;
+-
+-  // Lane count comes from the working width; lane PITCH is then the room
+-  // divided by that count, so the lanes tile the floor exactly.
+-  //
+-  // Laying lanes at a flat 0.50 m instead put 19 × 0.50 = 9.50 m of lane into a
+-  // 9.09 m room: the last lane hung past the bottom wall and the machine
+-  // finished the job standing outside the building. A real path planner has the
+-  // same problem and solves it the same way — you never get a whole number of
+-  // passes out of a room, so the passes overlap slightly. Here that is 0.48 m
+-  // of pitch under a 0.50 m drum, a 4% overlap, which is also what a floor
+-  // actually needs if it is not to band at the seams.
+-  const laneCount = Math.max(1, Math.ceil(roomH / robot.workingWidthM));
+-  const laneH = roomH / laneCount;
+-
+-  const progress = Math.max(0, Math.min(1, passPct / 100));
+-  const finishedPass = progress >= 1;
+-  const laneFloat = progress * laneCount;
+-  // At exactly 100% the naive floor() rolls onto a 20th lane that does not
+-  // exist and snaps the machine back to the start of it. Park it at the end of
+-  // the last lane instead — where a machine that just finished actually is.
+-  const lanesDone = finishedPass ? laneCount - 1 : Math.floor(laneFloat);
+-  const partial = finishedPass ? 1 : laneFloat - lanesDone;
++  // Room, lane tiling and machine pose all come from lib/floorPlan.ts — the
++  // same module the 3D stage reads, so the two drawings of this job on this
++  // page cannot put the machine in two different places.
++  const plan = planFloor(areaM2, robot.workingWidthM);
++  const { roomW, roomH, laneCount, laneH, overlap } = plan;
++  const p = pose(plan, passPct);
++  const lanesDone = p.lane;
++  const partial = p.laneProgress;
+ 
+   // Colour ramp: each completed pass leaves the floor lighter than the last.
+   //
+@@ -91,14 +74,13 @@ export default function LiveFloorView({
+   const priorColour = colourAfterPass(pass - 1);
+   const thisPassColour = colourAfterPass(pass);
+ 
+-  // Boustrophedon: even lanes run left→right, odd right→left.
+-  const dirOf = (i: number) => (i % 2 === 0 ? 1 : -1);
+-  const activeLane = Math.min(lanesDone, laneCount - 1);
+-  const dir = dirOf(activeLane);
++  const dirOf = laneDirection;
++  const activeLane = p.lane;
++  const dir = p.dir;
+   const cutW = partial * roomW;
+   const cutX = dir === 1 ? 0 : roomW - cutW;
+-  const headX = dir === 1 ? cutW : roomW - cutW;
+-  const headY = (activeLane + 0.5) * laneH;
++  const headX = p.x;
++  const headY = p.y;
+ 
+   // The bright band is the floor the drum has just passed over — a short trail
+   // behind the machine, not the whole span cut so far. It was the whole span,
+@@ -301,8 +283,7 @@ export default function LiveFloorView({
+         </span>
+         <span className="tabular-nums">
+           {roomW.toFixed(1)} × {roomH.toFixed(1)} m · {laneCount} lanes ·{" "}
+-          {robot.workingWidthM.toFixed(2)} m drum,{" "}
+-          {Math.round(((robot.workingWidthM - laneH) / robot.workingWidthM) * 100)}% overlap
++          {robot.workingWidthM.toFixed(2)} m drum, {Math.round(overlap * 100)}% overlap
+         </span>
+       </figcaption>
+       <p className="mt-2 text-xs text-muted-foreground">
+diff --git a/components/LiveJobConsole.tsx b/components/LiveJobConsole.tsx
+index 68fd09c..3d394aa 100644
+--- a/components/LiveJobConsole.tsx
++++ b/components/LiveJobConsole.tsx
+@@ -9,7 +9,7 @@ import { gritSequenceFor } from "@/lib/estimator";
+ import { getJob, updateJob, type JobRecord } from "@/lib/jobs";
+ import { GRIT_SEQUENCE } from "@/lib/product";
+ import { ROBOTS } from "@/lib/robots";
+-import LiveFloorView from "@/components/LiveFloorView";
++import LiveStage from "@/components/live/LiveStage";
+ 
+ const SPEEDS = [
+   { label: "60×", value: 60 },
+@@ -262,16 +262,20 @@ export default function LiveJobConsole() {
+         </div>
+       </div>
+ 
+-      {/* WHAT IT IS DOING — the floor, drawn to the machine's own dimensions. */}
++      {/* WHAT IT IS DOING — the machine on the floor, and the floor from above.
++          Both views read this same snapshot and lib/floorPlan.ts, so they
++          cannot put the machine in two places or disagree about coverage. */}
+       <div className="card p-6 bg-card border-2 border-border-strong">
+         <div className="flex flex-wrap items-baseline justify-between gap-3">
+-          <h2 className="text-lg font-semibold tracking-tight">The floor, from above</h2>
++          <h2 className="text-lg font-semibold tracking-tight">
++            The machine on the floor
++          </h2>
+           <span className="text-sm text-muted-foreground tabular-nums">
+             Pass {s.pass} of {s.passCount} · {s.grit} grit
+           </span>
+         </div>
+         <div className="mt-4">
+-          <LiveFloorView
++          <LiveStage
+             robot={robot}
+             areaM2={s.totalAreaM2}
+             pass={s.pass}
+diff --git a/components/live/LiveScene3D.tsx b/components/live/LiveScene3D.tsx
+new file mode 100644
+index 0000000..8048285
+--- /dev/null
++++ b/components/live/LiveScene3D.tsx
+@@ -0,0 +1,540 @@
++"use client";
++
++import React, { useEffect, useMemo, useRef } from "react";
++import * as THREE from "three";
++import { Canvas, useFrame, useThree } from "@react-three/fiber";
++import {
++  ContactShadows,
++  Environment,
++  Lightformer,
++  OrbitControls,
++  SoftShadows,
++} from "@react-three/drei";
++import RobotMesh from "@/components/simulator/RobotMesh";
++import Room from "@/components/simulator/Room";
++import { FloorPainter } from "@/lib/floorPaint";
++import { planFloor, pose, toScene, type FloorPlan } from "@/lib/floorPlan";
++import type { RobotSpec } from "@/lib/robots";
++
++/**
++ * The job, in three dimensions, driven by the telemetry rather than by itself.
++ *
++ * The 2D plan answers "how much of the floor is done". It cannot answer the
++ * question a contractor actually has, which is "what is this thing and what is
++ * it doing to my floor" — for that you have to watch it work.
++ *
++ * WHAT MAKES THIS HONEST RATHER THAN A CARTOON. Every frame reads `pass` and
++ * `passPct` off the same SimSnapshot the numbers, the plan view and the event
++ * stream read. The machine is not animated on a loop of its own: pause the
++ * clock and it stops mid-lane, scrub back and the floor un-sands. Its position
++ * comes from lib/floorPlan.ts, so it is in the same place as the dot on the
++ * plan. Its geometry is components/simulator/RobotMesh — the identical model
++ * /simulator and /pro-simulator use, so there is one D1 on this site, not three
++ * drawings of one.
++ *
++ * WHAT MAKES IT LOOK LIKE SOMETHING. The floor is a canvas painted by the drum
++ * (lib/floorPaint.ts) rather than a grid of recoloured tiles, with a roughness
++ * map painted alongside it — so the old finish's sheen visibly stops at the
++ * cut line, lit rather than drawn. Everything is procedural: no HDRI, no GLB,
++ * no texture fetch, so the scene adds no network cost to the page.
++ */
++
++export interface SceneProps {
++  robot: RobotSpec;
++  areaM2: number;
++  pass: number;
++  passPct: number;
++  running: boolean;
++  camera: CameraMode;
++  /** Honour prefers-reduced-motion: no drifting camera, no dust drift. */
++  calm: boolean;
++  quality: "high" | "low";
++}
++
++export type CameraMode = "chase" | "overhead" | "free";
++
++const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
++
++/* ------------------------------------------------------------------ floor */
++
++function PaintedFloor({
++  plan,
++  robot,
++  pass,
++  passPct,
++}: {
++  plan: FloorPlan;
++  robot: RobotSpec;
++  pass: number;
++  passPct: number;
++}) {
++  // The painter and its two canvas textures are written to every frame. React
++  // 19's react-hooks rules forbid both mutating a memoised value and reading a
++  // ref during render, so they are BUILT in an effect, HELD in a ref, and bound
++  // to the material by ref rather than passed as props. Nothing about them is
++  // render state — the floor's appearance lives in a canvas, not in React.
++  const matRef = useRef<THREE.MeshStandardMaterial>(null);
++  const kit = useRef<{
++    painter: FloorPainter;
++    colour: THREE.CanvasTexture;
++    rough: THREE.CanvasTexture;
++  } | null>(null);
++
++  const roomW = plan.roomW;
++  const roomH = plan.roomH;
++
++  useEffect(() => {
++    const p = planFloor(roomW * roomH, robot.workingWidthM);
++    const painter = new FloorPainter(p, robot, 1);
++    const colour = new THREE.CanvasTexture(painter.colour);
++    colour.colorSpace = THREE.SRGBColorSpace;
++    colour.anisotropy = 8;
++    const rough = new THREE.CanvasTexture(painter.rough);
++    kit.current = { painter, colour, rough };
++
++    const mat = matRef.current;
++    if (mat) {
++      mat.map = colour;
++      mat.roughnessMap = rough;
++      mat.needsUpdate = true;
++    }
++    return () => {
++      colour.dispose();
++      rough.dispose();
++      kit.current = null;
++    };
++  }, [roomW, roomH, robot]);
++
++  // Painted in useFrame, not in an effect: the drum has to lay down floor on
++  // the same tick the machine moves over it, or the cut trails the machine by
++  // a frame and the two visibly disagree at speed.
++  useFrame(() => {
++    const k = kit.current;
++    if (!k) return;
++    k.painter.paintTo(pass, passPct);
++    if (k.painter.dirty) {
++      k.colour.needsUpdate = true;
++      k.rough.needsUpdate = true;
++      k.painter.dirty = false;
++    }
++  });
++
++  return (
++    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow>
++      <planeGeometry args={[plan.roomW, plan.roomH]} />
++      <meshStandardMaterial
++        ref={matRef}
++        color="#ffffff"
++        roughness={1}
++        metalness={0}
++      />
++    </mesh>
++  );
++}
++
++/* ------------------------------------------------------------------- dust */
++
++/**
++ * Extraction miss. The D1 targets 98% HEPA capture, so what you see is the
++ * 2% — a thin haze at the contact point, not a smokescreen. Overselling the
++ * dust would contradict the spec chip three inches above it.
++ */
++const DUST_N = 90;
++
++function Dust({
++  headRef,
++  running,
++  colour,
++  calm,
++}: {
++  headRef: React.RefObject<THREE.Group | null>;
++  running: boolean;
++  colour: string;
++  calm: boolean;
++}) {
++  const mesh = useRef<THREE.InstancedMesh>(null);
++  // Mutated every frame, so both the scratch object and the particle pool are
++  // refs — see the note on the floor painter above.
++  const dummy = useRef(new THREE.Object3D());
++  const pool = useRef<
++    { life: number; vx: number; vy: number; vz: number; x: number; y: number; z: number; s: number }[]
++  >([]);
++
++  useFrame((_, delta) => {
++    const m = mesh.current;
++    const head = headRef.current;
++    const d = dummy.current;
++    if (!m || !head) return;
++    // Seeded on the first frame rather than during render — reading a ref
++    // during render is what react-hooks/refs exists to stop.
++    if (pool.current.length === 0) {
++      pool.current = Array.from({ length: DUST_N }, (_, i) => ({
++        life: i / DUST_N,
++        vx: 0,
++        vy: 0,
++        vz: 0,
++        x: 0,
++        y: 0,
++        z: 0,
++        s: 0.02 + (i % 7) * 0.006,
++      }));
++    }
++    const parts = pool.current;
++    const dt = Math.min(delta, 0.05);
++    const hx = head.position.x;
++    const hz = head.position.z;
++
++    for (let i = 0; i < parts.length; i++) {
++      const p = parts[i];
++      if (running && !calm) p.life -= dt * 0.9;
++      if (p.life <= 0) {
++        if (!running) {
++          // Park spent motes under the floor rather than freezing a cloud in
++          // mid-air — a static plume reads as a rendering fault.
++          d.position.set(0, -5, 0);
++          d.scale.setScalar(0.0001);
++          d.updateMatrix();
++          m.setMatrixAt(i, d.matrix);
++          continue;
++        }
++        p.life = 1;
++        p.x = hx + (Math.random() - 0.5) * 0.16;
++        p.y = 0.02;
++        p.z = hz + (Math.random() - 0.5) * 0.5;
++        p.vx = (Math.random() - 0.5) * 0.25;
++        p.vy = 0.18 + Math.random() * 0.3;
++        p.vz = (Math.random() - 0.5) * 0.25;
++      }
++      p.x += p.vx * dt;
++      p.y += p.vy * dt;
++      p.z += p.vz * dt;
++      p.vy -= dt * 0.12;
++
++      d.position.set(p.x, p.y, p.z);
++      d.scale.setScalar(p.s * (0.4 + p.life));
++      d.updateMatrix();
++      m.setMatrixAt(i, d.matrix);
++    }
++    m.instanceMatrix.needsUpdate = true;
++  });
++
++  return (
++    <instancedMesh ref={mesh} args={[undefined, undefined, DUST_N]} frustumCulled={false}>
++      <sphereGeometry args={[1, 6, 6]} />
++      <meshBasicMaterial color={colour} transparent opacity={0.16} depthWrite={false} />
++    </instancedMesh>
++  );
++}
++
++/* ------------------------------------------------------------- the machine */
++
++function Machine({
++  plan,
++  robot,
++  passPct,
++  running,
++  headRef,
++  dirRef,
++}: {
++  plan: FloorPlan;
++  robot: RobotSpec;
++  passPct: number;
++  running: boolean;
++  headRef: React.RefObject<THREE.Group | null>;
++  dirRef: React.RefObject<number>;
++}) {
++  const body = useRef<THREE.Group>(null);
++  const yaw = useRef(0);
++
++  useFrame((_, delta) => {
++    const p = pose(plan, passPct);
++    const [dx, dz] = toScene(plan, p.x, p.y);
++    const head = headRef.current;
++    if (head) head.position.set(dx, 0, dz);
++
++    const b = body.current;
++    if (!b) return;
++    // The chassis trails the drum by the published tool offset — the same
++    // relationship the plan view draws, from the same number.
++    //
++    // Clamped into the room. At the start of a left-to-right lane the drum is
++    // hard against the wall, which puts the chassis 0.28 m THROUGH it: on the
++    // opening frame the machine was buried in the drywall and the hero shot
++    // looked at an empty corner. A real machine has the same limit — it cannot
++    // put its drum where its body would have to be — which is the reason a
++    // separate edger exists in the platform at all.
++    const halfBody = 0.34;
++    b.position.set(
++      clamp(dx - p.dir * robot.toolOffsetM, -plan.roomW / 2 + halfBody, plan.roomW / 2 - halfBody),
++      0,
++      clamp(dz, -plan.roomH / 2 + halfBody, plan.roomH / 2 - halfBody)
++    );
++
++    // Turn at the end of a lane instead of teleporting through 180 degrees.
++    const want = p.dir === 1 ? -Math.PI / 2 : Math.PI / 2;
++    const diff = Math.atan2(Math.sin(want - yaw.current), Math.cos(want - yaw.current));
++    yaw.current += diff * Math.min(1, delta * 6);
++    b.rotation.y = yaw.current;
++    // Hand the camera the SMOOTHED heading, not the instantaneous one. Using
++    // p.dir made the chase cam cut through 5 m of room in a single frame at
++    // every lane turn; easing it means the camera swings around with the
++    // machine the way a follow shot does.
++    dirRef.current += (p.dir - dirRef.current) * Math.min(1, delta * 3.5);
++  });
++
++  return (
++    <>
++      <group ref={headRef}>
++        {/* The contact patch — the floor directly under the abrasive, lit from
++            below. The roughness map already makes the sheen stop at the cut
++            line, but that only reads on hardware with real reflections; this
++            marks the exact point of work on any GPU, and it is the same
++            floor.active colour the plan view's legend calls "Under the drum".
++            Sits 4 mm proud of the floor so it never z-fights the plane. */}
++        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
++          <planeGeometry args={[0.16, robot.workingWidthM]} />
++          <meshBasicMaterial
++            color={robot.floor.active}
++            transparent
++            opacity={running ? 0.9 : 0.35}
++            depthWrite={false}
++          />
++        </mesh>
++      </group>
++      <group ref={body}>
++        <RobotMesh robot={robot} animate={running} />
++      </group>
++    </>
++  );
++}
++
++/* -------------------------------------------------------------- the camera */
++
++function CameraRig({
++  plan,
++  mode,
++  headRef,
++  dirRef,
++  started,
++  calm,
++}: {
++  plan: FloorPlan;
++  mode: CameraMode;
++  headRef: React.RefObject<THREE.Group | null>;
++  /** Smoothed travel direction, so the camera swings through a lane turn. */
++  dirRef: React.RefObject<number>;
++  /** Has the job actually begun? Governs the establishing shot. */
++  started: boolean;
++  calm: boolean;
++}) {
++  const { camera } = useThree();
++  const look = useRef(new THREE.Vector3());
++  const want = useRef(new THREE.Vector3());
++  const target = useRef(new THREE.Vector3());
++  const diag = Math.hypot(plan.roomW, plan.roomH);
++
++  useFrame((state, delta) => {
++    if (mode === "free") return;
++    const head = headRef.current;
++    const k = calm ? 1 : Math.min(1, delta * 2.4);
++
++    if (mode === "overhead") {
++      // Near-plan, tilted just enough to keep the machine reading as an object
++      // rather than a rectangle. The offset is a fraction of the room so a
++      // small job and a large one frame the same way.
++      want.current.set(0, diag * 0.78, plan.roomH * 0.30);
++      target.current.set(0, 0, 0);
++    } else if (!started) {
++      // Opening frame: a hero shot of the machine, parked on the untouched
++      // floor at the start of lane one.
++      //
++      // Two earlier versions of this were wrong. The chase camera opened jammed
++      // into the corner staring at blank drywall, because the corner is where
++      // the machine parks at t=0. Replacing it with a wide of the room fixed the
++      // drywall but lost the machine — the first thing a visitor saw was an
++      // empty room, and the D1 is the thing they came to look at. So the shot
++      // frames the machine from three-quarters, close enough to read the drum
++      // and the extraction hose, with the raw floor it is about to cut behind
++      // it. Clamped like the chase shot so the corner start does not put the
++      // camera outside the building.
++      const hx = clamp(head?.position.x ?? 0, -plan.roomW / 2 + 0.34, plan.roomW / 2 - 0.34);
++      const hz = clamp(head?.position.z ?? 0, -plan.roomH / 2 + 0.34, plan.roomH / 2 - 0.34);
++      const mx = plan.roomW / 2 - 0.9;
++      const mz = plan.roomH / 2;
++      want.current.set(
++        clamp(hx + 2.4, -mx, mx),
++        1.7,
++        clamp(hz + 2.9, -mz + 1.1, mz + 2.6)
++      );
++      target.current.set(hx, 0.2, hz);
++    } else {
++      // Chase. This was a nearly static wide shot scaled off the machine's
++      // position, which put the D1 in the far third of frame under a wall of
++      // grey drywall — the camera was pointing at the room, not the work.
++      // It now sits a fixed 2.6 m behind the drum along the travel axis and
++      // 1.45 m up, looking slightly ahead of the cut line, so the machine is
++      // the subject and the sheen boundary runs across the middle of frame.
++      const hx = head?.position.x ?? 0;
++      const hz = head?.position.z ?? 0;
++      const back = dirRef.current * 2.6;
++      const sway = calm ? 0 : Math.sin(state.clock.elapsedTime * 0.35) * 0.35;
++      // Clamped inside the set. Unclamped, every lane that ends at a wall put
++      // the camera through it, and the shot cut to the far side of the drywall
++      // for a second — the single most obvious way to look like a broken game.
++      const mx = plan.roomW / 2 - 0.9;
++      const mz = plan.roomH / 2;
++      want.current.set(
++        clamp(hx - back, -mx, mx),
++        1.45,
++        // The front of the set is open, so the camera may stand outside it
++        // there; the back wall is solid, so it may not pass behind that.
++        clamp(hz + 1.75 + sway, -mz + 1.1, mz + 2.6)
++      );
++      target.current.set(hx + dirRef.current * 0.5, 0.12, hz);
++    }
++    look.current.lerp(target.current, k);
++    camera.position.lerp(want.current, k);
++    camera.lookAt(look.current);
++  });
++
++  return null;
++}
++
++/* --------------------------------------------------------------- the scene */
++
++function Scene({
++  robot,
++  areaM2,
++  pass,
++  passPct,
++  running,
++  camera,
++  calm,
++  quality,
++}: SceneProps) {
++  const plan = useMemo(
++    () => planFloor(areaM2, robot.workingWidthM),
++    [areaM2, robot.workingWidthM]
++  );
++  const headRef = useRef<THREE.Group>(null);
++  const dirRef = useRef(1);
++  const diag = Math.hypot(plan.roomW, plan.roomH);
++
++  return (
++    <>
++      <color attach="background" args={["#eef2f6"]} />
++      <fog attach="fog" args={["#eef2f6", diag * 1.1, diag * 2.6]} />
++
++      {/* Key light through the window wall, warm, casting the machine's
++          shadow onto the floor it is cutting. */}
++      <directionalLight
++        position={[plan.roomW * 0.34, 5.4, -plan.roomH * 0.12]}
++        intensity={2.5}
++        color="#fff2dc"
++        castShadow={quality === "high"}
++        shadow-mapSize={[1024, 1024]}
++        shadow-bias={-0.0006}
++      >
++        <orthographicCamera
++          attach="shadow-camera"
++          args={[-diag * 0.6, diag * 0.6, diag * 0.6, -diag * 0.6, 0.5, 24]}
++        />
++      </directionalLight>
++      {/* Cool bounce off the open side, so the walls read as lit surfaces
++          rather than one flat grey. Ambient alone was washing the whole set to
++          the same value and the room looked like untextured geometry. */}
++      <directionalLight
++        position={[-plan.roomW * 0.45, 3.2, plan.roomH * 0.85]}
++        intensity={1.15}
++        color="#dbe8ff"
++      />
++      <ambientLight intensity={0.32} />
++
++      {/* Procedural environment — Lightformers, not a fetched HDRI, so the
++          scene stays offline and the page pays no network cost for it. */}
++      <Environment resolution={quality === "high" ? 256 : 128}>
++        <Lightformer intensity={2.2} position={[0, 5, -2]} scale={[10, 4, 1]} color="#ffffff" />
++        <Lightformer intensity={1.1} position={[-5, 3, 3]} scale={[6, 3, 1]} color="#e8f1ff" />
++        <Lightformer intensity={0.9} position={[5, 2, 4]} scale={[6, 3, 1]} color="#fff0dc" />
++      </Environment>
++
++      <PaintedFloor plan={plan} robot={robot} pass={pass} passPct={passPct} />
++      <Room w={plan.roomW} l={plan.roomH} siteProps={false} />
++      <Machine
++        plan={plan}
++        robot={robot}
++        passPct={passPct}
++        running={running}
++        headRef={headRef}
++        dirRef={dirRef}
++      />
++      {robot.emitsDust && (
++        <Dust headRef={headRef} running={running} colour={robot.floor.done} calm={calm} />
++      )}
++
++      {quality === "high" && (
++        <ContactShadows
++          position={[0, 0.002, 0]}
++          scale={diag * 1.2}
++          opacity={0.4}
++          blur={2.2}
++          far={2}
++          resolution={512}
++          frames={running ? Infinity : 1}
++        />
++      )}
++
++      <CameraRig
++        plan={plan}
++        mode={camera}
++        headRef={headRef}
++        dirRef={dirRef}
++        started={pass > 1 || passPct > 0.2}
++        calm={calm}
++      />
++      {camera === "free" && (
++        <OrbitControls
++          makeDefault
++          enablePan={false}
++          minPolarAngle={0.15}
++          maxPolarAngle={Math.PI / 2.15}
++          minDistance={diag * 0.35}
++          maxDistance={diag * 1.6}
++          target={[0, 0, 0]}
++        />
++      )}
++    </>
++  );
++}
++
++export default function LiveScene3D(props: SceneProps & { active: boolean }) {
++  const { active, ...scene } = props;
++  const plan = planFloor(scene.areaM2, scene.robot.workingWidthM);
++  const diag = Math.hypot(plan.roomW, plan.roomH);
++
++  return (
++    <Canvas
++      shadows={scene.quality === "high" ? "soft" : false}
++      // Stops burning frames when the canvas is off-screen or the tab is
++      // hidden — the same gate /simulator uses (audit/FINDINGS.md §6).
++      frameloop={active ? "always" : "demand"}
++      dpr={scene.quality === "high" ? [1, 1.75] : [1, 1.25]}
++      camera={{ position: [0, 3.4, diag * 0.72], fov: 46, near: 0.1, far: 80 }}
++      gl={{ antialias: scene.quality === "high", powerPreference: "high-performance" }}
++      onCreated={({ gl }) => {
++        gl.toneMapping = THREE.ACESFilmicToneMapping;
++        gl.toneMappingExposure = 1.05;
++      }}
++      className="h-full w-full"
++      role="img"
++      aria-label={`3D view of a simulated ${scene.robot.name} sanding a ${Math.round(
++        scene.areaM2
++      )} square metre floor. Pass ${scene.pass}, ${Math.round(
++        scene.passPct
++      )} percent of this pass complete.`}
++    >
++      {scene.quality === "high" && <SoftShadows size={18} samples={8} focus={0.7} />}
++      <Scene {...scene} />
++    </Canvas>
++  );
++}
+diff --git a/components/live/LiveStage.tsx b/components/live/LiveStage.tsx
+new file mode 100644
+index 0000000..9498207
+--- /dev/null
++++ b/components/live/LiveStage.tsx
+@@ -0,0 +1,201 @@
++"use client";
++
++import React, { useState } from "react";
++import dynamic from "next/dynamic";
++import { Camera, Compass, Move3d, Box } from "lucide-react";
++import LiveFloorView from "@/components/LiveFloorView";
++import type { CameraMode } from "@/components/live/LiveScene3D";
++import { useCanvasActive } from "@/lib/useCanvasActive";
++import type { RobotSpec } from "@/lib/robots";
++
++/**
++ * The stage: a 3D view of the job, a plan view beside it, and every route by
++ * which the 3D view might not be available.
++ *
++ * The two views are not alternatives, they answer different questions. The
++ * scene shows what the machine is and how it works; the plan shows how much of
++ * the floor is done and where the machine is in it — which no chase camera can
++ * tell you, because it is looking at one lane. Watching a job you want both,
++ * which is why every telemetry product ships a map next to the video.
++ *
++ * FALLBACKS, in the order they are checked:
++ *  - no WebGL (old device, hardened browser, GPU blocklist) -> plan view alone
++ *  - prefers-reduced-motion -> scene still renders, but the camera stops
++ *    drifting and the dust stops moving. Nothing is hidden: a user who asked
++ *    for less motion asked for less motion, not less information.
++ *  - printing -> the plan view, because a canvas prints as a blank rectangle.
++ * The 3D bundle is a dynamic ssr:false import, so a visitor who never scrolls
++ * to it never downloads three.js.
++ */
++
++const Scene = dynamic(() => import("@/components/live/LiveScene3D"), {
++  ssr: false,
++  loading: () => (
++    <div className="flex h-full w-full items-center justify-center bg-muted">
++      <span className="text-sm text-muted-foreground">Loading the 3D view…</span>
++    </div>
++  ),
++});
++
++function hasWebGL(): boolean {
++  if (typeof window === "undefined") return true;
++  try {
++    const c = document.createElement("canvas");
++    return !!(c.getContext("webgl2") || c.getContext("webgl"));
++  } catch {
++    return false;
++  }
++}
++
++function prefersReducedMotion(): boolean {
++  if (typeof window === "undefined") return false;
++  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
++}
++
++/** Coarse pointer + limited memory: drop shadows and DPR rather than the view. */
++function lowPower(): boolean {
++  if (typeof window === "undefined") return false;
++  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
++  const coarse = window.matchMedia?.("(pointer: coarse)").matches ?? false;
++  return (mem !== undefined && mem <= 4) || coarse;
++}
++
++const CAMERAS: { key: CameraMode; label: string; icon: typeof Camera }[] = [
++  { key: "chase", label: "Follow", icon: Camera },
++  { key: "overhead", label: "Overhead", icon: Compass },
++  { key: "free", label: "Free look", icon: Move3d },
++];
++
++export interface LiveStageProps {
++  robot: RobotSpec;
++  areaM2: number;
++  pass: number;
++  passCount: number;
++  passPct: number;
++  grit: string;
++  running: boolean;
++}
++
++export default function LiveStage(props: LiveStageProps) {
++  const { robot, areaM2, pass, passCount, passPct, grit, running } = props;
++  // Client-only component (dynamic ssr:false below the fold), so these can be
++  // lazy-initialised instead of set from an effect.
++  const [webgl] = useState(hasWebGL);
++  const [calm] = useState(prefersReducedMotion);
++  const [low] = useState(lowPower);
++  const [camera, setCamera] = useState<CameraMode>("chase");
++  const { ref: stageRef, active } = useCanvasActive<HTMLDivElement>();
++
++  const plan = (
++    <LiveFloorView
++      robot={robot}
++      areaM2={areaM2}
++      pass={pass}
++      passCount={passCount}
++      passPct={passPct}
++      grit={grit}
++      running={running}
++    />
++  );
++
++  if (!webgl) {
++    return (
++      <div>
++        <p className="mb-4 rounded-lg border border-border-strong bg-muted px-4 py-3 text-sm text-muted-foreground">
++          Your browser has WebGL turned off, so the 3D view can&apos;t run here. The plan
++          below is the same job, from above, and updates identically.
++        </p>
++        {plan}
++      </div>
++    );
++  }
++
++  return (
++    <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
++      <div className="min-w-0">
++        <div
++          ref={stageRef}
++          className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-border-strong bg-muted print:hidden"
++        >
++          <Scene
++            robot={robot}
++            areaM2={areaM2}
++            pass={pass}
++            passPct={passPct}
++            running={running}
++            camera={camera}
++            calm={calm}
++            quality={low ? "low" : "high"}
++            active={active}
++          />
++
++          {/* HUD. Reads the same snapshot as everything else on the page — it
++              is a caption on the picture, not a second source of truth.
++
++              The chips are OPAQUE. They were translucent for a glass look, and
++              bg-accent/90 blended to #bb6421 against the light loading
++              placeholder: white on that is 4.23:1, under AA. It only appeared
++              in the few hundred milliseconds before the 3D chunk resolved,
++              which made it an intermittent axe failure and would have made it
++              a bug nobody could reproduce. Opaque, the chip carries its own
++              guaranteed contrast (5.02:1 on --accent) no matter what is
++              rendered behind it — which for a chip floating over a live 3D
++              scene is the only defensible way to build it. */}
++          <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap items-center gap-2">
++            <span className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-white">
++              {robot.name}
++            </span>
++            <span className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white tabular-nums">
++              Pass {pass}/{passCount} · {grit} grit
++            </span>
++            <span className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-white">
++              {running ? robot.jobVerb : "Paused"}
++            </span>
++          </div>
++          <span className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-white">
++            Simulated · no hardware connected
++          </span>
++        </div>
++
++        {/* Camera. Buttons, not tabs — they change the view, not the document.
++            role="radiogroup" is the honest control pattern for one-of-N. */}
++        <div className="mt-3 flex flex-wrap items-center gap-2 print:hidden">
++          <span className="text-xs font-semibold tracking-wider text-muted-foreground">
++            CAMERA
++          </span>
++          <div role="radiogroup" aria-label="Camera view" className="flex flex-wrap gap-1.5">
++            {CAMERAS.map((c) => {
++              const Icon = c.icon;
++              const on = camera === c.key;
++              return (
++                <button
++                  key={c.key}
++                  type="button"
++                  role="radio"
++                  aria-checked={on}
++                  onClick={() => setCamera(c.key)}
++                  className={`inline-flex min-h-11 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors ${
++                    on
++                      ? "border-accent bg-accent-light text-accent"
++                      : "border-border-strong text-muted-foreground hover:text-foreground"
++                  }`}
++                >
++                  <Icon className="h-4 w-4" aria-hidden="true" />
++                  {c.label}
++                </button>
++              );
++            })}
++          </div>
++          {calm && (
++            <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
++              <Box className="h-3.5 w-3.5" aria-hidden="true" />
++              Reduced motion on — camera and dust are held still.
++            </span>
++          )}
++        </div>
++      </div>
++
++      <div className="min-w-0">{plan}</div>
++    </div>
++  );
++}
+diff --git a/components/simulator/Room.tsx b/components/simulator/Room.tsx
+index 10d4c9f..1264323 100644
+--- a/components/simulator/Room.tsx
++++ b/components/simulator/Room.tsx
+@@ -11,7 +11,25 @@ import * as THREE from "three";
+  * offline — no textures fetched — and sized from the room dimensions so it
+  * reframes when you change the room.
+  */
+-export default function Room({ w, l }: { w: number; l: number }) {
++export default function Room({
++  w,
++  l,
++  siteProps = true,
++}: {
++  w: number;
++  l: number;
++  /**
++   * Render the site context (hardwood bundles, extraction cart)?
++   *
++   * They sit in the back corners, which is exactly where a boustrophedon path
++   * begins and ends, so a machine following that path drives through them. The
++   * live job console turns them off: a floor being refinished is an emptied
++   * room — clearing it is the first thing a contractor does — so the honest
++   * scene for a job in progress has nothing on the floor but the machine.
++   * /simulator keeps them, where they give an empty room some scale.
++   */
++  siteProps?: boolean;
++}) {
+   const H = 2.5; // wall height (m)
+   const hw = w / 2;
+   const hl = l / 2;
+@@ -101,6 +119,8 @@ export default function Room({ w, l }: { w: number; l: number }) {
+       </mesh>
+ 
+       {/* --- site context props --- */}
++      {siteProps && (
++        <>
+       {/* stack of hardwood bundles waiting in the back-left corner */}
+       <group position={[-hw + 0.5, 0.0, -hl + 0.35]}>
+         {[0, 1, 2].map((i) => (
+@@ -131,6 +151,8 @@ export default function Room({ w, l }: { w: number; l: number }) {
+           <meshStandardMaterial color="#0f172a" roughness={0.7} />
+         </mesh>
+       </group>
++        </>
++      )}
+     </group>
+   );
+ }
+diff --git a/lib/floorPaint.ts b/lib/floorPaint.ts
+new file mode 100644
+index 0000000..f5a076a
+--- /dev/null
++++ b/lib/floorPaint.ts
+@@ -0,0 +1,284 @@
++/**
++ * The floor, painted by the drum.
++ *
++ * The 3D stage needs the floor to *become* sanded as the machine works, lane by
++ * lane, in the machine's own working width. Recolouring a grid of tiles is the
++ * cheap way to do that and it looks like a spreadsheet: you see cells flip, not
++ * a floor being cut.
++ *
++ * So the floor is a canvas. The drum draws on it — a stroke the width of the
++ * real 0.50 m head, in the colour that pass leaves behind, along the same
++ * boustrophedon path lib/floorPlan.ts gives the plan view. That canvas becomes
++ * the material's colour map.
++ *
++ * A SECOND canvas is painted in lockstep as the roughness map, and it is the
++ * detail that sells the whole thing. An old polyurethane finish is glossy;
++ * freshly cut wood is dead matte. So the sanded region does not merely change
++ * colour, it stops reflecting the room — you can see the sheen line travelling
++ * across the floor ahead of the machine. That is a real property of the job,
++ * rendered for free by the lighting rather than drawn on.
++ *
++ * No textures are fetched. Both canvases are generated at runtime, so the scene
++ * keeps the zero-network-dependency property the rest of the simulator has.
++ */
++
++import type { FloorPlan } from "@/lib/floorPlan";
++import { laneDirection } from "@/lib/floorPlan";
++import type { RobotSpec } from "@/lib/robots";
++
++/** Texels per metre. 96 puts a 12 m room at ~1150 px — plenty at this scale. */
++const PX_PER_M = 96;
++const MAX_PX = 2048;
++
++/** Gloss of the original finish, and of raw cut wood, as roughness 0–1. */
++const ROUGH_FINISHED = 0.28;
++const ROUGH_CUT = 0.82;
++
++/** Opacity of a cut stroke, so board grain survives being sanded. */
++const CUT_ALPHA = 0.82;
++
++export interface FloorCanvases {
++  colour: HTMLCanvasElement;
++  rough: HTMLCanvasElement;
++  /** Canvas pixels per plan metre, after the MAX_PX clamp. */
++  scale: number;
++}
++
++/** Deterministic noise so a reset repaints an identical floor. */
++function mulberry32(seed: number) {
++  let a = seed >>> 0;
++  return () => {
++    a = (a + 0x6d2b79f5) >>> 0;
++    let t = Math.imul(a ^ (a >>> 15), 1 | a);
++    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
++    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
++  };
++}
++
++/** Board layout + grain for the untouched floor. */
++function paintBoards(
++  ctx: CanvasRenderingContext2D,
++  w: number,
++  h: number,
++  scale: number,
++  base: string,
++  seed: number
++) {
++  const rnd = mulberry32(seed);
++  ctx.fillStyle = base;
++  ctx.fillRect(0, 0, w, h);
++
++  // Strip flooring: boards run the long way, ~76 mm face, random end joints.
++  const boardPx = 0.076 * scale;
++  for (let y = 0; y < h; y += boardPx) {
++    // Per-board tone variation — real hardwood is never one colour.
++    const shade = (rnd() - 0.5) * 26;
++    ctx.fillStyle = `rgba(${shade > 0 ? 255 : 0},${shade > 0 ? 255 : 0},${
++      shade > 0 ? 255 : 0
++    },${Math.abs(shade) / 255})`;
++    ctx.fillRect(0, y, w, boardPx);
++
++    // Grain: fine lines along the board.
++    const lines = 5 + Math.floor(rnd() * 5);
++    for (let g = 0; g < lines; g++) {
++      const gy = y + rnd() * boardPx;
++      ctx.strokeStyle = `rgba(60,38,18,${0.05 + rnd() * 0.09})`;
++      ctx.lineWidth = Math.max(0.6, rnd() * 1.6);
++      ctx.beginPath();
++      ctx.moveTo(0, gy);
++      // A slight waver reads as wood; a straight line reads as a UI rule.
++      for (let x = 0; x <= w; x += 40) {
++        ctx.lineTo(x, gy + Math.sin((x / w) * 6 + g) * 1.2);
++      }
++      ctx.stroke();
++    }
++
++    // End joints between boards.
++    let x = rnd() * 1.2 * scale;
++    while (x < w) {
++      ctx.strokeStyle = "rgba(40,24,10,0.34)";
++      ctx.lineWidth = Math.max(1, scale * 0.006);
++      ctx.beginPath();
++      ctx.moveTo(x, y);
++      ctx.lineTo(x, y + boardPx);
++      ctx.stroke();
++      x += (0.9 + rnd() * 1.6) * scale;
++    }
++
++    // Board seam.
++    ctx.strokeStyle = "rgba(40,24,10,0.26)";
++    ctx.lineWidth = Math.max(1, scale * 0.005);
++    ctx.beginPath();
++    ctx.moveTo(0, y);
++    ctx.lineTo(w, y);
++    ctx.stroke();
++  }
++}
++
++/**
++ * A painter bound to one job. Owns both canvases and the paint cursor.
++ *
++ * Painting is INCREMENTAL — each call strokes only the floor covered since the
++ * last one, which is a few pixels per frame. Seeking backwards (Reset, or
++ * dragging the clock back) is the only case that repaints from scratch, and it
++ * is exact rather than approximate because the whole path is a pure function of
++ * (pass, passPct).
++ */
++export class FloorPainter {
++  readonly colour: HTMLCanvasElement;
++  readonly rough: HTMLCanvasElement;
++  readonly scale: number;
++  private readonly cctx: CanvasRenderingContext2D;
++  private readonly rctx: CanvasRenderingContext2D;
++  private readonly plan: FloorPlan;
++  private readonly robot: RobotSpec;
++  private readonly seed: number;
++  /** Last painted point, as absolute progress across all passes. */
++  private cursor = -1;
++  /** Set true whenever a canvas changed, so the caller can flag the texture. */
++  dirty = true;
++
++  constructor(plan: FloorPlan, robot: RobotSpec, seed = 1) {
++    this.plan = plan;
++    this.robot = robot;
++    this.seed = seed;
++
++    const raw = Math.min(MAX_PX, Math.round(plan.roomW * PX_PER_M));
++    this.scale = raw / plan.roomW;
++    const w = Math.round(plan.roomW * this.scale);
++    const h = Math.round(plan.roomH * this.scale);
++
++    this.colour = document.createElement("canvas");
++    this.colour.width = w;
++    this.colour.height = h;
++    this.cctx = this.colour.getContext("2d")!;
++
++    this.rough = document.createElement("canvas");
++    this.rough.width = w;
++    this.rough.height = h;
++    this.rctx = this.rough.getContext("2d")!;
++
++    this.reset();
++  }
++
++  /** Colour a pass leaves behind, from the machine's published pass list. */
++  private leaveColour(passIndex: number): string {
++    const passes = this.robot.passes;
++    if (!passes || !passes.length) return this.robot.floor.done;
++    return passes[Math.min(passIndex, passes.length - 1)].leaves;
++  }
++
++  private passCount(): number {
++    return this.robot.passes?.length || 1;
++  }
++
++  reset() {
++    // Alpha leaks otherwise: strokeRange leaves it at CUT_ALPHA, which would
++    // make the repainted base boards translucent over whatever was there.
++    this.cctx.globalAlpha = 1;
++    paintBoards(
++      this.cctx,
++      this.colour.width,
++      this.colour.height,
++      this.scale,
++      this.robot.floor.base,
++      this.seed
++    );
++    // Untouched floor still wears its old finish, so it is glossy.
++    const g = Math.round(ROUGH_FINISHED * 255);
++    this.rctx.fillStyle = `rgb(${g},${g},${g})`;
++    this.rctx.fillRect(0, 0, this.rough.width, this.rough.height);
++    this.cursor = -1;
++    this.dirty = true;
++  }
++
++  /**
++   * Paint up to `pass` (1-based) and `passPct` (0–100).
++   *
++   * Absolute progress is (pass - 1 + passPct/100), so a later pass repaints
++   * over an earlier one in its own colour — which is what the grit sequence
++   * does to a floor.
++   */
++  paintTo(pass: number, passPct: number) {
++    const target = Math.max(
++      0,
++      Math.min(this.passCount(), pass - 1 + Math.max(0, Math.min(100, passPct)) / 100)
++    );
++    if (target === this.cursor) return;
++    // Seeking backwards: the only case that needs a full repaint.
++    if (target < this.cursor) this.reset();
++
++    const from = Math.max(0, this.cursor);
++    this.strokeRange(from, target);
++    this.cursor = target;
++    this.dirty = true;
++    this.cctx.globalAlpha = 1;
++  }
++
++  /** Stroke every lane segment between two absolute-progress points. */
++  private strokeRange(from: number, to: number) {
++    const { laneCount, roomW, laneH } = this.plan;
++    const s = this.scale;
++    const drumPx = this.robot.workingWidthM * s;
++
++    for (let p = Math.floor(from); p < Math.ceil(to) && p < this.passCount(); p++) {
++      const a = Math.max(from - p, 0);
++      const b = Math.min(to - p, 1);
++      if (b <= a) continue;
++
++      const laneA = a * laneCount;
++      const laneB = b * laneCount;
++      this.cctx.strokeStyle = this.leaveColour(p);
++      this.cctx.lineCap = "butt";
++      this.cctx.lineWidth = drumPx;
++      // Translucent, not opaque. A solid stroke covered the boards, the grain
++      // and the end joints, so the sanded half of the floor came out a flat
++      // cream field — sanding was erasing the wood instead of revealing it,
++      // which is the exact opposite of what a contractor is paying for. At 0.82
++      // the grain reads through, and successive passes converge on the pass
++      // colour the way successive grits actually do.
++      this.cctx.globalAlpha = CUT_ALPHA;
++      const rg = Math.round(ROUGH_CUT * 255);
++      this.rctx.strokeStyle = `rgb(${rg},${rg},${rg})`;
++      this.rctx.lineCap = "butt";
++      this.rctx.lineWidth = drumPx;
++
++      for (let lane = Math.floor(laneA); lane < Math.ceil(laneB); lane++) {
++        const t0 = Math.max(laneA - lane, 0);
++        const t1 = Math.min(laneB - lane, 1);
++        if (t1 <= t0) continue;
++        const dir = laneDirection(lane);
++        const y = (lane + 0.5) * laneH * s;
++        const x0 = (dir === 1 ? t0 * roomW : roomW - t0 * roomW) * s;
++        const x1 = (dir === 1 ? t1 * roomW : roomW - t1 * roomW) * s;
++
++        for (const ctx of [this.cctx, this.rctx]) {
++          ctx.beginPath();
++          ctx.moveTo(x0, y);
++          ctx.lineTo(x1, y);
++          ctx.stroke();
++        }
++        this.cctx.globalAlpha = 1;
++
++        // Planetary swirl. A drum sander leaves fine arcs, not a flat band;
++        // without them the cut lane is a solid rectangle and reads as paint.
++        // Colour map only — they are a pattern in the surface, not in its
++        // gloss, so the roughness map stays uniform across the cut.
++        this.cctx.save();
++        this.cctx.globalAlpha = 0.06;
++        this.cctx.strokeStyle = "#3f2d17";
++        this.cctx.lineWidth = Math.max(0.7, drumPx * 0.03);
++        const step = drumPx * 0.45;
++        const lo = Math.min(x0, x1);
++        const hi = Math.max(x0, x1);
++        for (let x = Math.ceil(lo / step) * step; x < hi; x += step) {
++          this.cctx.beginPath();
++          this.cctx.arc(x, y, drumPx * 0.34, 0, Math.PI * 2);
++          this.cctx.stroke();
++        }
++        this.cctx.restore();
++        this.cctx.globalAlpha = CUT_ALPHA;
++      }
++    }
++  }
++}
+diff --git a/lib/floorPlan.ts b/lib/floorPlan.ts
+new file mode 100644
+index 0000000..8086939
+--- /dev/null
++++ b/lib/floorPlan.ts
+@@ -0,0 +1,119 @@
++/**
++ * The floor plan a job is run against — one definition, two renderers.
++ *
++ * `/live` draws the same job twice: a top-down plan (components/LiveFloorView)
++ * and a 3D stage (components/live/LiveScene3D). Those started as separate
++ * pieces of geometry and would have drifted the first time either changed —
++ * the room would be one size in the plan and another in the scene, and the
++ * machine would be in two places at once on the same page. Both now read this.
++ *
++ * Everything here derives from two inputs: the job's area, and the machine's
++ * published working width from lib/robots.ts. Nothing is hand-tuned.
++ *
++ * COORDINATES. `pose()` returns plan-space metres with the origin at the room's
++ * top-left corner, x to the right, y down — which is what SVG wants. The 3D
++ * scene re-centres to its own origin with `toScene()` rather than keeping a
++ * second copy of the maths.
++ */
++
++export interface FloorPlan {
++  /** Room width in metres (long axis). */
++  roomW: number;
++  /** Room depth in metres. */
++  roomH: number;
++  /** Number of lanes needed to cover the room at the machine's working width. */
++  laneCount: number;
++  /** Centre-to-centre lane spacing. Slightly less than the working width. */
++  laneH: number;
++  /** Fraction of the drum that re-cuts the previous lane, 0–1. */
++  overlap: number;
++  /** Total distance the machine travels in one pass, in metres. */
++  passDistanceM: number;
++}
++
++export interface Pose {
++  /** Position of the DRUM — the cut boundary — in plan metres. */
++  x: number;
++  y: number;
++  /** +1 travelling left-to-right, -1 right-to-left. */
++  dir: 1 | -1;
++  /** 0-based index of the lane being cut. */
++  lane: number;
++  /** Progress along the current lane, 0–1. */
++  laneProgress: number;
++}
++
++/**
++ * Room proportioned 4:3 from the job's area.
++ *
++ * A real plan comes from the site scan, which does not exist. Both renderers
++ * say so on screen rather than letting a viewer assume this is their floor.
++ */
++export function planFloor(areaM2: number, workingWidthM: number): FloorPlan {
++  const area = Math.max(1, areaM2);
++  const roomW = Math.sqrt((area * 4) / 3);
++  const roomH = area / roomW;
++
++  // Lane COUNT comes from the working width; lane PITCH is then the room
++  // divided by that count, so the lanes tile the floor exactly.
++  //
++  // Laying them at a flat working width instead put 19 x 0.50 m of lane into a
++  // 9.09 m room: the last lane hung past the wall and the machine finished the
++  // job standing outside the building. A real path planner has the same problem
++  // and solves it the same way — you never get a whole number of passes out of
++  // a room, so the passes overlap slightly. That overlap is also what stops a
++  // floor banding at the seams.
++  const laneCount = Math.max(1, Math.ceil(roomH / workingWidthM));
++  const laneH = roomH / laneCount;
++
++  return {
++    roomW,
++    roomH,
++    laneCount,
++    laneH,
++    overlap: Math.max(0, (workingWidthM - laneH) / workingWidthM),
++    passDistanceM: laneCount * roomW,
++  };
++}
++
++/** Boustrophedon: even lanes run left-to-right, odd lanes right-to-left. */
++export function laneDirection(lane: number): 1 | -1 {
++  return lane % 2 === 0 ? 1 : -1;
++}
++
++/**
++ * Where the machine is at a given point through a pass.
++ *
++ * `passPct` is 0–100, straight off SimSnapshot.passPct, so the drawing is a
++ * function of the telemetry rather than of its own animation clock. Two
++ * renderers reading the same snapshot therefore agree by construction.
++ */
++export function pose(plan: FloorPlan, passPct: number): Pose {
++  const progress = Math.max(0, Math.min(1, passPct / 100));
++  const finished = progress >= 1;
++  const laneFloat = progress * plan.laneCount;
++
++  // At exactly 100% a naive floor() rolls onto a lane that does not exist and
++  // snaps the machine back to the start of it. Park it at the end of the last
++  // lane instead — where a machine that just finished actually is.
++  const lane = finished ? plan.laneCount - 1 : Math.floor(laneFloat);
++  const laneProgress = finished ? 1 : laneFloat - lane;
++  const dir = laneDirection(lane);
++
++  const travelled = laneProgress * plan.roomW;
++  return {
++    x: dir === 1 ? travelled : plan.roomW - travelled,
++    y: (lane + 0.5) * plan.laneH,
++    dir,
++    lane,
++    laneProgress,
++  };
++}
++
++/**
++ * Plan metres -> scene metres, origin at the centre of the floor.
++ * Plan y (down the page) becomes scene z (away from the camera).
++ */
++export function toScene(plan: FloorPlan, x: number, y: number): [number, number] {
++  return [x - plan.roomW / 2, y - plan.roomH / 2];
++}
