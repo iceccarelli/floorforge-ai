@@ -1,0 +1,287 @@
+diff --git a/components/Header.tsx b/components/Header.tsx
+index ad76db0..cb61198 100644
+--- a/components/Header.tsx
++++ b/components/Header.tsx
+@@ -1,20 +1,22 @@
+ "use client";
+ 
+-import React, { useState } from "react";
++import React, { useEffect, useRef, useState } from "react";
+ import Link from "next/link";
+ import { usePathname, useRouter } from "next/navigation";
+-import { Menu, X } from "lucide-react";
++import { Menu, X, ChevronDown } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
+ import { authEnabled } from "@/lib/auth";
+ import { contactHref, CONTACT_SUBJECT } from "@/lib/contact";
+ import { scrollToElement } from "@/lib/scroll";
++import { FREE_TOOLS } from "@/lib/tools";
+ import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+ 
+ const navLinks = [
+-  // "Tools" first, deliberately: it is the only entry that leads to software a
+-  // visitor can use today. Everything else describes hardware in development.
+-  { href: "#tools", label: "Tools" },
++  // "Tools" is NOT in this list — it is a dropdown, rendered separately below.
++  // It used to be a "#tools" anchor that scrolled the homepage, which meant the
++  // only route to four working products was: be on the homepage, scroll. The
++  // menu still offers that overview as its last item, so nothing was taken away.
+   { href: "#features", label: "Features" },
+   { href: "#how-it-works", label: "How it Works" },
+   { href: "#roi", label: "ROI" },
+@@ -24,6 +26,9 @@ const navLinks = [
+ 
+ export default function Header() {
+   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
++  const [toolsOpen, setToolsOpen] = useState(false);
++  const toolsRef = useRef<HTMLDivElement>(null);
++  const toolsButtonRef = useRef<HTMLButtonElement>(null);
+   // The mobile menu previously animated `height: 0 -> auto`: a layout property,
+   // animated on every open, on the lowest-powered devices the site has — and
+   // with no prefers-reduced-motion guard at all (audit/FINDINGS.md P2-4).
+@@ -43,8 +48,45 @@ export default function Header() {
+   // at the form while their next Tab went to the next item in the header.
+   // lib/scroll.ts handles both, and the 80px offset it replaces is already
+   // expressed as `scroll-margin-top` on every `.section` target.
++  // Close the tools menu on anything that means "I'm done with it": a click
++  // outside, Escape, or navigating. Escape returns focus to the button that
++  // opened it — a keyboard user who dismisses a menu should not be dumped at
++  // the top of the document.
++  useEffect(() => {
++    if (!toolsOpen) return;
++    const onDown = (e: MouseEvent) => {
++      if (!toolsRef.current?.contains(e.target as Node)) setToolsOpen(false);
++    };
++    const onKey = (e: KeyboardEvent) => {
++      if (e.key !== "Escape") return;
++      setToolsOpen(false);
++      toolsButtonRef.current?.focus();
++    };
++    document.addEventListener("mousedown", onDown);
++    document.addEventListener("keydown", onKey);
++    return () => {
++      document.removeEventListener("mousedown", onDown);
++      document.removeEventListener("keydown", onKey);
++    };
++  }, [toolsOpen]);
++
++  // Also close it when the route changes by some route OTHER than clicking one
++  // of its links — browser back/forward, mainly. Deferred past a microtask so
++  // React commits first: the sanctioned shape for react-hooks/set-state-in-effect
++  // that FLOORFORGE_02 established for this codebase.
++  useEffect(() => {
++    let live = true;
++    void Promise.resolve().then(() => {
++      if (live) setToolsOpen(false);
++    });
++    return () => {
++      live = false;
++    };
++  }, [pathname]);
++
+   const goToSection = (hash: string) => {
+     setMobileMenuOpen(false);
++    setToolsOpen(false);
+     if (pathname === "/") {
+       scrollToElement(hash.replace(/^#/, ""));
+     } else {
+@@ -69,6 +111,78 @@ export default function Header() {
+ 
+           {/* Desktop Navigation */}
+           <nav aria-label="Main" className="hidden lg:flex items-center gap-8 text-sm font-medium">
++            {/* Tools — a DISCLOSURE, not role="menu".
++                role="menu"/"menuitem" is the application-menu pattern: it takes
++                over the arrow keys, removes the links from the page's tab order
++                and tells a screen reader these are commands. They are not, they
++                are navigation links. aria-expanded on the trigger plus a plain
++                list of links is the pattern that matches what this actually is,
++                and Tab moves through it the way a user expects. */}
++            <div ref={toolsRef} className="relative">
++              <button
++                ref={toolsButtonRef}
++                type="button"
++                onClick={() => setToolsOpen((o) => !o)}
++                aria-expanded={toolsOpen}
++                aria-controls="tools-menu"
++                className="inline-flex min-h-11 items-center gap-1 text-muted-foreground transition-colors hover:text-foreground"
++              >
++                Tools
++                <ChevronDown
++                  size={15}
++                  aria-hidden="true"
++                  className={`transition-transform ${toolsOpen ? "rotate-180" : ""}`}
++                />
++              </button>
++
++              {toolsOpen && (
++                <div
++                  id="tools-menu"
++                  className="absolute left-0 top-full z-50 w-[22rem] rounded-xl border border-border-strong bg-background p-2 shadow-lg"
++                >
++                  <ul>
++                    {FREE_TOOLS.map((t) => (
++                      <li key={t.href}>
++                        <Link
++                          href={t.href}
++                          onClick={() => setToolsOpen(false)}
++                          aria-current={pathname === t.href ? "page" : undefined}
++                          className={`block rounded-lg px-3 py-2.5 transition-colors hover:bg-muted ${
++                            pathname === t.href ? "bg-muted" : ""
++                          }`}
++                        >
++                          <span className="flex items-center gap-2 font-semibold text-foreground">
++                            {t.label}
++                            {t.badge && (
++                              <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
++                                {t.badge}
++                              </span>
++                            )}
++                          </span>
++                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">
++                            {t.blurb}
++                          </span>
++                        </Link>
++                      </li>
++                    ))}
++                  </ul>
++                  <div className="mt-1 border-t border-border pt-1">
++                    <button
++                      type="button"
++                      onClick={() => goToSection("#tools")}
++                      className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-accent transition-colors hover:bg-muted"
++                    >
++                      All free tools, compared
++                    </button>
++                  </div>
++                  <p className="px-3 pb-1 pt-2 text-[11px] text-muted-foreground">
++                    Free, no account needed. The machines they describe are in
++                    development.
++                  </p>
++                </div>
++              )}
++            </div>
++
+             {navLinks.map((link) => (
+               <button
+                 key={link.href}
+@@ -180,41 +294,27 @@ export default function Header() {
+               >
+                 Systems
+               </Link>
+-              <Link
+-                href="/estimator"
+-                onClick={() => setMobileMenuOpen(false)}
+-                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+-              >
+-                Estimator (free tool)
+-              </Link>
+-              <Link
+-                href="/jobs"
+-                onClick={() => setMobileMenuOpen(false)}
+-                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+-              >
+-                Jobs
+-              </Link>
+-              <Link
+-                href="/live"
+-                onClick={() => setMobileMenuOpen(false)}
+-                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+-              >
+-                Live job console
+-              </Link>
+-              <Link
+-                href="/report"
+-                onClick={() => setMobileMenuOpen(false)}
+-                className="flex min-h-11 items-center text-left font-medium text-muted-foreground hover:text-foreground"
+-              >
+-                Completion report (free)
+-              </Link>
+-              <Link
+-                href="/simulator"
+-                onClick={() => setMobileMenuOpen(false)}
+-                className="flex min-h-11 items-center text-left font-medium text-accent hover:text-accent-hover"
+-              >
+-                Simulator (3D)
+-              </Link>
++              {/* The same list the desktop dropdown reads, from lib/tools.ts —
++                  the two used to be maintained by hand and had already drifted. */}
++              <div className="pt-2 text-xs font-semibold tracking-wider text-muted-foreground">
++                FREE TOOLS
++              </div>
++              {FREE_TOOLS.map((t) => (
++                <Link
++                  key={t.href}
++                  href={t.href}
++                  onClick={() => setMobileMenuOpen(false)}
++                  aria-current={pathname === t.href ? "page" : undefined}
++                  className="flex min-h-11 items-center gap-2 text-left font-medium text-muted-foreground hover:text-foreground"
++                >
++                  {t.label}
++                  {t.badge && (
++                    <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
++                      {t.badge}
++                    </span>
++                  )}
++                </Link>
++              ))}
+               {/* The desktop header has carried a "Contact us" affordance since
+                   launch; the mobile menu never did, so on the viewport where
+                   most first visits happen there was no contact route at all
+diff --git a/lib/tools.ts b/lib/tools.ts
+new file mode 100644
+index 0000000..c43ec56
+--- /dev/null
++++ b/lib/tools.ts
+@@ -0,0 +1,51 @@
++/**
++ * The free tools, in one list.
++ *
++ * Four working products — jobs, estimator, live console, completion report —
++ * plus the 3D simulator, were each written into the header's mobile menu, the
++ * footer and the homepage card grid separately. Three hand-maintained copies of
++ * the same list, which is how /live ended up in two of them and missing from
++ * the desktop navigation entirely: a visitor on a laptop could only reach the
++ * live console by landing on the homepage and scrolling to the Tools section.
++ *
++ * Everything that lists the tools now reads this. Adding the next one is a line
++ * here, not a hunt through three components.
++ */
++
++export interface ToolLink {
++  href: string;
++  label: string;
++  /** One line, in the menu, under the label. Says what it does, not what it is. */
++  blurb: string;
++  /** Small badge, e.g. "3D". Omitted for most. */
++  badge?: string;
++}
++
++export const FREE_TOOLS: ToolLink[] = [
++  {
++    href: "/jobs",
++    label: "Jobs",
++    blurb: "One record per job, estimate through sign-off.",
++  },
++  {
++    href: "/estimator",
++    label: "Estimate & proposal",
++    blurb: "Price a floor and print a proposal the client can sign.",
++  },
++  {
++    href: "/live",
++    label: "Live job console",
++    blurb: "Watch a simulated D1 work the floor and fill in the report.",
++  },
++  {
++    href: "/report",
++    label: "Completion report",
++    blurb: "Hand over the floor with proof of what was done.",
++  },
++  {
++    href: "/simulator",
++    label: "3D simulator",
++    blurb: "Drive the platforms across a virtual floor.",
++    badge: "3D",
++  },
++];
