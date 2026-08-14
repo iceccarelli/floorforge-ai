@@ -11,7 +11,25 @@ import * as THREE from "three";
  * offline — no textures fetched — and sized from the room dimensions so it
  * reframes when you change the room.
  */
-export default function Room({ w, l }: { w: number; l: number }) {
+export default function Room({
+  w,
+  l,
+  siteProps = true,
+}: {
+  w: number;
+  l: number;
+  /**
+   * Render the site context (hardwood bundles, extraction cart)?
+   *
+   * They sit in the back corners, which is exactly where a boustrophedon path
+   * begins and ends, so a machine following that path drives through them. The
+   * live job console turns them off: a floor being refinished is an emptied
+   * room — clearing it is the first thing a contractor does — so the honest
+   * scene for a job in progress has nothing on the floor but the machine.
+   * /simulator keeps them, where they give an empty room some scale.
+   */
+  siteProps?: boolean;
+}) {
   const H = 2.5; // wall height (m)
   const hw = w / 2;
   const hl = l / 2;
@@ -101,6 +119,8 @@ export default function Room({ w, l }: { w: number; l: number }) {
       </mesh>
 
       {/* --- site context props --- */}
+      {siteProps && (
+        <>
       {/* stack of hardwood bundles waiting in the back-left corner */}
       <group position={[-hw + 0.5, 0.0, -hl + 0.35]}>
         {[0, 1, 2].map((i) => (
@@ -131,6 +151,8 @@ export default function Room({ w, l }: { w: number; l: number }) {
           <meshStandardMaterial color="#0f172a" roughness={0.7} />
         </mesh>
       </group>
+        </>
+      )}
     </group>
   );
 }

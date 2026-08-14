@@ -9,7 +9,7 @@ import { gritSequenceFor } from "@/lib/estimator";
 import { getJob, updateJob, type JobRecord } from "@/lib/jobs";
 import { GRIT_SEQUENCE } from "@/lib/product";
 import { ROBOTS } from "@/lib/robots";
-import LiveFloorView from "@/components/LiveFloorView";
+import LiveStage from "@/components/live/LiveStage";
 
 const SPEEDS = [
   { label: "60×", value: 60 },
@@ -262,16 +262,20 @@ export default function LiveJobConsole() {
         </div>
       </div>
 
-      {/* WHAT IT IS DOING — the floor, drawn to the machine's own dimensions. */}
+      {/* WHAT IT IS DOING — the machine on the floor, and the floor from above.
+          Both views read this same snapshot and lib/floorPlan.ts, so they
+          cannot put the machine in two places or disagree about coverage. */}
       <div className="card p-6 bg-card border-2 border-border-strong">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="text-lg font-semibold tracking-tight">The floor, from above</h2>
+          <h2 className="text-lg font-semibold tracking-tight">
+            The machine on the floor
+          </h2>
           <span className="text-sm text-muted-foreground tabular-nums">
             Pass {s.pass} of {s.passCount} · {s.grit} grit
           </span>
         </div>
         <div className="mt-4">
-          <LiveFloorView
+          <LiveStage
             robot={robot}
             areaM2={s.totalAreaM2}
             pass={s.pass}

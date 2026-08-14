@@ -2,6 +2,7 @@
 
 import React from "react";
 import type { RobotSpec } from "@/lib/robots";
+import { planFloor, pose, laneDirection } from "@/lib/floorPlan";
 
 /**
  * Top-down view of the floor, with the machine on it.
@@ -52,32 +53,14 @@ export default function LiveFloorView({
   grit,
   running,
 }: FloorViewProps) {
-  // Room proportioned 4:3 from the job's area. Stated on the page — a real
-  // floor plan would come from the site scan, which does not exist yet.
-  const roomW = Math.sqrt((areaM2 * 4) / 3);
-  const roomH = areaM2 / roomW;
-
-  // Lane count comes from the working width; lane PITCH is then the room
-  // divided by that count, so the lanes tile the floor exactly.
-  //
-  // Laying lanes at a flat 0.50 m instead put 19 × 0.50 = 9.50 m of lane into a
-  // 9.09 m room: the last lane hung past the bottom wall and the machine
-  // finished the job standing outside the building. A real path planner has the
-  // same problem and solves it the same way — you never get a whole number of
-  // passes out of a room, so the passes overlap slightly. Here that is 0.48 m
-  // of pitch under a 0.50 m drum, a 4% overlap, which is also what a floor
-  // actually needs if it is not to band at the seams.
-  const laneCount = Math.max(1, Math.ceil(roomH / robot.workingWidthM));
-  const laneH = roomH / laneCount;
-
-  const progress = Math.max(0, Math.min(1, passPct / 100));
-  const finishedPass = progress >= 1;
-  const laneFloat = progress * laneCount;
-  // At exactly 100% the naive floor() rolls onto a 20th lane that does not
-  // exist and snaps the machine back to the start of it. Park it at the end of
-  // the last lane instead — where a machine that just finished actually is.
-  const lanesDone = finishedPass ? laneCount - 1 : Math.floor(laneFloat);
-  const partial = finishedPass ? 1 : laneFloat - lanesDone;
+  // Room, lane tiling and machine pose all come from lib/floorPlan.ts — the
+  // same module the 3D stage reads, so the two drawings of this job on this
+  // page cannot put the machine in two different places.
+  const plan = planFloor(areaM2, robot.workingWidthM);
+  const { roomW, roomH, laneCount, laneH, overlap } = plan;
+  const p = pose(plan, passPct);
+  const lanesDone = p.lane;
+  const partial = p.laneProgress;
 
   // Colour ramp: each completed pass leaves the floor lighter than the last.
   //
@@ -91,14 +74,13 @@ export default function LiveFloorView({
   const priorColour = colourAfterPass(pass - 1);
   const thisPassColour = colourAfterPass(pass);
 
-  // Boustrophedon: even lanes run left→right, odd right→left.
-  const dirOf = (i: number) => (i % 2 === 0 ? 1 : -1);
-  const activeLane = Math.min(lanesDone, laneCount - 1);
-  const dir = dirOf(activeLane);
+  const dirOf = laneDirection;
+  const activeLane = p.lane;
+  const dir = p.dir;
   const cutW = partial * roomW;
   const cutX = dir === 1 ? 0 : roomW - cutW;
-  const headX = dir === 1 ? cutW : roomW - cutW;
-  const headY = (activeLane + 0.5) * laneH;
+  const headX = p.x;
+  const headY = p.y;
 
   // The bright band is the floor the drum has just passed over — a short trail
   // behind the machine, not the whole span cut so far. It was the whole span,
@@ -301,8 +283,7 @@ export default function LiveFloorView({
         </span>
         <span className="tabular-nums">
           {roomW.toFixed(1)} × {roomH.toFixed(1)} m · {laneCount} lanes ·{" "}
-          {robot.workingWidthM.toFixed(2)} m drum,{" "}
-          {Math.round(((robot.workingWidthM - laneH) / robot.workingWidthM) * 100)}% overlap
+          {robot.workingWidthM.toFixed(2)} m drum, {Math.round(overlap * 100)}% overlap
         </span>
       </figcaption>
       <p className="mt-2 text-xs text-muted-foreground">
