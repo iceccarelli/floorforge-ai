@@ -2,7 +2,7 @@
 
 import React from "react";
 import type { RobotSpec } from "@/lib/robots";
-import { planFloor, pose, laneDirection } from "@/lib/floorPlan";
+import { planFloor, pose, perimeterPose, laneDirection } from "@/lib/floorPlan";
 
 /**
  * Top-down view of the floor, with the machine on it.
@@ -32,13 +32,18 @@ function mix(a: string, b: string, t: number): string {
 }
 
 export interface FloorViewProps {
+  /** The sander. Defines the field, the lanes and the band it cannot reach. */
   robot: RobotSpec;
+  /** The edger. Works the band the drum leaves at the wall. */
+  edger: RobotSpec;
+  /** Which machine is on the floor right now. */
+  phase: "field" | "edge";
   /** Total floor area in m². */
   areaM2: number;
-  /** 1-based index of the pass in progress. */
+  /** 1-based index of the grit pass in progress. */
   pass: number;
   passCount: number;
-  /** Progress through the CURRENT pass, 0–100. */
+  /** Progress through the CURRENT phase, 0–100. */
   passPct: number;
   grit: string;
   running: boolean;
@@ -46,6 +51,8 @@ export interface FloorViewProps {
 
 export default function LiveFloorView({
   robot,
+  edger,
+  phase,
   areaM2,
   pass,
   passCount,
@@ -53,12 +60,15 @@ export default function LiveFloorView({
   grit,
   running,
 }: FloorViewProps) {
-  // Room, lane tiling and machine pose all come from lib/floorPlan.ts — the
-  // same module the 3D stage reads, so the two drawings of this job on this
-  // page cannot put the machine in two different places.
-  const plan = planFloor(areaM2, robot.workingWidthM);
-  const { roomW, roomH, laneCount, laneH, overlap } = plan;
-  const p = pose(plan, passPct);
+  // Room, field, band, lane tiling and both machines' poses come from
+  // lib/floorPlan.ts — the same module the 3D stage reads, so the two drawings
+  // of this job on this page cannot put a machine in two different places.
+  const plan = planFloor(areaM2, robot.workingWidthM, robot.edgeGapM ?? 0);
+  const { roomW, roomH, fieldW, laneCount, laneH, overlap, inset } = plan;
+  const edging = phase === "edge";
+  // The machine on screen is whichever one is working.
+  const active = edging ? edger : robot;
+  const p = edging ? perimeterPose(plan, passPct) : pose(plan, passPct);
   const lanesDone = p.lane;
   const partial = p.laneProgress;
 
@@ -77,8 +87,8 @@ export default function LiveFloorView({
   const dirOf = laneDirection;
   const activeLane = p.lane;
   const dir = p.dir;
-  const cutW = partial * roomW;
-  const cutX = dir === 1 ? 0 : roomW - cutW;
+  const cutW = edging ? 0 : partial * fieldW;
+  const cutX = inset + (dir === 1 ? 0 : fieldW - cutW);
   const headX = p.x;
   const headY = p.y;
 
@@ -89,12 +99,25 @@ export default function LiveFloorView({
   const trailW = Math.min(cutW, 1.4);
   const trailX = dir === 1 ? headX - trailW : headX;
 
+  // The band, as a single stroked ring along its centreline. Drawing it as a
+  // dash whose "on" length is the distance edged so far is what lets a partly
+  // finished perimeter read correctly without four separate rectangles.
+  const bh = inset / 2;
+  const bandPathD =
+    inset > 0
+      ? `M ${bh} ${bh} L ${roomW - bh} ${bh} L ${roomW - bh} ${roomH - bh} L ${bh} ${roomH - bh} Z`
+      : "";
+  const bandLen = plan.bandPathM;
+  const partialBand = edging ? Math.max(0, Math.min(1, passPct / 100)) : 0;
+
   const pad = 0.6;
   const vb = `${-pad} ${-pad} ${roomW + pad * 2} ${roomH + pad * 2}`;
 
-  // Machine footprint, drawn to the same scale as the floor.
-  const bodyW = 0.62;
-  const bodyH = 0.46;
+  // Machine footprint, drawn to the same scale as the floor. The edger is a
+  // much smaller machine and is drawn that way — its 0.14 m head is what lets
+  // it reach a wall the 0.50 m drum cannot.
+  const bodyW = edging ? 0.34 : 0.62;
+  const bodyH = edging ? 0.30 : 0.46;
 
   return (
     <figure className="m-0">
@@ -103,18 +126,21 @@ export default function LiveFloorView({
         className="block w-full rounded-xl border border-border-strong bg-muted"
         style={{ aspectRatio: `${roomW + pad * 2} / ${roomH + pad * 2}` }}
         role="img"
-        aria-label={`Top-down view of a ${Math.round(areaM2)} square metre floor. Pass ${pass} of ${passCount} at ${grit} grit, ${Math.round(passPct)} percent of this pass complete.`}
+        aria-label={`Top-down view of a ${Math.round(areaM2)} square metre floor. ${
+          edging ? `${edger.name} edging the perimeter` : `${robot.name} on the field`
+        }, pass ${pass} of ${passCount} at ${grit} grit, ${Math.round(passPct)} percent of this phase complete.`}
       >
         {/* Floor as left by the previous pass */}
         <rect x={0} y={0} width={roomW} height={roomH} fill={priorColour} />
 
-        {/* Lanes finished in the current pass */}
-        {Array.from({ length: lanesDone }).map((_, i) => (
+        {/* Lanes the drum finished in this grit pass. They stop at the field
+            edge — the band at the wall is not the drum's to cut. */}
+        {Array.from({ length: edging ? laneCount : lanesDone }).map((_, i) => (
           <rect
             key={i}
-            x={0}
-            y={i * laneH}
-            width={roomW}
+            x={inset}
+            y={inset + i * laneH}
+            width={fieldW}
             height={laneH}
             fill={thisPassColour}
           />
@@ -124,18 +150,30 @@ export default function LiveFloorView({
         {cutW > 0 && (
           <rect
             x={cutX}
-            y={activeLane * laneH}
+            y={inset + activeLane * laneH}
             width={cutW}
             height={laneH}
             fill={thisPassColour}
           />
         )}
 
+        {/* The perimeter band, as far as the edger has taken it this pass.
+            Drawn as a clipped ring so a partly-edged floor reads correctly. */}
+        {inset > 0 && edging && (
+          <path
+            d={bandPathD}
+            fill="none"
+            stroke={thisPassColour}
+            strokeWidth={inset}
+            strokeDasharray={`${bandLen * (partialBand)} ${bandLen}`}
+          />
+        )}
+
         {/* ...and the short trail immediately behind the drum */}
-        {trailW > 0 && (
+        {trailW > 0 && !edging && (
           <rect
             x={trailX}
-            y={activeLane * laneH}
+            y={inset + activeLane * laneH}
             width={trailW}
             height={laneH}
             fill={robot.floor.active}
@@ -149,11 +187,11 @@ export default function LiveFloorView({
         <path
           d={Array.from({ length: laneCount })
             .map((_, i) => {
-              const y = (i + 0.5) * laneH;
+              const y = inset + (i + 0.5) * laneH;
               const d = dirOf(i);
               return d === 1
-                ? `M 0 ${y} L ${roomW} ${y}`
-                : `M ${roomW} ${y} L 0 ${y}`;
+                ? `M ${inset} ${y} L ${inset + fieldW} ${y}`
+                : `M ${inset + fieldW} ${y} L ${inset} ${y}`;
             })
             .join(" ")}
           fill="none"
@@ -167,15 +205,32 @@ export default function LiveFloorView({
         {Array.from({ length: laneCount }).map((_, i) => (
           <line
             key={`g${i}`}
-            x1={0}
-            y1={i * laneH}
-            x2={roomW}
-            y2={i * laneH}
+            x1={inset}
+            y1={inset + i * laneH}
+            x2={inset + fieldW}
+            y2={inset + i * laneH}
             stroke="#0f172a"
             strokeOpacity={0.06}
             strokeWidth={0.015}
           />
         ))}
+
+        {/* The line the drum cannot cross. Everything outside it is the
+            edger's, and saying so on the drawing is the whole point of this
+            patch — the console used to show the drum sanding wall to wall. */}
+        {inset > 0 && (
+          <rect
+            x={inset}
+            y={inset}
+            width={fieldW}
+            height={plan.fieldH}
+            fill="none"
+            stroke={edger.color}
+            strokeOpacity={0.55}
+            strokeWidth={0.035}
+            strokeDasharray="0.3 0.2"
+          />
+        )}
 
         {/* Room outline */}
         <rect
@@ -197,7 +252,7 @@ export default function LiveFloorView({
           cy={headY}
           r={0.85}
           fill="none"
-          stroke={robot.color}
+          stroke={active.color}
           strokeOpacity={0.5}
           strokeWidth={0.05}
         />
@@ -215,14 +270,14 @@ export default function LiveFloorView({
           transform={`translate(${headX} ${headY}) scale(${dir} 1)`}
           aria-hidden="true"
         >
-          {robot.emitsDust && running && (
+          {active.emitsDust && running && (
             /* Extraction plume at the point of contact. Decorative, and only
-               while the drum is turning — a static cloud reads as a defect. */
-            <ellipse cx={0.06} cy={0} rx={0.34} ry={0.26} fill={robot.color} opacity={0.14} />
+               while the head is turning — a static cloud reads as a defect. */
+            <ellipse cx={0.06} cy={0} rx={0.34} ry={0.26} fill={active.color} opacity={0.14} />
           )}
           {/* Dust hose, off the back of the chassis to the extraction canister */}
           <path
-            d={`M ${-robot.toolOffsetM - bodyW / 2} 0 q -0.55 -0.16 -0.95 0.02`}
+            d={`M ${-active.toolOffsetM - bodyW / 2} 0 q -0.55 -0.16 -0.95 0.02`}
             fill="none"
             stroke="#0f172a"
             strokeOpacity={0.4}
@@ -231,25 +286,27 @@ export default function LiveFloorView({
           />
           {/* Chassis, trailing the drum by the published tool offset */}
           <rect
-            x={-robot.toolOffsetM - bodyW / 2}
+            x={-active.toolOffsetM - bodyW / 2}
             y={-bodyH / 2}
             width={bodyW}
             height={bodyH}
             rx={0.12}
             fill="#0f172a"
           />
-          {/* Planetary drum — the part that cuts, on the boundary itself */}
+          {/* The head — the part that cuts, on the boundary itself. Drawn at
+              the ACTIVE machine's working width, so the edger's 0.14 m head is
+              visibly a quarter of the drum's 0.50 m. */}
           <rect
             x={-0.07}
-            y={-robot.workingWidthM / 2}
+            y={-active.workingWidthM / 2}
             width={0.14}
-            height={robot.workingWidthM}
+            height={active.workingWidthM}
             rx={0.05}
-            fill={robot.color}
+            fill={active.color}
           />
           {/* Travel direction */}
           <path
-            d={`M ${-robot.toolOffsetM - 0.09} ${-0.09} L ${-robot.toolOffsetM + 0.05} 0 L ${-robot.toolOffsetM - 0.09} 0.09 Z`}
+            d={`M ${-active.toolOffsetM - 0.09} ${-0.09} L ${-active.toolOffsetM + 0.05} 0 L ${-active.toolOffsetM - 0.09} 0.09 Z`}
             fill="#ffffff"
             opacity={0.85}
           />
@@ -279,7 +336,15 @@ export default function LiveFloorView({
             style={{ background: robot.floor.active }}
             aria-hidden="true"
           />
-          Under the drum
+          Under the head
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block h-3 w-0.5 rounded-sm"
+            style={{ background: edger.color }}
+            aria-hidden="true"
+          />
+          Drum&apos;s reach — outside it is {edger.codename}&apos;s
         </span>
         <span className="tabular-nums">
           {roomW.toFixed(1)} × {roomH.toFixed(1)} m · {laneCount} lanes ·{" "}
@@ -288,11 +353,18 @@ export default function LiveFloorView({
       </figcaption>
       <p className="mt-2 text-xs text-muted-foreground">
         Room shown at a 4:3 proportion from the job&apos;s area — a real plan would come
-        from the site scan. Lanes are spaced to tile that room, so the drum overlaps the
-        previous pass rather than leaving a seam. Working width, tool offset and the
-        boustrophedon path are the published{" "}
-        <span className="font-medium text-foreground">{robot.name}</span> design targets,
-        read from the same file the 3D simulator uses.
+        from the site scan. The dashed line is how close the{" "}
+        <span className="font-medium text-foreground">{robot.name}</span> can get to a
+        wall ({((robot.edgeGapM ?? 0) * 100).toFixed(0)} cm): it reaches{" "}
+        <span className="font-medium text-foreground">
+          {plan.fieldAreaM2.toFixed(0)} m²
+        </span>{" "}
+        of this floor, and the{" "}
+        <span className="font-medium text-foreground">{plan.bandAreaM2.toFixed(1)} m²</span>{" "}
+        band outside it is what the{" "}
+        <span className="font-medium text-foreground">{edger.name}</span> is for. Working
+        widths, tool offsets and both paths are the published design targets, read from
+        the same file the 3D simulator uses.
       </p>
     </figure>
   );

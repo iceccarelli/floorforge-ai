@@ -67,7 +67,12 @@ const CAMERAS: { key: CameraMode; label: string; icon: typeof Camera }[] = [
 ];
 
 export interface LiveStageProps {
+  /** The sander. Its reach defines the field and the band. */
   robot: RobotSpec;
+  /** The edger. Works the band. */
+  edger: RobotSpec;
+  /** Which machine is on the floor right now. */
+  phase: "field" | "edge";
   areaM2: number;
   pass: number;
   passCount: number;
@@ -77,7 +82,11 @@ export interface LiveStageProps {
 }
 
 export default function LiveStage(props: LiveStageProps) {
-  const { robot, areaM2, pass, passCount, passPct, grit, running } = props;
+  const { robot, edger, phase, areaM2, pass, passCount, passPct, grit, running } = props;
+  // The machine on screen, in the HUD and in the status chip is whichever one
+  // is working — the console used to name the D1 for the whole job, including
+  // the stretches when it is parked and the E1 is cutting the perimeter.
+  const activeRobot = phase === "edge" ? edger : robot;
   // Client-only component (dynamic ssr:false below the fold), so these can be
   // lazy-initialised instead of set from an effect.
   const [webgl] = useState(hasWebGL);
@@ -89,6 +98,8 @@ export default function LiveStage(props: LiveStageProps) {
   const plan = (
     <LiveFloorView
       robot={robot}
+      edger={edger}
+      phase={phase}
       areaM2={areaM2}
       pass={pass}
       passCount={passCount}
@@ -119,6 +130,8 @@ export default function LiveStage(props: LiveStageProps) {
         >
           <Scene
             robot={robot}
+            edger={edger}
+            phase={phase}
             areaM2={areaM2}
             pass={pass}
             passPct={passPct}
@@ -143,13 +156,14 @@ export default function LiveStage(props: LiveStageProps) {
               scene is the only defensible way to build it. */}
           <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap items-center gap-2">
             <span className="rounded-md bg-primary px-2.5 py-1 text-xs font-semibold text-white">
-              {robot.name}
+              {activeRobot.name}
             </span>
             <span className="rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-white tabular-nums">
-              Pass {pass}/{passCount} · {grit} grit
+              Pass {pass}/{passCount} · {grit} grit ·{" "}
+              {phase === "edge" ? "perimeter" : "field"}
             </span>
             <span className="rounded-md bg-accent px-2.5 py-1 text-xs font-semibold text-white">
-              {running ? robot.jobVerb : "Paused"}
+              {running ? activeRobot.jobVerb : "Paused"}
             </span>
           </div>
           <span className="pointer-events-none absolute bottom-3 left-3 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-white">

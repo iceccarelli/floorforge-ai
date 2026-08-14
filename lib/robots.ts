@@ -57,6 +57,20 @@ export interface RobotSpec {
   workingWidthM: number;
   /** Forward distance from robot centre to the working head, in metres. */
   toolOffsetM: number;
+  /**
+   * Distance from a wall this machine physically cannot cut, in metres.
+   *
+   * A drum sander's head sits inside a chassis, so it cannot reach the last few
+   * inches at a wall — a conventional machine leaves a 4-6 inch band, and that
+   * band is the entire reason this platform includes an edger. Omitted for
+   * machines that reach their own working edge.
+   *
+   * This exists because the site was describing both things at once and never
+   * reconciling them: lib/estimator.ts bills perimeter work separately at a
+   * manual rate, while lib/simulation.ts targeted the drum at 100% of the floor
+   * area and lib/report.ts certified that coverage to the client.
+   */
+  edgeGapM?: number;
   /** Travel speed in metres/second (drives animation + job-time math). */
   speedMps: number;
   /** Target sustained coverage rate, in m^2 per hour. */
@@ -86,6 +100,9 @@ export const ROBOTS: RobotSpec[] = [
     floor: { base: "#b39167", done: "#e7d4ac", active: "#fff3d2" },
     workingWidthM: 0.5,
     toolOffsetM: 0.28,
+    // 0.12 m = 4.7 in, the low end of the 4-6 in band a conventional drum
+    // sander leaves. The ForgeEdge E1 exists to cut it.
+    edgeGapM: 0.12,
     speedMps: 0.25,
     coverageM2PerHour: 55,
     pattern: "boustrophedon",

@@ -181,6 +181,8 @@ export default function JobReport() {
             <Field id="r-temp" label="TEMP AT COATING (°F)" value={f.tempF} onChange={(v) => set("tempF", v)} />
             <Field id="r-humidity" label="RH AT COATING (%)" value={f.humidityPct} onChange={(v) => set("humidityPct", v)} />
             <Field id="r-dust" label="AVG DUST (µg/m³)" value={f.avgDustUgm3} onChange={(v) => set("avgDustUgm3", v)} autofill={AUTOFILLED_FIELDS.avgDustUgm3} />
+            <Field id="r-field-cov" label="FIELD COVERAGE (%)" value={f.fieldCoveragePct} onChange={(v) => set("fieldCoveragePct", v)} autofill={AUTOFILLED_FIELDS.fieldCoveragePct} />
+            <Field id="r-perim-cov" label="PERIMETER COVERAGE (%)" value={f.perimeterCoveragePct} onChange={(v) => set("perimeterCoveragePct", v)} autofill={AUTOFILLED_FIELDS.perimeterCoveragePct} />
             <Field id="r-score" label="APPROVAL SCORE /100" value={f.approvalScore} onChange={(v) => set("approvalScore", v)} autofill={AUTOFILLED_FIELDS.approvalScore} />
             <Field id="r-warranty" label="WARRANTY (MONTHS)" type="number" value={f.warrantyMonths} onChange={(v) => set("warrantyMonths", Number(v) || 0)} />
           </div>
@@ -294,6 +296,13 @@ export default function JobReport() {
                 ["Temperature at coating", f.tempF ? `${f.tempF} °F` : "not recorded"],
                 ["Relative humidity at coating", f.humidityPct ? `${f.humidityPct} %` : "not recorded"],
                 ["Average airborne dust", f.avgDustUgm3 ? `${f.avgDustUgm3} µg/m³` : "not recorded"],
+                // Two lines, not one. A drum sander cannot reach a wall; the
+                // perimeter is a second machine's work and is measured against
+                // its own area. Collapsing them let a well-edged perimeter hide
+                // a badly cut field, and certified drum coverage of floor the
+                // drum cannot physically touch.
+                ["Field coverage (drum)", f.fieldCoveragePct ? `${f.fieldCoveragePct} %` : "not recorded"],
+                ["Perimeter coverage (edger)", f.perimeterCoveragePct ? `${f.perimeterCoveragePct} %` : "not recorded"],
                 ["Coverage approval score", f.approvalScore ? `${f.approvalScore} / 100` : "not recorded"],
               ].map(([k, v]) => (
                 <tr key={k} className="border-t border-border">

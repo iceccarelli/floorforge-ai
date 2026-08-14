@@ -21,13 +21,30 @@ export interface FloorPlan {
   roomW: number;
   /** Room depth in metres. */
   roomH: number;
-  /** Number of lanes needed to cover the room at the machine's working width. */
+  /** Total floor area. */
+  areaM2: number;
+
+  /**
+   * The band at the wall the drum cannot reach, in metres, from the machine's
+   * published `edgeGapM`. Zero for a machine that cuts to its own edge.
+   */
+  inset: number;
+  /** The field the drum CAN reach — the room, less the band on all four sides. */
+  fieldW: number;
+  fieldH: number;
+  fieldAreaM2: number;
+  /** The band itself: the edger's whole job. */
+  bandAreaM2: number;
+  /** Length of one lap of the band's centreline, in metres. */
+  bandPathM: number;
+
+  /** Number of lanes needed to cover the FIELD at the machine's working width. */
   laneCount: number;
   /** Centre-to-centre lane spacing. Slightly less than the working width. */
   laneH: number;
   /** Fraction of the drum that re-cuts the previous lane, 0–1. */
   overlap: number;
-  /** Total distance the machine travels in one pass, in metres. */
+  /** Total distance the machine travels in one field pass, in metres. */
   passDistanceM: number;
 }
 
@@ -49,10 +66,24 @@ export interface Pose {
  * A real plan comes from the site scan, which does not exist. Both renderers
  * say so on screen rather than letting a viewer assume this is their floor.
  */
-export function planFloor(areaM2: number, workingWidthM: number): FloorPlan {
+export function planFloor(
+  areaM2: number,
+  workingWidthM: number,
+  edgeGapM = 0
+): FloorPlan {
   const area = Math.max(1, areaM2);
   const roomW = Math.sqrt((area * 4) / 3);
   const roomH = area / roomW;
+
+  // The drum's field is the room less the band it cannot reach, on all four
+  // walls. Lanes tile the FIELD, not the room — before this, they tiled the
+  // room, which is how the console came to report that a 0.50 m drum inside a
+  // chassis had cut 100% of the floor while the estimator on the next tab was
+  // billing the same contractor for the perimeter.
+  const inset = Math.max(0, Math.min(edgeGapM, Math.min(roomW, roomH) / 4));
+  const fieldW = roomW - inset * 2;
+  const fieldH = roomH - inset * 2;
+  const fieldAreaM2 = fieldW * fieldH;
 
   // Lane COUNT comes from the working width; lane PITCH is then the room
   // divided by that count, so the lanes tile the floor exactly.
@@ -63,16 +94,24 @@ export function planFloor(areaM2: number, workingWidthM: number): FloorPlan {
   // and solves it the same way — you never get a whole number of passes out of
   // a room, so the passes overlap slightly. That overlap is also what stops a
   // floor banding at the seams.
-  const laneCount = Math.max(1, Math.ceil(roomH / workingWidthM));
-  const laneH = roomH / laneCount;
+  const laneCount = Math.max(1, Math.ceil(fieldH / workingWidthM));
+  const laneH = fieldH / laneCount;
 
   return {
     roomW,
     roomH,
+    areaM2: area,
+    inset,
+    fieldW,
+    fieldH,
+    fieldAreaM2,
+    bandAreaM2: area - fieldAreaM2,
+    // Centreline of the band, half the inset in from each wall.
+    bandPathM: 2 * (roomW - inset) + 2 * (roomH - inset),
     laneCount,
     laneH,
     overlap: Math.max(0, (workingWidthM - laneH) / workingWidthM),
-    passDistanceM: laneCount * roomW,
+    passDistanceM: laneCount * fieldW,
   };
 }
 
@@ -100,14 +139,52 @@ export function pose(plan: FloorPlan, passPct: number): Pose {
   const laneProgress = finished ? 1 : laneFloat - lane;
   const dir = laneDirection(lane);
 
-  const travelled = laneProgress * plan.roomW;
+  const travelled = laneProgress * plan.fieldW;
   return {
-    x: dir === 1 ? travelled : plan.roomW - travelled,
-    y: (lane + 0.5) * plan.laneH,
+    x: plan.inset + (dir === 1 ? travelled : plan.fieldW - travelled),
+    y: plan.inset + (lane + 0.5) * plan.laneH,
     dir,
     lane,
     laneProgress,
   };
+}
+
+/**
+ * Where the EDGER is at a given point through its lap of the perimeter.
+ *
+ * One continuous loop clockwise from the top-left, along the centreline of the
+ * band. Returned in the same plan coordinates as `pose()`, so the two machines
+ * are drawn by the same code in both renderers.
+ */
+export function perimeterPose(plan: FloorPlan, pct: number): Pose {
+  const t = Math.max(0, Math.min(1, pct / 100));
+  const h = plan.inset / 2;
+  const x0 = h;
+  const y0 = h;
+  const x1 = plan.roomW - h;
+  const y1 = plan.roomH - h;
+  const top = x1 - x0;
+  const right = y1 - y0;
+  const legs = [top, right, top, right];
+  const total = legs.reduce((a, b) => a + b, 0);
+
+  let d = t * total;
+  let leg = 0;
+  while (leg < 3 && d > legs[leg]) {
+    d -= legs[leg];
+    leg++;
+  }
+  const f = legs[leg] > 0 ? d / legs[leg] : 0;
+
+  // Clockwise: top L->R, right T->B, bottom R->L, left B->T.
+  const pts: Array<[number, number, 1 | -1]> = [
+    [x0 + f * top, y0, 1],
+    [x1, y0 + f * right, 1],
+    [x1 - f * top, y1, -1],
+    [x0, y1 - f * right, -1],
+  ];
+  const [x, y, dir] = pts[leg];
+  return { x, y, dir, lane: leg, laneProgress: f };
 }
 
 /**

@@ -105,6 +105,8 @@ export default function LiveJobConsole() {
         gritsExecuted: fields.gritsExecuted,
         avgDustUgm3: fields.avgDustUgm3,
         approvalScore: fields.approvalScore,
+        fieldCoveragePct: String(fields.fieldCoveragePct),
+        perimeterCoveragePct: String(fields.perimeterCoveragePct),
         sqft: job.report.sqft || job.estimate.sqft,
         clientName: job.report.clientName || job.clientName,
         siteAddress: job.report.siteAddress || job.siteAddress,
@@ -122,6 +124,12 @@ export default function LiveJobConsole() {
   // The canonical record — same object the 3D simulator, the systems library
   // and the homepage chips read. There is one description of this machine.
   const robot = ROBOTS.find((r) => r.id === "sand")!;
+  const edger = ROBOTS.find((r) => r.id === "edge")!;
+  // A job uses two machines. The card, the HUD and the status chip follow
+  // whichever one is actually on the floor — this page used to name the D1 for
+  // the whole run, including the laps where it is parked and the E1 is cutting
+  // the band the drum cannot reach.
+  const active = s.robotId === "edge" ? edger : robot;
 
   return (
     <div className="space-y-6">
@@ -239,18 +247,29 @@ export default function LiveJobConsole() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3">
-              <h2 className="text-xl font-semibold tracking-tight">{robot.name}</h2>
-              <span className="chip">{robot.codename}</span>
+              <h2 className="text-xl font-semibold tracking-tight">{active.name}</h2>
+              <span className="chip">{active.codename}</span>
               <span className={`status status-${s.finished ? "good" : running ? "active" : "neutral"}`}>
-                {s.finished ? "Job complete" : running ? robot.jobVerb : "Idle"}
+                {s.finished ? "Job complete" : running ? active.jobVerb : "Idle"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {s.phase === "edge" ? "on the perimeter" : "on the field"}
               </span>
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">{robot.role}</p>
-            <p className="mt-2 max-w-2xl text-sm">{robot.task}</p>
-            <p className="mt-2 text-xs text-muted-foreground">{robot.toolLabel}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{active.role}</p>
+            <p className="mt-2 max-w-2xl text-sm">{active.task}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{active.toolLabel}</p>
+            <p className="mt-3 text-xs text-muted-foreground">
+              This job runs two machines.{" "}
+              <span className="font-medium text-foreground">{robot.name}</span> cuts the{" "}
+              <span className="tabular-nums">{fields.fieldAreaM2} m²</span> field;{" "}
+              <span className="font-medium text-foreground">{edger.name}</span> cuts the{" "}
+              <span className="tabular-nums">{fields.bandAreaM2} m²</span> band at the wall
+              it cannot reach, once per grit.
+            </p>
           </div>
           <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4 lg:grid-cols-2">
-            {robot.chips.map((c) => (
+            {active.chips.map((c) => (
               <div key={c.label}>
                 <dt className="text-xs font-semibold tracking-wider text-muted-foreground">
                   {c.label}
@@ -271,12 +290,15 @@ export default function LiveJobConsole() {
             The machine on the floor
           </h2>
           <span className="text-sm text-muted-foreground tabular-nums">
-            Pass {s.pass} of {s.passCount} · {s.grit} grit
+            Pass {s.pass} of {s.passCount} · {s.grit} grit ·{" "}
+            {s.phase === "edge" ? "perimeter" : "field"}
           </span>
         </div>
         <div className="mt-4">
           <LiveStage
             robot={robot}
+            edger={edger}
+            phase={s.phase}
             areaM2={s.totalAreaM2}
             pass={s.pass}
             passCount={s.passCount}
@@ -290,7 +312,11 @@ export default function LiveJobConsole() {
       {/* Live sensors */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: "COVERAGE", value: `${shownPct.toFixed(1)}%`, sub: "whole job" },
+          {
+            label: "COVERAGE",
+            value: `${shownPct.toFixed(1)}%`,
+            sub: s.phase === "edge" ? "perimeter + field" : "whole job",
+          },
           { label: "PRESSURE", value: `${s.psi.toFixed(2)}`, sub: "psi · target 2–5" },
           { label: "AIRBORNE DUST", value: `${s.ugm3.toFixed(1)}`, sub: "µg/m³ at extraction" },
           { label: "TELEMETRY EVENTS", value: totalEvents.toLocaleString(), sub: "emitted so far" },
@@ -396,15 +422,27 @@ export default function LiveJobConsole() {
           What the machine fills in for you
         </h2>
         <p className="mt-2 text-muted-foreground">
-          The completion report marks three fields{" "}
-          <span className="font-semibold text-accent">auto later</span>. These are those
-          fields, derived from the run above and nothing else.
+          The completion report marks these fields{" "}
+          <span className="font-semibold text-accent">auto later</span>. They are derived
+          from the run above and nothing else — and coverage is now two figures, because
+          the field and the perimeter were cut by two different machines over two
+          different areas.
         </p>
-        <dl className="mt-5 grid gap-4 sm:grid-cols-3">
+        <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           {[
             ["Grit sequence run", fields.gritsExecuted, "from pass_completed"],
             ["Average dust", `${fields.avgDustUgm3} µg/m³`, "from dust_reading"],
-            ["Approval score", `${fields.approvalScore} / 100`, "from coverage_checkpoint"],
+            [
+              `Field · ${robot.codename}`,
+              `${fields.fieldCoveragePct}%`,
+              `of ${fields.fieldAreaM2} m², zone=field`,
+            ],
+            [
+              `Perimeter · ${edger.codename}`,
+              `${fields.perimeterCoveragePct}%`,
+              `of ${fields.bandAreaM2} m², zone=perimeter`,
+            ],
+            ["Approval score", `${fields.approvalScore} / 100`, "area-weighted, both zones"],
           ].map(([k, v, src]) => (
             <div key={k} className="rounded-xl border border-border-strong p-4">
               <dt className="text-xs font-semibold tracking-wider text-muted-foreground">

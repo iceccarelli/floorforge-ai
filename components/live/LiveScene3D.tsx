@@ -13,7 +13,7 @@ import {
 import RobotMesh from "@/components/simulator/RobotMesh";
 import Room from "@/components/simulator/Room";
 import { FloorPainter } from "@/lib/floorPaint";
-import { planFloor, pose, toScene, type FloorPlan } from "@/lib/floorPlan";
+import { planFloor, pose, perimeterPose, toScene, type FloorPlan } from "@/lib/floorPlan";
 import type { RobotSpec } from "@/lib/robots";
 
 /**
@@ -40,7 +40,12 @@ import type { RobotSpec } from "@/lib/robots";
  */
 
 export interface SceneProps {
+  /** The sander — defines the field, the lanes and the band it cannot reach. */
   robot: RobotSpec;
+  /** The edger — works that band. */
+  edger: RobotSpec;
+  /** Which machine is on the floor right now. */
+  phase: "field" | "edge";
   areaM2: number;
   pass: number;
   passPct: number;
@@ -62,11 +67,13 @@ function PaintedFloor({
   robot,
   pass,
   passPct,
+  phase,
 }: {
   plan: FloorPlan;
   robot: RobotSpec;
   pass: number;
   passPct: number;
+  phase: "field" | "edge";
 }) {
   // The painter and its two canvas textures are written to every frame. React
   // 19's react-hooks rules forbid both mutating a memoised value and reading a
@@ -84,7 +91,7 @@ function PaintedFloor({
   const roomH = plan.roomH;
 
   useEffect(() => {
-    const p = planFloor(roomW * roomH, robot.workingWidthM);
+    const p = planFloor(roomW * roomH, robot.workingWidthM, robot.edgeGapM ?? 0);
     const painter = new FloorPainter(p, robot, 1);
     const colour = new THREE.CanvasTexture(painter.colour);
     colour.colorSpace = THREE.SRGBColorSpace;
@@ -111,7 +118,7 @@ function PaintedFloor({
   useFrame(() => {
     const k = kit.current;
     if (!k) return;
-    k.painter.paintTo(pass, passPct);
+    k.painter.paintTo(pass, passPct, phase);
     if (k.painter.dirty) {
       k.colour.needsUpdate = true;
       k.rough.needsUpdate = true;
@@ -231,13 +238,16 @@ function Dust({
 function Machine({
   plan,
   robot,
+  phase,
   passPct,
   running,
   headRef,
   dirRef,
 }: {
   plan: FloorPlan;
+  /** The machine currently working — sander on the field, edger on the band. */
   robot: RobotSpec;
+  phase: "field" | "edge";
   passPct: number;
   running: boolean;
   headRef: React.RefObject<THREE.Group | null>;
@@ -247,7 +257,9 @@ function Machine({
   const yaw = useRef(0);
 
   useFrame((_, delta) => {
-    const p = pose(plan, passPct);
+    // Same two functions the plan view calls. The edger follows the band's
+    // centreline; the sander runs the field's lanes.
+    const p = phase === "edge" ? perimeterPose(plan, passPct) : pose(plan, passPct);
     const [dx, dz] = toScene(plan, p.x, p.y);
     const head = headRef.current;
     if (head) head.position.set(dx, 0, dz);
@@ -271,7 +283,13 @@ function Machine({
     );
 
     // Turn at the end of a lane instead of teleporting through 180 degrees.
-    const want = p.dir === 1 ? -Math.PI / 2 : Math.PI / 2;
+    // The edger runs a rectangle, so its heading is one of four, not two.
+    const want =
+      phase === "edge"
+        ? [-Math.PI / 2, Math.PI, Math.PI / 2, 0][p.lane] ?? 0
+        : p.dir === 1
+          ? -Math.PI / 2
+          : Math.PI / 2;
     const diff = Math.atan2(Math.sin(want - yaw.current), Math.cos(want - yaw.current));
     yaw.current += diff * Math.min(1, delta * 6);
     b.rotation.y = yaw.current;
@@ -404,6 +422,8 @@ function CameraRig({
 
 function Scene({
   robot,
+  edger,
+  phase,
   areaM2,
   pass,
   passPct,
@@ -412,10 +432,13 @@ function Scene({
   calm,
   quality,
 }: SceneProps) {
+  // The plan is always the SANDER's — it is the machine whose reach defines
+  // where the field ends and the band begins.
   const plan = useMemo(
-    () => planFloor(areaM2, robot.workingWidthM),
-    [areaM2, robot.workingWidthM]
+    () => planFloor(areaM2, robot.workingWidthM, robot.edgeGapM ?? 0),
+    [areaM2, robot.workingWidthM, robot.edgeGapM]
   );
+  const active = phase === "edge" ? edger : robot;
   const headRef = useRef<THREE.Group>(null);
   const dirRef = useRef(1);
   const diag = Math.hypot(plan.roomW, plan.roomH);
@@ -458,18 +481,25 @@ function Scene({
         <Lightformer intensity={0.9} position={[5, 2, 4]} scale={[6, 3, 1]} color="#fff0dc" />
       </Environment>
 
-      <PaintedFloor plan={plan} robot={robot} pass={pass} passPct={passPct} />
+      <PaintedFloor
+        plan={plan}
+        robot={robot}
+        pass={pass}
+        passPct={passPct}
+        phase={phase}
+      />
       <Room w={plan.roomW} l={plan.roomH} siteProps={false} />
       <Machine
         plan={plan}
-        robot={robot}
+        robot={active}
+        phase={phase}
         passPct={passPct}
         running={running}
         headRef={headRef}
         dirRef={dirRef}
       />
-      {robot.emitsDust && (
-        <Dust headRef={headRef} running={running} colour={robot.floor.done} calm={calm} />
+      {active.emitsDust && (
+        <Dust headRef={headRef} running={running} colour={active.floor.done} calm={calm} />
       )}
 
       {quality === "high" && (
@@ -509,7 +539,11 @@ function Scene({
 
 export default function LiveScene3D(props: SceneProps & { active: boolean }) {
   const { active, ...scene } = props;
-  const plan = planFloor(scene.areaM2, scene.robot.workingWidthM);
+  const plan = planFloor(
+    scene.areaM2,
+    scene.robot.workingWidthM,
+    scene.robot.edgeGapM ?? 0
+  );
   const diag = Math.hypot(plan.roomW, plan.roomH);
 
   return (
@@ -527,11 +561,13 @@ export default function LiveScene3D(props: SceneProps & { active: boolean }) {
       }}
       className="h-full w-full"
       role="img"
-      aria-label={`3D view of a simulated ${scene.robot.name} sanding a ${Math.round(
-        scene.areaM2
-      )} square metre floor. Pass ${scene.pass}, ${Math.round(
+      aria-label={`3D view of a simulated ${
+        scene.phase === "edge"
+          ? `${scene.edger.name} edging the perimeter of`
+          : `${scene.robot.name} sanding`
+      } a ${Math.round(scene.areaM2)} square metre floor. Pass ${scene.pass}, ${Math.round(
         scene.passPct
-      )} percent of this pass complete.`}
+      )} percent of this phase complete.`}
     >
       {scene.quality === "high" && <SoftShadows size={18} samples={8} focus={0.7} />}
       <Scene {...scene} />

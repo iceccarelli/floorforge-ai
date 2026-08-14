@@ -193,16 +193,18 @@ export class FloorPainter {
   }
 
   /**
-   * Paint up to `pass` (1-based) and `passPct` (0–100).
+   * Paint up to a point in the job.
    *
-   * Absolute progress is (pass - 1 + passPct/100), so a later pass repaints
-   * over an earlier one in its own colour — which is what the grit sequence
-   * does to a floor.
+   * A job is now an alternating sequence — drum on the field at grit 1, edger
+   * on the band at grit 1, drum at grit 2, and so on. `ordinal` is the position
+   * in that sequence, so a single monotonic cursor still drives the whole
+   * painting, and seeking backwards is still one repaint from zero.
    */
-  paintTo(pass: number, passPct: number) {
+  paintTo(pass: number, passPct: number, kind: "field" | "edge" = "field") {
+    const ordinal = (pass - 1) * 2 + (kind === "edge" ? 1 : 0);
     const target = Math.max(
       0,
-      Math.min(this.passCount(), pass - 1 + Math.max(0, Math.min(100, passPct)) / 100)
+      Math.min(this.passCount() * 2, ordinal + Math.max(0, Math.min(100, passPct)) / 100)
     );
     if (target === this.cursor) return;
     // Seeking backwards: the only case that needs a full repaint.
@@ -215,17 +217,84 @@ export class FloorPainter {
     this.cctx.globalAlpha = 1;
   }
 
-  /** Stroke every lane segment between two absolute-progress points. */
+  /**
+   * Stroke everything between two points in the alternating sequence.
+   *
+   * Even ordinals are the drum on the field, odd ordinals the edger on the
+   * band. Both leave the same colour — same grit, same wood — so a finished
+   * floor is one tone, but they are cut at different times by different
+   * machines, which is exactly what the picture needs to show.
+   */
   private strokeRange(from: number, to: number) {
-    const { laneCount, roomW, laneH } = this.plan;
+    const total = this.passCount() * 2;
+    for (let o = Math.floor(from); o < Math.ceil(to) && o < total; o++) {
+      const a = Math.max(from - o, 0);
+      const b = Math.min(to - o, 1);
+      if (b <= a) continue;
+      const gritIndex = Math.floor(o / 2);
+      if (o % 2 === 0) this.strokeField(gritIndex, a, b);
+      else this.strokeBand(gritIndex, a, b);
+    }
+  }
+
+  /** The edger's lap: a ring the width of the band, from the top-left, clockwise. */
+  private strokeBand(gritIndex: number, a: number, b: number) {
+    const { roomW, roomH, inset } = this.plan;
+    if (inset <= 0) return;
+    const s = this.scale;
+    const h = (inset / 2) * s;
+    const x0 = h;
+    const y0 = h;
+    const x1 = roomW * s - h;
+    const y1 = roomH * s - h;
+    const top = x1 - x0;
+    const right = y1 - y0;
+    const legs: Array<[number, number, number, number, number]> = [
+      [x0, y0, x1, y0, top],
+      [x1, y0, x1, y1, right],
+      [x1, y1, x0, y1, top],
+      [x0, y1, x0, y0, right],
+    ];
+    const total = top * 2 + right * 2;
+
+    for (const ctx of [this.cctx, this.rctx]) {
+      ctx.lineCap = "butt";
+      ctx.lineWidth = inset * s;
+    }
+    this.cctx.strokeStyle = this.leaveColour(gritIndex);
+    this.cctx.globalAlpha = CUT_ALPHA;
+    const rg = Math.round(ROUGH_CUT * 255);
+    this.rctx.strokeStyle = `rgb(${rg},${rg},${rg})`;
+
+    let run = 0;
+    for (const [ax, ay, bx, by, len] of legs) {
+      const legStart = run / total;
+      const legEnd = (run + len) / total;
+      run += len;
+      const t0 = (Math.max(a, legStart) - legStart) / (legEnd - legStart);
+      const t1 = (Math.min(b, legEnd) - legStart) / (legEnd - legStart);
+      if (t1 <= t0) continue;
+      const px0 = ax + (bx - ax) * t0;
+      const py0 = ay + (by - ay) * t0;
+      const px1 = ax + (bx - ax) * t1;
+      const py1 = ay + (by - ay) * t1;
+      for (const ctx of [this.cctx, this.rctx]) {
+        ctx.beginPath();
+        ctx.moveTo(px0, py0);
+        ctx.lineTo(px1, py1);
+        ctx.stroke();
+      }
+    }
+    this.cctx.globalAlpha = 1;
+  }
+
+  /** The drum's boustrophedon lanes, inside the field only. */
+  private strokeField(p: number, a: number, b: number) {
+    const { laneCount, fieldW, laneH, inset } = this.plan;
     const s = this.scale;
     const drumPx = this.robot.workingWidthM * s;
 
-    for (let p = Math.floor(from); p < Math.ceil(to) && p < this.passCount(); p++) {
-      const a = Math.max(from - p, 0);
-      const b = Math.min(to - p, 1);
-      if (b <= a) continue;
-
+    {
       const laneA = a * laneCount;
       const laneB = b * laneCount;
       this.cctx.strokeStyle = this.leaveColour(p);
@@ -248,9 +317,9 @@ export class FloorPainter {
         const t1 = Math.min(laneB - lane, 1);
         if (t1 <= t0) continue;
         const dir = laneDirection(lane);
-        const y = (lane + 0.5) * laneH * s;
-        const x0 = (dir === 1 ? t0 * roomW : roomW - t0 * roomW) * s;
-        const x1 = (dir === 1 ? t1 * roomW : roomW - t1 * roomW) * s;
+        const y = (inset + (lane + 0.5) * laneH) * s;
+        const x0 = (inset + (dir === 1 ? t0 * fieldW : fieldW - t0 * fieldW)) * s;
+        const x1 = (inset + (dir === 1 ? t1 * fieldW : fieldW - t1 * fieldW)) * s;
 
         for (const ctx of [this.cctx, this.rctx]) {
           ctx.beginPath();

@@ -43,6 +43,18 @@ export interface ReportInput {
   avgDustUgm3: string;
   /** -> coverage_approval_score. autofilled from coverage_check when hardware exists. */
   approvalScore: string;
+  /**
+   * Coverage, split by the machine that produced it.
+   *
+   * One number was wrong. A drum sander cannot reach the last few inches at a
+   * wall — that band is why lib/robots.ts carries an edger and why
+   * lib/estimator.ts bills perimeter work separately — so a single "coverage"
+   * figure was certifying to a homeowner that the drum had cut floor it
+   * physically cannot touch. These are area-weighted separately and reported
+   * separately, because they are two machines doing two jobs.
+   */
+  fieldCoveragePct: string;
+  perimeterCoveragePct: string;
   notes: string;
   warrantyMonths: number;
 }
@@ -68,6 +80,8 @@ export const EMPTY_REPORT: ReportInput = {
   humidityPct: "",
   avgDustUgm3: "",
   approvalScore: "",
+  fieldCoveragePct: "",
+  perimeterCoveragePct: "",
   notes: "",
   warrantyMonths: 12,
 };
@@ -77,6 +91,8 @@ export const AUTOFILLED_FIELDS: Record<string, string> = {
   gritsExecuted: "pass_completed telemetry",
   avgDustUgm3: "dust_reading telemetry",
   approvalScore: "coverage_check telemetry",
+  fieldCoveragePct: "pass_completed, zone=field",
+  perimeterCoveragePct: "pass_completed, zone=perimeter",
 };
 
 export const SHEENS = ["Matte", "Satin", "Semi-gloss", "Gloss"];
