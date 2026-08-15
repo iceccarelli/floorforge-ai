@@ -30,12 +30,23 @@
  * is legitimate and deliberate — but it is denser *within* the same system.
  */
 
+import type { Metadata } from "next";
 import React from "react";
 import OperatorNav from "@/components/OperatorNav";
 
-export const metadata = {
+/**
+ * `robots` and `canonical` added: without them these pages inherited
+ * `alternates.canonical: "/"` from the root layout and told every crawler that
+ * an internal console's canonical URL was the marketing homepage. robots.txt
+ * already disallows /operator/, so nothing was likely to act on it — but a page
+ * that misidentifies itself is wrong whether or not anyone is looking, and the
+ * noindex here says it a second way for crawlers that never read robots.txt.
+ */
+export const metadata: Metadata = {
   title: "FloorForge Operator Console",
   description: "Internal pilot management and operations",
+  robots: { index: false, follow: false },
+  alternates: { canonical: "/operator" },
 };
 
 export default function OperatorLayout({

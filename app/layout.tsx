@@ -19,7 +19,13 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+    // Points every crawler at /llms.txt instead of making it guess the URL.
+    // The file existed and nothing referenced it — not robots.txt, not the
+    // head, not a header — so it was discoverable only by convention.
+    types: { "text/plain": "/llms.txt" },
+  },
   openGraph: {
     type: "website",
     siteName: "FloorForge",

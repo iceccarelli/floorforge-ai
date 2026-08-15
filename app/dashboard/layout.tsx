@@ -19,12 +19,20 @@ import type { Metadata } from "next";
  * reason that has nothing to do with search: a pilot customer who is sent this
  * link sees the browser tab, and "localhost" or a bare URL in a shared tab is
  * the kind of detail that reads as unfinished.
+ *
+ * `alternates.canonical` added later: metadata objects MERGE with the parent's,
+ * so declaring title/description/robots here still inherited the root layout's
+ * `canonical: "/"` — and this page went on telling every crawler that its
+ * canonical URL was the marketing homepage. Verified in the served HTML, not
+ * assumed. A page that misidentifies itself is wrong whether or not the
+ * disallow rule means anyone acts on it.
  */
 export const metadata: Metadata = {
   title: "Dashboard Preview | FloorForge",
   description:
     "A preview of the planned FloorForge operations dashboard — job progress, dust and quality reporting, and fleet health. All figures shown are sample data illustrating the planned interface, not measured results from shipping hardware.",
   robots: { index: false, follow: false },
+  alternates: { canonical: "/dashboard" },
 };
 
 export default function DashboardLayout({
