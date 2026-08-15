@@ -97,7 +97,19 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="mx-auto max-w-7xl px-6">
-        <div className="flex h-16 md:h-20 items-center justify-between">
+        {/* min-h, not h, and allowed to wrap.
+            WCAG 1.4.4 requires the page to stay usable at 200% text size. A
+            media-query breakpoint cannot deliver that on its own: `lg:` resolves
+            against the browser's INITIAL font size, so a user who sets their
+            default text to 200% still gets the desktop nav — at twice the width,
+            inside a row locked to 64/80px. The measured result was 738px of
+            horizontal overflow on every route on the site.
+
+            Wrapping fixes it at every text size without touching the 100% case,
+            where the row has slack and never wraps. The header simply grows
+            taller when it has to, which is the behaviour a fluid layout should
+            have had in the first place. */}
+        <div className="flex min-h-16 md:min-h-20 flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2">
           {/* Logo */}
           <Link href="/" className="flex min-h-11 items-center gap-3 group">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
@@ -110,7 +122,10 @@ export default function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav aria-label="Main" className="hidden lg:flex items-center gap-8 text-sm font-medium">
+          <nav
+            aria-label="Main"
+            className="hidden lg:flex min-w-0 flex-wrap items-center gap-x-8 gap-y-1 text-sm font-medium"
+          >
             {/* Tools — a DISCLOSURE, not role="menu".
                 role="menu"/"menuitem" is the application-menu pattern: it takes
                 over the arrow keys, removes the links from the page's tab order
@@ -210,7 +225,7 @@ export default function Header() {
           </nav>
 
           {/* Desktop CTAs */}
-          <div className="hidden lg:flex items-center gap-3">
+          <div className="hidden lg:flex flex-wrap items-center justify-end gap-3">
             <a
               href={contactHref(CONTACT_SUBJECT)}
               className="inline-flex min-h-11 items-center text-sm font-medium text-muted-foreground hover:text-foreground transition-colors mr-1"
