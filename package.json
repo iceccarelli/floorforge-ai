@@ -8,9 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "audit": "node audit/scripts/axe-scan.mjs && node audit/scripts/responsive.mjs && node audit/scripts/overflow.mjs && node audit/scripts/tap-targets.mjs && node audit/scripts/structure.mjs && node audit/scripts/input-font-size.mjs && node audit/scripts/reduced-motion.mjs && node audit/scripts/token-contrast.mjs && node audit/scripts/parse-check.mjs",
-    "audit:setup": "npx --yes playwright@1.62.1 install chromium",
+    "audit:setup": "playwright-core install chromium",
     "audit:a11y": "node audit/scripts/axe-scan.mjs",
-    "audit:responsive": "node audit/scripts/responsive.mjs"
+    "audit:responsive": "node audit/scripts/responsive.mjs",
+    "audit:serve": "next start -p 3111"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.9.6",

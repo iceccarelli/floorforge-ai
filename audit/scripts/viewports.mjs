@@ -26,6 +26,12 @@ export const ROUTES = [
   "/operator/jobs",
 ];
 
+// 3111 — and `npm run audit:serve` serves on 3111 to match.
+//
+// This defaulted to 3111 while `npm run start` (plain `next start`) serves on
+// 3000, so `npm run start & npm run audit` could never connect: the audit sat
+// for its full 120s timeout against a port nothing was listening on. The two
+// halves of the instruction were never able to meet.
 export const BASE = process.env.AUDIT_BASE_URL ?? "http://localhost:3111";
 
 /**
@@ -51,8 +57,9 @@ export async function waitForServer(url = BASE, timeoutMs = 120000) {
   }
   throw new Error(
     `${url} did not respond within ${timeoutMs / 1000}s — is the server running?\n` +
-      `  npm run build && npx next start -p 3000 &\n` +
-      `  AUDIT_BASE_URL=http://localhost:3000 node audit/scripts/<script>.mjs\n` +
+      `  npm run build\n` +
+      `  npm run audit:serve &     # serves on 3111, the port this suite uses\n` +
+      `  or point it elsewhere: AUDIT_BASE_URL=... npm run audit\n` +
       `  last error: ${lastErr}`
   );
 }

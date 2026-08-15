@@ -3,9 +3,23 @@
 Automated checks that run against a **built, served** copy of the site.
 
 ```bash
-npm run build && npm run start &   # serve on :3111
-npm run audit:setup                # once per machine — downloads Chromium
-npm run audit                      # the whole suite
+npm run audit:setup      # once per machine — downloads Chromium
+npm run build            # must finish before the server starts
+npm run audit:serve &    # serves on :3111, the port the suite uses
+npm run audit            # the whole suite
+```
+
+Run those as four separate commands. `npm run build && npm run audit:serve &`
+backgrounds the *whole chain*, so the audit starts while the build is still
+running and then waits 120s for a server that does not exist yet — and the stray
+build process goes on to block the pre-push guard with "Another next build
+process is already running".
+
+`npm run start` serves on **3000**; `npm run audit:serve` serves on **3111**,
+which is what the suite expects. To audit a deployment instead:
+
+```bash
+AUDIT_BASE_URL=https://your-preview.vercel.app npm run audit
 ```
 
 ## Why `audit:setup` is separate
