@@ -4,11 +4,11 @@
  * @react-three/drei reach a given route's JS. Throttled-4G numbers come from
  * Lighthouse; this measures raw bytes with an empty cache.
  */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 const out = [];
 for (const route of ROUTES) {
   const ctx = await browser.newContext({

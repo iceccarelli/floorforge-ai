@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /** Horizontal-overflow detector: every route x every viewport. P0 if any. */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { VIEWPORTS, ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 const rows = [];
 for (const vp of VIEWPORTS) {
   const ctx = await browser.newContext({

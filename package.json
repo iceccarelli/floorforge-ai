@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "audit": "node audit/scripts/axe-scan.mjs && node audit/scripts/responsive.mjs && node audit/scripts/overflow.mjs && node audit/scripts/tap-targets.mjs && node audit/scripts/structure.mjs && node audit/scripts/input-font-size.mjs && node audit/scripts/reduced-motion.mjs && node audit/scripts/token-contrast.mjs && node audit/scripts/parse-check.mjs",
+    "audit:setup": "npx --yes playwright@1.62.1 install chromium",
+    "audit:a11y": "node audit/scripts/axe-scan.mjs",
+    "audit:responsive": "node audit/scripts/responsive.mjs"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.9.6",
@@ -43,8 +47,10 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.171.0",
+    "axe-core": "^4.13.0",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "playwright-core": "^1.62.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -1,80 +1,67 @@
-# `audit/` — Phase 0 evidence
+# audit/
 
-Everything in `audit/FINDINGS.md` is produced by a script in `audit/scripts/`. Nothing
-here is an impression; if a number appears in a finding, the command that produced it is
-listed next to it.
+Automated checks that run against a **built, served** copy of the site.
 
-Base commit for every measurement: **`43bf65dfac6f870d65059c309e73aa8da7f5b4e9`**.
+```bash
+npm run build && npm run start &   # serve on :3111
+npm run audit:setup                # once per machine — downloads Chromium
+npm run audit                      # the whole suite
+```
 
-| File | What it is |
+## Why `audit:setup` is separate
+
+The suite talks to a real browser, but the repository depends on
+**`playwright-core`**, not `playwright`. They are the same API; the difference is
+that `playwright` runs a postinstall that downloads ~150 MB of browser binaries.
+As a devDependency that fires on every `npm ci` — including the one Vercel runs
+to build the site, which has no use for a browser. So the browser is installed
+deliberately, once, by whoever is running audits.
+
+`audit/scripts/browser.mjs` finds a Chromium in this order:
+
+| # | Source | Notes |
+|---|---|---|
+| 1 | `AUDIT_CHROMIUM` | explicit path, wins over everything |
+| 2 | `PLAYWRIGHT_BROWSERS_PATH` | set by CI images that pre-install browsers |
+| 3 | system locations | `/usr/bin/chromium`, Chrome on macOS, … |
+| 4 | Playwright's own cache | if `npm run audit:setup` has been run |
+
+If none resolves it exits with the command that fixes it, rather than a stack
+trace. Already have a browser?
+
+```bash
+AUDIT_CHROMIUM=/path/to/chrome npm run audit
+```
+
+## The checks
+
+| Script | What it proves |
 |---|---|
-| `FINDINGS.md` | The defect list. P0–P3, each with route, viewport, auth state, `file:line`, measurement, customer impact, proposed fix, blast radius. |
-| `DESIGN_SYSTEM.md` | Reconciliation against the root `DESIGN_SYSTEM.md` — what to keep, where the built site diverges, where I disagree and why. Includes the element × state matrix. |
-| `DEFERRED.md` | What I chose not to fix, and what is not mine to decide. |
-| `scripts/` | The instruments. |
+| `axe-scan` | WCAG 2.1/2.2 A+AA, every route, via axe-core |
+| `responsive` | continuous width 320→1920, reflow at 320×256 (1.4.10), 200% text (1.4.4) |
+| `overflow` | no horizontal scroll across the device matrix |
+| `tap-targets` | WCAG 2.5.8 target size on touch viewports |
+| `structure` | one `h1`, landmarks, heading order, table scopes |
+| `input-font-size` | inputs ≥16px, so iOS does not zoom on focus |
+| `reduced-motion` | nothing animates under `prefers-reduced-motion` |
+| `token-contrast` | every design-token colour pair, against its own stated ratio |
+| `parse-check` | every source file parses; no stranded `${...}`, no literal `\n` |
+| `contrast` | computed contrast of rendered text |
+| `payload` | cold transfer per route; proves three.js stays off non-3D routes |
+| `viewports` | shared device matrix + route list (imported, not run) |
+| `browser` | shared launcher (imported, not run) |
 
-## Running them
+Two more scripts, `lh.mjs` and `lh3.mjs`, need `lighthouse` and
+`chrome-launcher`, which are deliberately **not** dependencies: Lighthouse's
+simulated throttling is unreliable on shared CI hardware, and a performance
+number nobody can reproduce is worse than no number. Install them ad hoc if you
+want a local run.
 
-```bash
-npm ci
-npm run build
-npx next start -p 3111 &          # scripts default to http://localhost:3111
-```
+## A note on what these catch
 
-Two scripts are dependency-free apart from the repo's own `typescript` and can run
-anywhere, including the fast CI gate:
-
-```bash
-node audit/scripts/parse-check.mjs      # patch-hygiene gate — Part I.2
-node audit/scripts/token-contrast.mjs   # deterministic WCAG table for every token pair
-node audit/scripts/token-drift.mjs      # hardcoded-colour / arbitrary-value census
-```
-
-The rest drive a real browser. They are deliberately **not** in `package.json` — see
-`DEFERRED.md` §D-1:
-
-```bash
-npm i --no-save playwright sharp axe-core
-npx playwright install --with-deps chromium
-
-node audit/scripts/overflow.mjs          # 6 routes x 10 viewports; exit 1 on any overflow
-node audit/scripts/tap-targets.mjs       # WCAG 2.2 AA 2.5.8, phone viewports
-node audit/scripts/contrast.mjs          # screenshot-sampled contrast, all routes
-node audit/scripts/input-font-size.mjs   # iOS Safari focus-zoom (< 16px)
-node audit/scripts/reduced-motion.mjs    # invisible-content guard; exit 1 on any
-node audit/scripts/axe-scan.mjs          # axe-core WCAG 2.1/2.2 A+AA + best-practice
-node audit/scripts/structure.mjs         # headings, landmarks, chrome parity
-node audit/scripts/payload.mjs           # cold transfer per route + three.js containment
-```
-
-Every script exits non-zero when it finds something, so any of them can become a CI gate
-without modification. Point them at a deployment with `AUDIT_BASE_URL`:
-
-```bash
-AUDIT_BASE_URL=https://floorforge-ai.vercel.app node audit/scripts/overflow.mjs
-```
-
-## Notes on the instruments
-
-- **`contrast.mjs` samples backgrounds from a real screenshot**, not by walking
-  `background-color` up the DOM, so gradients, images and translucent overlays are
-  measured as the user sees them. It runs the page with `reducedMotion: "reduce"` so
-  `<Reveal>` content is not skipped at `opacity: 0`. Tailwind v4 emits `color-mix()` /
-  `oklab()` for `/alpha` utilities; the script normalises those through a canvas rather
-  than regexing `rgba()`. Text over photographic renders is inherently
-  sample-point-dependent — treat those rows as a risk signal, not a verdict.
-- **`token-contrast.mjs` is the authority for token pairs.** Pure arithmetic, no browser,
-  identical output every run. Prefer it over `contrast.mjs` when both cover a pair.
-- **`overflow.mjs` ignores elements inside a self-scrolling ancestor**, so a horizontally
-  scrollable rail is not reported as page overflow.
-- **`parse-check.mjs` is the gate Part I.2 mandates.** It runs the TypeScript compiler
-  API over every tracked `.ts`/`.tsx`, and additionally fails on a literal `\n` outside a
-  string/template/regex/comment and on a `${...}` stranded inside a plain string literal
-  — both detected through the scanner and AST, never by blind text replacement.
-
-## Auth-state coverage
-
-With no Clerk keys configured, `lib/auth.ts` disables auth and `proxy.ts` becomes a
-pass-through, so `/dashboard` and `/operator/*` render for everyone. **All results for
-gated routes are the signed-out / auth-disabled state.** The other two states in the
-mission's matrix require Clerk credentials and were not tested. See `FINDINGS.md` §8.
+`overflow` swept ten named devices across eleven routes and reported zero for
+months. It was correct about all 110 configurations and blind to a 738 px
+overflow on every page of the site, because a fixed list of widths only finds
+what it lands on, and because horizontal width is not the only axis a layout can
+fail on. That is why `responsive` exists, and why it sweeps continuously and
+tests text size as well as viewport size.

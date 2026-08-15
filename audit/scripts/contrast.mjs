@@ -9,7 +9,7 @@
  *
  * Thresholds: 4.5:1 normal text, 3:1 large text (>=24px, or >=18.66px @700).
  */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { createRequire } from "node:module";
 import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 const require = createRequire(import.meta.url);
@@ -19,7 +19,7 @@ const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.9
 const ratio = (a, b) => { const l1 = lum(a), l2 = lum(b); const [hi, lo] = l1 > l2 ? [l1, l2] : [l2, l1]; return (hi + 0.05) / (lo + 0.05); };
 
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 // reducedMotion:'reduce' makes <Reveal> render its children at full opacity,
 // so scroll-revealed copy is measured too instead of being skipped at opacity 0.
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });

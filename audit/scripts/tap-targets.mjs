@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /** WCAG 2.2 AA 2.5.8 target size: every interactive element >= 44x44 CSS px. */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { VIEWPORTS, ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 
 const MOBILE = VIEWPORTS.filter((v) => v.width < 900);
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 const findings = [];
 
 for (const vp of MOBILE) {

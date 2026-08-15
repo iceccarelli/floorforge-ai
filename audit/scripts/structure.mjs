@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /** Heading hierarchy, landmarks, chrome consistency (Phase 4 / Phase 8). */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: "reduce" });
 const page = await ctx.newPage();
 const rows = [];

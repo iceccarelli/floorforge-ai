@@ -29,7 +29,7 @@
  * The width step is coarse by default so this is runnable in CI. Set
  * RESPONSIVE_STEP=16 for the fine sweep used when hunting a specific defect.
  */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { ROUTES, BASE, waitForServer } from "./viewports.mjs";
 
 const STEP = Number(process.env.RESPONSIVE_STEP || 48);
@@ -37,7 +37,7 @@ const MIN_W = 320;
 const MAX_W = 1920;
 
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 
 /** Horizontal overflow, plus the elements responsible. */
 async function probe(page) {

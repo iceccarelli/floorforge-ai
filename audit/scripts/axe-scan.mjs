@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** axe-core WCAG 2.1/2.2 A+AA scan of every route. */
-import { chromium } from "playwright";
+import { launchBrowser } from "./browser.mjs";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ROUTES, BASE, settle, waitForServer } from "./viewports.mjs";
@@ -8,7 +8,7 @@ const require = createRequire(import.meta.url);
 const axeSource = readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
 await waitForServer();
-const browser = await chromium.launch();
+const browser = await launchBrowser();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
 const page = await ctx.newPage();
 const results = [];
