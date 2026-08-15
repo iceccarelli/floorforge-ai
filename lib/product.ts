@@ -26,6 +26,9 @@
  * a value here, change it there too — it is the only place that duplicates.
  */
 
+import { planFloor } from "@/lib/floorPlan";
+import { getRobot } from "@/lib/robots";
+
 /** Square feet in one square metre. Not a product claim; a unit. */
 export const SQFT_PER_M2 = 1 / 0.09290304;
 
@@ -57,16 +60,59 @@ export const GRIT_RANGE_LABEL = `${GRIT_SEQUENCE[0]} → ${GRIT_SEQUENCE[GRIT_SE
 export const WORKING_DAY_HOURS = 8;
 
 /**
- * Sqft one robot completes in one 8-hour day, ALL sanding passes included.
+ * Sqft of FIELD one drum completes in one 8-hour day.
  *
  * Derived, not asserted: 55 m²/h per pass ÷ 3 passes × 8 h × 10.764 sqft/m².
  * Finish coats are additional and are NOT included — the previous figure
  * (2,200 sqft/day "for full multi-grit + finish") conflated the two, which is
  * part of why the four sources never reconciled.
+ *
+ * THIS IS NOT A WHOLE FLOOR. It counts the drum only. A drum cannot reach the
+ * band at the wall, so a floor is not finished when this figure says it is —
+ * use `completeFloorSqftPerDay()` below for anything a contractor plans around.
  */
 export const SANDING_SQFT_PER_ROBOT_DAY = Math.round(
   (SANDER_M2_PER_HOUR_PER_PASS / SANDING_PASSES) * WORKING_DAY_HOURS * SQFT_PER_M2
 ); // = 1579
+
+/**
+ * Hours to take a floor of `sqft` from raw to sanded — field AND perimeter.
+ *
+ * A FUNCTION, not a constant, and that is the point. The perimeter scales with
+ * the square root of the area while the field scales linearly, so the share of
+ * the day spent edging changes with room size: about 17% of the job at 800 sqft
+ * and 10% at 2,500. No single sqft-per-day number can be right for both, and
+ * publishing one as though it were is how the site came to quote 1,579 sqft per
+ * robot-day for a machine that had never been modelled cutting a perimeter.
+ *
+ * Both rates are the machines' own published specs, and the geometry is the
+ * same lib/floorPlan.ts the live console and the 3D stage run on — so the ROI
+ * model and the simulation a visitor watches cannot drift apart.
+ */
+export function completeFloorHours(sqft: number): {
+  fieldHours: number;
+  edgeHours: number;
+  totalHours: number;
+} {
+  const areaM2 = Math.max(1, sqft) / SQFT_PER_M2;
+  const sander = getRobot("sand");
+  const edger = getRobot("edge");
+  const plan = planFloor(areaM2, sander.workingWidthM, sander.edgeGapM ?? 0);
+
+  const fieldHours =
+    (plan.fieldAreaM2 / SANDER_M2_PER_HOUR_PER_PASS) * SANDING_PASSES;
+  // The edger's linear rate comes from its own coverage spec and head width.
+  const edgerLinearMPerHour = edger.coverageM2PerHour / edger.workingWidthM;
+  const edgeHours = (plan.bandPathM / edgerLinearMPerHour) * SANDING_PASSES;
+
+  return { fieldHours, edgeHours, totalHours: fieldHours + edgeHours };
+}
+
+/** Sqft of FINISHED floor — field and perimeter — per 8-hour day, at this size. */
+export function completeFloorSqftPerDay(sqft: number): number {
+  const { totalHours } = completeFloorHours(sqft);
+  return Math.round(sqft * (WORKING_DAY_HOURS / totalHours));
+}
 
 /**
  * Labour time reduction, in percent, before job-type adjustment.
@@ -115,6 +161,48 @@ export const BLENDED_LABOR_RATE_USD = 78;
  * not have budgeted for the machine (audit/PRODUCT_TRUTH.md T1-3).
  */
 export const HARDWARE_UNIT_COST_LABEL = "$15–25K";
+
+/* ------------------------------------------------------------------ RaaS */
+
+/**
+ * Robotics-as-a-service: the machine as a monthly line item, not a purchase.
+ *
+ * WHY THE SITE NEEDS THIS. A finished floor takes two machines — a D1 for the
+ * field and an E1 for the band it cannot reach. At the indicative unit price
+ * that is $30–50K of capital before the first floor is sanded, asked of small
+ * flooring contractors, which is precisely who the pilot program is recruiting.
+ * The purchase model was quietly disqualifying the customer.
+ *
+ * HOW THE RANGE IS BUILT. Every term below is derived from a figure already
+ * published on this site, so the monthly rate can be checked rather than
+ * believed:
+ *
+ *   capital recovery   $15–25K over 36 months        $417 – $694
+ *   service reserve    25% of capital recovery       $104 – $174
+ *                      (maintenance, consumables, replacement)
+ *   platform software  the per-robot tier fee         $99 – $149
+ *                                                    ---------------
+ *   all-in per robot per month                       $620 – $1,017
+ *
+ * Rounded outward to a $600–1,000 band, because quoting $620–$1,017 would imply
+ * a precision that hardware which has not been manufactured cannot support.
+ *
+ * THIS IS A DESIGN TARGET, like every other number in this file. No FloorForge
+ * machine has been built, no unit cost has been quoted by a manufacturer, and
+ * nothing here is an offer. The pilot exists to replace these with real numbers.
+ */
+export const RAAS_TERM_MONTHS = 36;
+export const RAAS_SERVICE_RESERVE_PCT = 25;
+export const RAAS_MONTHLY_LOW_USD = 600;
+export const RAAS_MONTHLY_HIGH_USD = 1000;
+export const RAAS_MONTHLY_LABEL = `$${RAAS_MONTHLY_LOW_USD}–${RAAS_MONTHLY_HIGH_USD.toLocaleString()}`;
+
+/**
+ * Machines a complete floor needs: one drum for the field, one edger for the
+ * band. Derived from the fact that lib/robots.ts gives the sander an
+ * `edgeGapM` — if a machine could cut to the wall, this would be 1.
+ */
+export const MACHINES_PER_COMPLETE_FLOOR = getRobot("sand").edgeGapM ? 2 : 1;
 
 /**
  * Dust capture design target.

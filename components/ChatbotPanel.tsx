@@ -24,7 +24,10 @@ const quickReplies = [
 // it makes no claims about deployed hardware or existing customers.
 const demoResponses: Record<string, string> = {
   what: "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning from a site scan, multi-grit sanding orchestration, edging assistance, finish application monitoring, and per-job dust and quality reporting. The hardware and software are in development — the pilot program is how refinishing crews get involved now.",
-  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Those are software subscriptions — robots are priced separately at an indicative $15–25K per unit, not yet locked. Pilot participants get a loaner unit at no hardware cost and preferential launch pricing. Want to join the waitlist?",
+  // Kept in step with the pricing section by hand — this string is the one
+  // place on the site that restates it in prose, so a change there that misses
+  // here turns the assistant into a second, stale price list.
+  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Those are software subscriptions. For the machines there are two planned routes: robots-as-a-service at an indicative $600–1,000 per robot per month, all-in over a 36-month term, or buying outright at an indicative $15–25K per unit. Note a finished floor takes two machines — a ForgeSand D1 for the field and a ForgeEdge E1 for the band at the wall a drum cannot reach — so a complete setup is roughly $1,200–2,000/mo on the service route or $30–50K of capital on the purchase route. Essentials covers the field only; the perimeter is edged manually or by an E1 on Professional. None of this is locked or an offer — no machine has been built and no manufacturer has quoted a unit cost. Pilot participants get a loaner unit at no hardware cost and preferential launch pricing. Want to join the waitlist?",
   grit: "FloorForge plans and logs a 36→80→120 sequence — 36 to strip the old finish, 80 to level, 120 to finish sand. That is the sequence the firmware reads and the post-job report writes back. Hand crews often run more steps (60, 150, 180) and walnut or exotics often start at 60 grit to protect color; species-adaptive sequences are a design goal, not something the first pilot units will do. FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.",
   dust: "The design pairs HEPA filtration with cyclonic pre-separation and logs airborne particulate readings throughout the job, so dust performance is documented in the job record rather than promised verbally. Final specs will be validated during the pilot program.",
   roi: "The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a 50% labor time-reduction baseline (reduced by 7 points for commercial complexity), a $78/hr blended labor rate, and a 1,579 sqft/robot/day throughput target across a 36→80→120 grit sequence — the same coverage rate the 3D simulator runs. Those are design assumptions, not measured field results — validating them is a core goal of the pilot.",
@@ -110,10 +113,33 @@ export default function ChatbotPanel({ isOpen, onClose }: { isOpen: boolean; onC
                   </div>
                 </div>
               </div>
-              <button onClick={() => onClose()} className="text-muted-foreground hover:text-foreground p-1"><X size={20} /></button>
+              {/* Both buttons in this panel were icon-only, so a screen reader announced
+                  them as "button" and "button" (axe: button-name, critical). The route
+                  scan never caught it because it does not open the assistant — this is
+                  the second time a defect has hidden behind a closed panel, after the
+                  telemetry log in FLOORFORGE_26. Also below the 44px target floor at
+                  p-1; min-h-11/min-w-11 fixes both at once. */}
+              <button
+                type="button"
+                onClick={() => onClose()}
+                aria-label="Close the assistant panel"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center text-muted-foreground hover:text-foreground"
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#f8fafc] text-sm">
+            {/* Focusable and labelled: a scrollable region that keyboard users cannot
+                reach is axe's scrollable-region-focusable, and it is the whole
+                conversation. role="log" is what a screen reader needs to announce
+                new replies as they arrive rather than only on focus. */}
+            <div
+              className="flex-1 overflow-y-auto p-5 space-y-5 bg-[#f8fafc] text-sm"
+              tabIndex={0}
+              role="log"
+              aria-live="polite"
+              aria-label="Conversation with the FloorForge Assistant"
+            >
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.type === "user" ? "justify-end" : "justify-start"}`}>
                   <div className={`message-bubble flex items-start gap-2.5 ${msg.type === "user" ? "message-user" : "message-assistant"}`}>
@@ -149,7 +175,16 @@ export default function ChatbotPanel({ isOpen, onClose }: { isOpen: boolean; onC
             <div className="p-4 bg-white border-t">
               <div className="flex gap-2">
                 <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ask about sanding, pricing, integration..." className="input flex-1 text-sm h-11" disabled={isTyping} />
-                <Button onClick={() => handleSend()} disabled={!inputValue.trim() || isTyping} variant="accent" size="icon" className="h-11 w-11 flex-shrink-0"><Send size={17} /></Button>
+                <Button
+                  onClick={() => handleSend()}
+                  disabled={!inputValue.trim() || isTyping}
+                  variant="accent"
+                  size="icon"
+                  aria-label="Send message"
+                  className="h-11 w-11 flex-shrink-0"
+                >
+                  <Send size={17} aria-hidden="true" />
+                </Button>
               </div>
               <div className="text-[10px] text-center text-muted-foreground mt-2">Demo mode • Powered by FloorForge intelligence</div>
             </div>

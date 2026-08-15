@@ -187,7 +187,7 @@ export default function Header() {
               <button
                 key={link.href}
                 onClick={() => goToSection(link.href)}
-                className="inline-flex min-h-11 items-center text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
+                className="inline-flex min-h-11 min-w-6 items-center justify-center text-muted-foreground hover:text-foreground transition-colors relative after:absolute after:bottom-[14px] after:left-0 after:h-[1px] after:w-0 after:bg-accent after:transition-all hover:after:w-full"
               >
                 {link.label}
               </button>

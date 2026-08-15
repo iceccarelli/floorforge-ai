@@ -9,7 +9,8 @@ import {
   LABOR_TIME_REDUCTION_PCT,
   JOB_TYPE_ADJUSTMENT_PP,
   BLENDED_LABOR_RATE_USD,
-  SANDING_SQFT_PER_ROBOT_DAY,
+  completeFloorSqftPerDay,
+  completeFloorHours,
   GRIT_SEQUENCE,
 } from "@/lib/product";
 
@@ -47,10 +48,14 @@ export default function ROICalculator() {
     // Derived in lib/product.ts from the simulator's own coverage rate, so the
     // number quoted here and the number a visitor watches run on /simulator are
     // the same number. Sanding passes only — finish coats are additional.
-    const robotsRecommended = Math.max(
-      1,
-      Math.ceil(sqft / SANDING_SQFT_PER_ROBOT_DAY)
-    );
+    // Computed from the geometry, not from a flat sqft-per-day constant.
+    // The constant counted the drum only, so it quoted a floor as finished
+    // while 4.5% of it — the band at the wall — had never been touched, and it
+    // understated a day's work by ~12%. The perimeter's share is not fixed
+    // either: it is 17% of the job at 800 sqft and 10% at 2,500.
+    const sqftPerDay = completeFloorSqftPerDay(sqft);
+    const hours = completeFloorHours(sqft);
+    const robotsRecommended = Math.max(1, Math.ceil(sqft / sqftPerDay));
 
     const laborSaved = Math.round(timeSavedHours * BLENDED_LABOR_RATE_USD);
 
@@ -60,6 +65,8 @@ export default function ROICalculator() {
       timeSavedPercent,
       adjustmentPp,
       robotsRecommended,
+      sqftPerDay,
+      edgeSharePct: Math.round((hours.edgeHours / hours.totalHours) * 100),
       laborSaved,
       jobTypeLabel: jobType === "commercial" ? "Commercial" : "Residential",
     };
@@ -203,10 +210,16 @@ export default function ROICalculator() {
 
               <div className="roi-result">
                 <div className="flex items-center gap-2 text-success-on-dark mb-1">
-                  <Users className="h-4 w-4" /> ROBOTS NEEDED
+                  <Users className="h-4 w-4" /> MACHINE PAIRS NEEDED
                 </div>
                 <div className="text-4xl lg:text-5xl font-semibold tabular-nums tracking-tighter roi-number">{results.robotsRecommended}</div>
-                <div className="text-sm text-white/60 mt-1">for parallel execution</div>
+                {/* A pair, not a robot. A drum cannot cut the band at the wall,
+                    so "robots needed: 1" described a crew that could not finish
+                    a floor — and a contractor would have budgeted for half the
+                    machines the job takes. */}
+                <div className="text-sm text-white/60 mt-1">
+                  each = 1 × D1 + 1 × E1, run in parallel
+                </div>
               </div>
 
               <div className="roi-result">
@@ -227,7 +240,7 @@ export default function ROICalculator() {
             </div>
 
             <div id="roi-assumptions" className="mt-7 pt-6 border-t border-white/10 text-xs text-white/60 leading-relaxed">
-              <span className="font-medium text-white/80">Model assumptions:</span> ${BLENDED_LABOR_RATE_USD}/hr blended labor rate; a {LABOR_TIME_REDUCTION_PCT}% labor time-reduction baseline{results.adjustmentPp !== 0 ? ` adjusted by ${Math.abs(results.adjustmentPp)} points for ${results.jobTypeLabel.toLowerCase()} complexity` : ""}, giving {results.timeSavedPercent}%; and {SANDING_SQFT_PER_ROBOT_DAY.toLocaleString()} sqft per robot per 8-hour day across a {GRIT_SEQUENCE.join("→")} grit sequence — the same coverage rate the 3D simulator runs, sanding passes only, finish coats additional. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
+              <span className="font-medium text-white/80">Model assumptions:</span> ${BLENDED_LABOR_RATE_USD}/hr blended labor rate; a {LABOR_TIME_REDUCTION_PCT}% labor time-reduction baseline{results.adjustmentPp !== 0 ? ` adjusted by ${Math.abs(results.adjustmentPp)} points for ${results.jobTypeLabel.toLowerCase()} complexity` : ""}, giving {results.timeSavedPercent}%; and {results.sqftPerDay.toLocaleString()} sqft of FINISHED floor per 8-hour day at this job size — field and perimeter, across a {GRIT_SEQUENCE.join("→")} grit sequence, computed from the same geometry the live console runs. Perimeter edging is {results.edgeSharePct}% of that time at this size and is included; it is not a flat rate because the perimeter grows with the square root of the area while the field grows with the area. Finish coats are additional. These are design targets for the pilot program, not measured field data. Your numbers will differ — that&apos;s exactly what the pilot exists to establish.
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">

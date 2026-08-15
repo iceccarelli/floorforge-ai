@@ -3,7 +3,7 @@
 import React from "react";
 import {
   Zap, Shield, Target, Layers, Bot, BarChart3,
-  CheckCircle, ArrowRight, ArrowDown,
+  CheckCircle, MinusCircle, ArrowRight, ArrowDown,
   ClipboardList, Calculator, FileSignature, ClipboardCheck, Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,15 @@ import Reveal from "@/components/Reveal";
 import ShowcaseCarousel from "@/components/ShowcaseCarousel";
 import Link from "next/link";
 import { ROBOTS } from "@/lib/robots";
-import { HARDWARE_UNIT_COST_LABEL } from "@/lib/product";
+import {
+  HARDWARE_UNIT_COST_LABEL,
+  RAAS_MONTHLY_LABEL,
+  RAAS_MONTHLY_LOW_USD,
+  RAAS_MONTHLY_HIGH_USD,
+  RAAS_TERM_MONTHS,
+  RAAS_SERVICE_RESERVE_PCT,
+  MACHINES_PER_COMPLETE_FLOOR,
+} from "@/lib/product";
 import { scrollToElement } from "@/lib/scroll";
 import { openChatbot } from "@/lib/chatbot";
 
@@ -597,6 +605,21 @@ export default function FloorForgeLanding() {
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Base fleet dashboard</li>
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Email + chat support</li>
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Up to 3 robots</li>
+                {/* The perimeter line, on every tier.
+                    Essentials is a D1 only, and a drum cannot cut the band at
+                    the wall — so this tier leaves ~4.5% of every floor for
+                    somebody to edge by hand. At the estimator's own 40 ft/h
+                    that is hours per job, and a contractor comparing $299 to
+                    $799 had no way to see it before the sales call. Same
+                    principle as the hardware-priced-separately banner below. */}
+                <li className="flex gap-3 text-muted-foreground">
+                  <MinusCircle className="h-4 w-4 mt-1 flex-shrink-0" />
+                  <span>
+                    <strong className="font-medium text-foreground">Perimeter:</strong> field
+                    only. The band at the wall is edged manually or with an E1 on
+                    Professional.
+                  </span>
+                </li>
               </ul>
               <Button variant="secondary" className="mt-8 w-full h-12" onClick={() => scrollTo("waitlist")}>Join waitlist</Button>
             </div>
@@ -616,6 +639,13 @@ export default function FloorForgeLanding() {
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Complete OS: planning, analytics, fleet</li>
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Priority support + dedicated onboarding</li>
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Unlimited robots • Advanced reporting</li>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" />
+                  <span>
+                    <strong className="font-medium">Perimeter:</strong> cut by an E1, once
+                    per grit — a whole floor, not just the field.
+                  </span>
+                </li>
               </ul>
               <Button variant="accent" className="mt-8 w-full h-12" onClick={() => scrollTo("waitlist")}>Join waitlist</Button>
             </div>
@@ -634,6 +664,13 @@ export default function FloorForgeLanding() {
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Dedicated customer success manager</li>
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Custom integrations &amp; SSO</li>
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> On-site or remote training programs</li>
+                <li className="flex gap-3">
+                  <CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" />
+                  <span>
+                    <strong className="font-medium">Perimeter:</strong> included, plus
+                    multi-crew scheduling across sites.
+                  </span>
+                </li>
               </ul>
               <Button variant="secondary" className="mt-8 w-full h-12" onClick={() => scrollTo("waitlist")}>Contact us</Button>
             </div>
@@ -645,16 +682,96 @@ export default function FloorForgeLanding() {
               contractor reading "$799/mo" would not have budgeted for the
               machine, and would find out during the sales call — the most
               expensive possible moment (audit/PRODUCT_TRUTH.md T1-3). */}
-          <div className="mt-8 mx-auto max-w-2xl rounded-xl border border-border-strong bg-muted px-5 py-4 text-center">
-            <div className="text-xs font-semibold tracking-wider text-foreground">
-              HARDWARE IS PRICED SEPARATELY
+          {/* TWO WAYS TO GET THE MACHINES.
+              The site described one: buy the robot. A finished floor takes a D1
+              for the field and an E1 for the band the drum cannot reach, so
+              that is two units of capital before the first floor — asked of
+              small flooring contractors, which is exactly who the pilot is
+              recruiting. Every figure below is derived in lib/product.ts from
+              numbers already published on this page, so the monthly rate can be
+              checked rather than believed. */}
+          <div className="mt-10 grid gap-5 md:grid-cols-2 max-w-4xl mx-auto">
+            <div className="rounded-xl border-2 border-accent bg-card p-6">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="text-xs font-semibold tracking-wider text-accent">
+                  ROBOTS AS A SERVICE
+                </span>
+                <span className="rounded bg-accent-light px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-accent">
+                  planned
+                </span>
+              </div>
+              <div className="mt-3 flex items-baseline">
+                <span className="text-4xl font-semibold tracking-[-1.5px]">
+                  {RAAS_MONTHLY_LABEL}
+                </span>
+                <span className="ml-1.5 text-muted-foreground">/robot /month</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                No capital. Hardware, software, service, consumables and replacement in
+                one line over a {RAAS_TERM_MONTHS}-month term.
+              </p>
+              <dl className="mt-4 space-y-1.5 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Capital recovery</dt>
+                  <dd className="tabular-nums">
+                    {HARDWARE_UNIT_COST_LABEL} ÷ {RAAS_TERM_MONTHS} mo
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Service reserve</dt>
+                  <dd className="tabular-nums">{RAAS_SERVICE_RESERVE_PCT}% of that</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted-foreground">Platform software</dt>
+                  <dd className="tabular-nums">the per-robot tier fee</dd>
+                </div>
+                <div className="flex justify-between gap-4 border-t border-border pt-1.5 font-medium">
+                  <dt>A complete floor needs {MACHINES_PER_COMPLETE_FLOOR}</dt>
+                  <dd className="tabular-nums">
+                    ${(RAAS_MONTHLY_LOW_USD * MACHINES_PER_COMPLETE_FLOOR).toLocaleString()}–
+                    {(RAAS_MONTHLY_HIGH_USD * MACHINES_PER_COMPLETE_FLOOR).toLocaleString()} /mo
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <p className="mt-1.5 text-sm text-muted-foreground">
-              Subscription tiers above cover the software, fleet dashboard and support.
-              Robots are an indicative <strong className="text-foreground font-semibold">{HARDWARE_UNIT_COST_LABEL} per unit</strong>,
-              not yet locked — unit economics depend on manufacturing quotes the pilot
-              program is designed to produce. Pilot participants receive a loaner unit
-              at no hardware cost.
+
+            <div className="rounded-xl border border-border-strong bg-muted p-6">
+              <span className="text-xs font-semibold tracking-wider text-foreground">
+                BUY THE HARDWARE
+              </span>
+              <div className="mt-3 flex items-baseline">
+                <span className="text-4xl font-semibold tracking-[-1.5px]">
+                  {HARDWARE_UNIT_COST_LABEL}
+                </span>
+                <span className="ml-1.5 text-muted-foreground">/unit, indicative</span>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Subscription tiers above cover the software, fleet dashboard and support;
+                the machines are bought outright and serviced separately.
+              </p>
+              <dl className="mt-4 space-y-1.5 text-sm">
+                <div className="flex justify-between gap-4 border-t border-border pt-1.5 font-medium">
+                  <dt>A complete floor needs {MACHINES_PER_COMPLETE_FLOOR}</dt>
+                  <dd className="tabular-nums">$30–50K up front</dd>
+                </div>
+              </dl>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Unit economics are not locked — they depend on manufacturing quotes the
+                pilot program is designed to produce.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 mx-auto max-w-3xl rounded-xl border border-border-strong bg-muted px-5 py-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              <strong className="font-semibold text-foreground">
+                Neither of these is an offer.
+              </strong>{" "}
+              No FloorForge machine has been built and no manufacturer has quoted a unit
+              cost, so both columns are design targets like every other figure on this
+              site — the service rate is arithmetic on the indicative hardware price, not
+              a price list. Pilot participants receive a loaner unit at no hardware cost,
+              and the pilot is what replaces these with real numbers.
             </p>
           </div>
 
