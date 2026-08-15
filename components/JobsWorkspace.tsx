@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus, FileText, ClipboardCheck, Trash2 } from "lucide-react";
 import {
@@ -23,6 +24,7 @@ function stageClass(stage: JobStage): string {
 }
 
 export default function JobsWorkspace() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<JobRecord[] | null>(null);
 
   useEffect(() => {
@@ -41,7 +43,15 @@ export default function JobsWorkspace() {
 
   const onNew = () => {
     const job = createJob();
-    window.location.href = `/estimator?job=${job.id}`;
+    // router.push, not window.location.href.
+    //
+    // A location assignment to an internal route is a full document load: the
+    // browser throws away the React tree and re-downloads the bundle to move
+    // between two pages of the same app. On the "New job" button — the first
+    // thing a contractor presses — that is a visible stall for no reason.
+    // Caught by @next/next/no-location-assign-relative-destination, a rule that
+    // only exists in eslint-config-next 16.3; the older config never flagged it.
+    router.push(`/estimator?job=${job.id}`);
   };
 
   const onDelete = (job: JobRecord) => {
