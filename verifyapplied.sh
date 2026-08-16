@@ -132,6 +132,15 @@ ck '/live reads specs from lib/robots.ts'             g  app/live/page.tsx '@/li
 ck 'console note denies BOTH machines exist'          g  components/LiveJobConsole.tsx 'Neither a {robot.name} nor a {edger.name}'
 ck 'homepage card describes two machines'             g  app/page.tsx 'cut the band at the wall'
 
+hdr 'Rendered contrast — the four real failures axe cannot see (patch 41)'
+ck 'contrast tool ignores sr-only text'               g  audit/scripts/contrast.mjs 'isVisuallyHidden'
+ck 'contrast tool clips runs to what is on screen'    g  audit/scripts/contrast.mjs 'visibleRect'
+ck 'contrast tool REPORTS what it skipped'            g  audit/scripts/contrast.mjs 'clippedOutOfViewSkipped'
+ck 'carousel label scrim is opaque enough (70%)'      g  components/ShowcaseCarousel.tsx 'bg-black/70'
+ck 'no 45% scrim left under white label text'         bash -c '! grep -qF "bg-black/45 px-2.5 py-1 text-[10px]" components/ShowcaseCarousel.tsx'
+ck 'simulator hint is off --muted-foreground'         g  components/simulator/Simulator.tsx 'text-foreground/75'
+ck 'teardown disclaimer readable (white/60)'          g  components/simulator/ProTeardown.tsx 'text-white/60'
+
 # ---------------------------------------------------------------------------
 printf '\n%s\n' "$(printf '%.0s-' {1..72})"
 printf '\033[1m%d in, %d out\033[0m\n' "$PASS" "$FAIL"
@@ -141,4 +150,4 @@ if [ "$FAIL" -gt 0 ]; then
   printf '\nEach line above is one patch that is missing, reverted, or overwritten.\n'
   exit 1
 fi
-printf 'Every patch through 40 is present in this working tree.\n'
+printf 'Every patch through 41 is present in this working tree.\n'

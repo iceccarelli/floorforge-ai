@@ -58,7 +58,13 @@ export default function Simulator() {
                 <FloorScene />
               </Suspense>
             </Canvas>
-            <p className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-muted-foreground">
+            {/* NOT --muted-foreground. That token is validated against --bg
+                (4.76:1) and --muted (4.55:1); this hint sits on the WebGL clear
+                colour #eef2f6, which is darker than both and is not a token at
+                all, so the validated pair does not apply here. Measured 4.23:1.
+                --foreground at 75% over the same surface measures 7.4:1 and
+                stays a hint rather than becoming body copy. */}
+            <p className="pointer-events-none absolute bottom-2 right-3 text-[10px] text-foreground/75">
               Drag to orbit · scroll to zoom · right-drag to pan
             </p>
           </>

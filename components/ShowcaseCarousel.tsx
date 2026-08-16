@@ -362,7 +362,16 @@ function FeaturedRail({ onOpen }: { onOpen: (id: string) => void }) {
                     className="object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04]"
                   />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-slate-950/75 via-slate-950/5 to-transparent" />
-                  <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/45 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+                  {/* bg-black/70, not /45. This label sits on a photographic
+                      render, so its contrast is whatever the pixels underneath
+                      happen to be — measured at 4.44:1 against a mid-tone frame,
+                      below the 4.5:1 floor, and lower still on a bright one. A
+                      scrim at 45% cannot guarantee anything: over a white image
+                      it composites to rgb(140,140,140) and white text on that is
+                      1.9:1. At 70% the worst case any render can produce is
+                      rgb(77,77,77) — 8.5:1 — so the label is legible over every
+                      frame in the library and every frame added later. */}
+                  <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
                     {cat.label}
                   </span>
                   <div className="absolute inset-x-0 bottom-0 p-4">

@@ -294,7 +294,13 @@ export default function ProTeardown({
             </button>
           </div>
         </div>
-        <p className="mt-2 text-[10px] leading-tight text-white/45">
+        {/* white/45 measured 4.43–4.49:1 on the two dark panels this caption
+            crosses — under the 4.5:1 floor on both, by a margin small enough
+            that nobody would spot it by eye. white/60 clears 6.6:1 on the
+            darker of the two. This line carries the "not telemetry from
+            shipping hardware" disclaimer, which is the last text on the site
+            that should be hard to read. */}
+        <p className="mt-2 text-[10px] leading-tight text-white/60">
           Concept teardown for a {roomW}×{roomL} m job · drag to orbit · scroll to
           zoom. Geometry shows how the machine is designed to work — not telemetry
           from shipping hardware.
