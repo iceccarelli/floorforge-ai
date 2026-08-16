@@ -141,6 +141,17 @@ ck 'no 45% scrim left under white label text'         bash -c '! grep -qF "bg-bl
 ck 'simulator hint is off --muted-foreground'         g  components/simulator/Simulator.tsx 'text-foreground/75'
 ck 'teardown disclaimer readable (white/60)'          g  components/simulator/ProTeardown.tsx 'text-white/60'
 
+hdr 'Estimator — the perimeter follows the floor (patch 42)'
+ck 'room proportion is defined once, and exported'    g  lib/floorPlan.ts 'ROOM_ASPECT'
+ck 'planFloor uses the shared constant'               g  lib/floorPlan.ts 'Math.sqrt(area * ROOM_ASPECT)'
+ck 'unit-agnostic perimeter helper'                   g  lib/floorPlan.ts 'rectPerimeter'
+ck 'estimator derives perimeter from area'            g  lib/estimator.ts 'suggestedEdgingLinearFt'
+ck 'estimator shares floorPlan geometry'              g  lib/estimator.ts './floorPlan'
+ck 'the frozen 180 lin ft default is gone'            bash -c '! grep -qF "edgingLinearFt: 180" components/JobEstimator.tsx'
+ck 'perimeter is linked-until-touched'                g  components/JobEstimator.tsx 'edgingTouched'
+ck 'a saved job never gets its perimeter overwritten' g  components/JobEstimator.tsx 'setEdgingTouched(true)'
+ck 'the field explains where its number came from'    g  components/JobEstimator.tsx 'aria-describedby'
+
 # ---------------------------------------------------------------------------
 printf '\n%s\n' "$(printf '%.0s-' {1..72})"
 printf '\033[1m%d in, %d out\033[0m\n' "$PASS" "$FAIL"
@@ -150,4 +161,4 @@ if [ "$FAIL" -gt 0 ]; then
   printf '\nEach line above is one patch that is missing, reverted, or overwritten.\n'
   exit 1
 fi
-printf 'Every patch through 41 is present in this working tree.\n'
+printf 'Every patch through 42 is present in this working tree.\n'

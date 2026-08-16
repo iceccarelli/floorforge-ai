@@ -16,6 +16,35 @@
  * second copy of the maths.
  */
 
+/**
+ * The room proportion every FloorForge job model assumes, width : depth.
+ *
+ * It was written inline in `planFloor` as `(area * 4) / 3`. Exported now
+ * because the job estimator needs the same room to derive a floor's perimeter,
+ * and a second copy of "4:3" in another file is how the simulator and the live
+ * console came to disagree about room size in the first place.
+ */
+export const ROOM_ASPECT = 4 / 3;
+
+/**
+ * Perimeter of a ROOM_ASPECT rectangle enclosing `area`.
+ *
+ * UNIT-AGNOSTIC. Perimeter scales with the square root of area, so the units
+ * cancel: pass m² and get metres, pass sqft and get linear feet. That is what
+ * lets `lib/estimator.ts` — which works in imperial, because contractors do —
+ * share this geometry with the metric machine model rather than keeping its own.
+ *
+ * This is a LOWER BOUND on a real floor. A single rectangle has no closets, no
+ * kitchen island, no interior partitions, and every one of those adds wall the
+ * edger has to follow. Callers must present it as a floor to be raised, never
+ * as the answer.
+ */
+export function rectPerimeter(area: number): number {
+  if (!(area > 0)) return 0;
+  const w = Math.sqrt(area * ROOM_ASPECT);
+  return 2 * (w + area / w);
+}
+
 export interface FloorPlan {
   /** Room width in metres (long axis). */
   roomW: number;
@@ -72,7 +101,7 @@ export function planFloor(
   edgeGapM = 0
 ): FloorPlan {
   const area = Math.max(1, areaM2);
-  const roomW = Math.sqrt((area * 4) / 3);
+  const roomW = Math.sqrt(area * ROOM_ASPECT);
   const roomH = area / roomW;
 
   // The drum's field is the room less the band it cannot reach, on all four

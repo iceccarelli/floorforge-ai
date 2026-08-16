@@ -33,6 +33,36 @@ import {
  *    does, that correction is worth more than the estimate it produces.
  */
 
+import { rectPerimeter } from "./floorPlan";
+
+/**
+ * A starting perimeter for a floor of `sqft`, in linear feet.
+ *
+ * WHY THIS EXISTS. `edgingLinearFt` was an independent input defaulting to 180
+ * and nothing ever moved it. A contractor could take the floor area from 1,200
+ * sqft to 8,500 and the perimeter stayed at 180 — so the edging line stayed at
+ * 4.5 hours when the geometry says 9.4, and the quote went out roughly five
+ * crew-hours light on a job that size.
+ *
+ * It also contradicted the site. public/llms.txt, the throughput figure and the
+ * entire two-machine argument all rest on one relationship: "a perimeter grows
+ * with the square root of the area while the field grows with the area." The
+ * one tool a contractor actually uses treated the perimeter as a constant.
+ *
+ * So it is derived here from the same 4:3 room `lib/floorPlan.ts` gives the
+ * simulator and the live console — one room model for the whole product.
+ *
+ * IT IS A FLOOR, NOT AN ANSWER. A bare rectangle has no closets, no island and
+ * no interior partitions, and each of those adds wall to follow. The field stays
+ * editable and the UI says where the number came from; nothing here invents a
+ * complexity multiplier, because no one at FloorForge has measured one.
+ *
+ * Rounded to 5 ft: this is an estimate and should not read like a survey.
+ */
+export function suggestedEdgingLinearFt(sqft: number): number {
+  return Math.round(rectPerimeter(sqft) / 5) * 5;
+}
+
 export type Species = "oak" | "maple" | "pine" | "walnut" | "exotic";
 export type Condition = "raw" | "refinish" | "heavy";
 export type JobType = "residential" | "commercial";

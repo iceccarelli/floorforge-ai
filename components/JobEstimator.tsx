@@ -9,6 +9,7 @@ import {
   SPECIES_LABEL,
   CONDITION_LABEL,
   estimate,
+  suggestedEdgingLinearFt,
   type Assumptions,
   type Condition,
   type EstimatorInputs,
@@ -36,6 +37,7 @@ function NumField({
   onChange,
   suffix,
   step = 1,
+  hint,
 }: {
   id: string;
   label: string;
@@ -43,6 +45,8 @@ function NumField({
   onChange: (n: number) => void;
   suffix?: string;
   step?: number;
+  /** Where the number came from. Rendered as the field's description. */
+  hint?: React.ReactNode;
 }) {
   return (
     <div>
@@ -61,6 +65,7 @@ function NumField({
           step={step}
           className="input min-h-11 w-full text-base"
           value={Number.isFinite(value) ? value : ""}
+          aria-describedby={hint ? `${id}-hint` : undefined}
           onChange={(e) => {
             const n = parseFloat(e.target.value);
             onChange(Number.isFinite(n) && n >= 0 ? n : 0);
@@ -70,6 +75,14 @@ function NumField({
           <span className="text-xs text-muted-foreground whitespace-nowrap">{suffix}</span>
         )}
       </div>
+      {/* aria-describedby, not a bare <p>: the provenance of the number is part
+          of the field, and a screen reader should hear it when the field takes
+          focus rather than having to hunt for it afterwards. */}
+      {hint && (
+        <p id={`${id}-hint`} className="mt-1.5 text-xs leading-snug text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -77,7 +90,7 @@ function NumField({
 export default function JobEstimator() {
   const [input, setInput] = useState<EstimatorInputs>({
     sqft: 1200,
-    edgingLinearFt: 180,
+    edgingLinearFt: suggestedEdgingLinearFt(1200),
     species: "oak",
     condition: "refinish",
     jobType: "residential",
@@ -103,6 +116,8 @@ export default function JobEstimator() {
   }>({ profile: EMPTY_PROFILE, today: null });
 
   const [jobId, setJobId] = useState<string | null>(null);
+  /** True once the perimeter is the contractor's number rather than ours. */
+  const [edgingTouched, setEdgingTouched] = useState(false);
 
   useEffect(() => {
     // Deferred past a microtask so React has committed before the state lands —
@@ -121,6 +136,9 @@ export default function JobEstimator() {
       if (job) {
         setJobId(job.id);
         setInput(job.estimate);
+        // A saved job's perimeter is already the contractor's decision, whether
+        // they typed it or accepted the suggestion. Never overwrite it.
+        setEdgingTouched(true);
         setA(job.assumptions);
         setClientName(job.clientName);
         setSiteAddress(job.siteAddress);
@@ -154,8 +172,19 @@ export default function JobEstimator() {
   };
 
   const r = useMemo(() => estimate(input, a), [input, a]);
+  const suggested = suggestedEdgingLinearFt(input.sqft);
   const set = <K extends keyof EstimatorInputs>(k: K, v: EstimatorInputs[K]) =>
-    setInput((p) => ({ ...p, [k]: v }));
+    setInput((p) => {
+      const next = { ...p, [k]: v };
+      // The perimeter follows the area until the contractor takes it over.
+      // Linked-until-touched rather than always-linked: a real floor's closets
+      // and islands are knowledge only they have, and overwriting a number they
+      // typed would be worse than the frozen 180 this replaced.
+      if (k === "sqft" && !edgingTouched) {
+        next.edgingLinearFt = suggestedEdgingLinearFt(next.sqft);
+      }
+      return next;
+    });
   const setAsm = <K extends keyof Assumptions>(k: K, v: Assumptions[K]) =>
     setA((p) => ({ ...p, [k]: v }));
 
@@ -181,9 +210,26 @@ export default function JobEstimator() {
               id="est-edging"
               label="EDGING / PERIMETER"
               value={input.edgingLinearFt}
-              onChange={(n) => set("edgingLinearFt", n)}
+              onChange={(n) => {
+                setEdgingTouched(true);
+                set("edgingLinearFt", n);
+              }}
               suffix="lin ft"
               step={10}
+              hint={
+                suggested === input.edgingLinearFt ? (
+                  <>
+                    A {suggested.toLocaleString()} ft minimum for a 4:3 room of{" "}
+                    {input.sqft.toLocaleString()} sqft. Closets, islands and interior
+                    walls add to it — raise this to match the floor.
+                  </>
+                ) : (
+                  <>
+                    Yours. A 4:3 room of {input.sqft.toLocaleString()} sqft has at least{" "}
+                    {suggested.toLocaleString()} ft of wall.
+                  </>
+                )
+              }
             />
           </div>
 
