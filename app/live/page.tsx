@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import LiveJobConsole from "@/components/LiveJobConsole";
 import { getRobot } from "@/lib/robots";
@@ -15,7 +17,7 @@ export const metadata: Metadata = {
     "telemetry in the exact shape the firmware contract specifies, and the finished run writes " +
     "field and perimeter coverage into the completion report as separate figures. No hardware is " +
     "connected; the data path is real.",
-  alternates: { canonical: "/live" },
+  alternates: pageAlternates("/live"),
 };
 
 /**
@@ -71,6 +73,14 @@ export default function LivePage() {
         </>
       }
     >
+      <PageSchema
+        page={{
+          path: "/live",
+          name: "Live Job Console — a simulated two-machine job",
+          description: String(metadata.description),
+          crumb: "Live job console",
+        }}
+      />
       <LiveJobConsole />
     </WorkspaceShell>
   );

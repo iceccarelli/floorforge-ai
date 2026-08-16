@@ -7,6 +7,7 @@ import {
   ClipboardList, Calculator, FileSignature, ClipboardCheck, Cpu, Droplets,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import PageSchema from "@/components/PageSchema";
 import ROICalculator from "@/components/ROICalculator";
 import Chatbot from "@/components/Chatbot";
 import WaitlistCTA from "@/components/WaitlistCTA";
@@ -222,6 +223,14 @@ const techHighlights = [
 export default function FloorForgeLanding() {
   return (
     <div className="overflow-hidden">
+      <PageSchema
+        page={{
+          path: "/",
+          name: "FloorForge — Autonomous Hardwood Floor Refinishing, in development",
+          description:
+            "Seven free browser tools for hardwood refinishing contractors — jobs, estimator, client proposal, moisture and readiness log, completion report, live job console and 3D simulator. Plus an early-stage operating system for autonomous refinishing, in development: no hardware ships today and no customer has run a job.",
+        }}
+      />
       {/* HERO */}
       <section className="relative pt-16 pb-20 md:pt-20 md:pb-24 border-b">
         <div className="mx-auto max-w-5xl px-6 text-center">

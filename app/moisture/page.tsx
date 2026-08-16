@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import MoistureLog from "@/components/MoistureLog";
 import {
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
     `(${SLAB_RH_MAX_PCT}% RH) and ASTM F1869 (${SLAB_MVER_MAX_LB} lb), and jobsite conditions against ` +
     `${AMBIENT_TEMP_F.min}–${AMBIENT_TEMP_F.max} °F and ${AMBIENT_RH_PCT.min}–${AMBIENT_RH_PCT.max}% RH. ` +
     `Every limit is shown with the document it comes from. Works with no FloorForge hardware.`,
-  alternates: { canonical: "/moisture" },
+  alternates: pageAlternates("/moisture"),
 };
 
 /**
@@ -64,6 +66,14 @@ export default function MoisturePage() {
         </>
       }
     >
+      <PageSchema
+        page={{
+          path: "/moisture",
+          name: "Moisture & Readiness Log — know before you sand",
+          description: String(metadata.description),
+          crumb: "Moisture & readiness",
+        }}
+      />
       <MoistureLog />
     </WorkspaceShell>
   );

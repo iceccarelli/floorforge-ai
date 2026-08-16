@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import SystemsLibrary from "@/components/SystemsLibrary";
@@ -8,7 +10,7 @@ export const metadata: Metadata = {
   title: "The Forge Platforms | FloorForge — Concept Render Library",
   description:
     "Concept renders of the five FloorForge platforms — field sanding, edge and perimeter, dust containment, finish application, and inspection. All figures are design targets for hardware in development, not measured specifications of shipping hardware.",
-  alternates: { canonical: "/systems" },
+  alternates: pageAlternates("/systems"),
 };
 
 /**
@@ -26,6 +28,14 @@ export const metadata: Metadata = {
 export default function SystemsPage() {
   return (
     <div className="mx-auto max-w-7xl px-6 py-12 sm:py-16">
+      <PageSchema
+        page={{
+          path: "/systems",
+          name: "The Forge Platforms — concept render library",
+          description: String(metadata.description),
+          crumb: "The Forge platforms",
+        }}
+      />
       <Link
         href="/"
         className="mb-6 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

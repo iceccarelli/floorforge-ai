@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import SimulatorLoader from "@/components/simulator/SimulatorLoader";
@@ -8,12 +10,20 @@ export const metadata: Metadata = {
   title: "Robot Simulator | FloorForge — Interactive Concept Demo",
   description:
     "Drive FloorForge's concept flooring robots across a virtual room: pick a platform, run a boustrophedon coverage pass, and watch live coverage and job-time estimates. An interactive concept simulation.",
-  alternates: { canonical: "/simulator" },
+  alternates: pageAlternates("/simulator"),
 };
 
 export default function SimulatorPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+      <PageSchema
+        page={{
+          path: "/simulator",
+          name: "Robot Simulator — interactive concept demo",
+          description: String(metadata.description),
+          crumb: "3D simulator",
+        }}
+      />
       <Link
         href="/"
         className="mb-6 inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"

@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import JobEstimator from "@/components/JobEstimator";
 
@@ -6,7 +8,7 @@ export const metadata: Metadata = {
   title: "Job Estimator | FloorForge — Plan, Time and Price a Refinishing Job",
   description:
     "A free planning tool for hardwood refinishing contractors: grit sequence, crew hours, abrasive and finish quantities, and a suggested quote. Every assumption is editable. Works with no FloorForge hardware.",
-  alternates: { canonical: "/estimator" },
+  alternates: pageAlternates("/estimator"),
 };
 
 /**
@@ -43,6 +45,14 @@ export default function EstimatorPage() {
         </>
       }
     >
+      <PageSchema
+        page={{
+          path: "/estimator",
+          name: "Job Estimator — plan, time and price a refinishing job",
+          description: String(metadata.description),
+          crumb: "Job estimator",
+        }}
+      />
       <JobEstimator />
     </WorkspaceShell>
   );

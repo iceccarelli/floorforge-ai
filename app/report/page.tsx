@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import JobReport from "@/components/JobReport";
 
@@ -6,7 +8,7 @@ export const metadata: Metadata = {
   title: "Completion Report | FloorForge — Hand Over a Floor With Proof",
   description:
     "A free completion-report generator for hardwood refinishing contractors: what was done, the conditions it was done in, care and maintenance instructions, and a workmanship warranty. Works with no FloorForge hardware.",
-  alternates: { canonical: "/report" },
+  alternates: pageAlternates("/report"),
 };
 
 /**
@@ -36,6 +38,14 @@ export default function ReportPage() {
         </>
       }
     >
+      <PageSchema
+        page={{
+          path: "/report",
+          name: "Completion Report — hand over the floor with proof",
+          description: String(metadata.description),
+          crumb: "Completion report",
+        }}
+      />
       <JobReport />
     </WorkspaceShell>
   );

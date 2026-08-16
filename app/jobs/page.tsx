@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import PageSchema from "@/components/PageSchema";
+import { pageAlternates } from "@/lib/discovery";
 import WorkspaceShell from "@/components/WorkspaceShell";
 import JobsWorkspace from "@/components/JobsWorkspace";
 
@@ -6,7 +8,7 @@ export const metadata: Metadata = {
   title: "Jobs | FloorForge — One Record From Estimate to Sign-off",
   description:
     "Track refinishing jobs from estimate through proposal to completion report. Enter the floor once; every document reads the same record. Saved in your browser — no account, no server.",
-  alternates: { canonical: "/jobs" },
+  alternates: pageAlternates("/jobs"),
 };
 
 /**
@@ -34,6 +36,14 @@ export default function JobsPage() {
         </>
       }
     >
+      <PageSchema
+        page={{
+          path: "/jobs",
+          name: "Jobs — one record from estimate to sign-off",
+          description: String(metadata.description),
+          crumb: "Jobs",
+        }}
+      />
       <JobsWorkspace />
     </WorkspaceShell>
   );

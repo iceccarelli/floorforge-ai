@@ -52,7 +52,12 @@ ck 'no testimonials anywhere in app/ or components/'  bash -c '! grep -rhiE "tes
 ck 'no fabricated customer counts'                    bash -c '! grep -rqiE "[0-9,]+\+? (happy )?(customers|contractors) (served|trust)" app components 2>/dev/null'
 ck 'concept-render disclaimer present'                bash -c 'grep -rqF "concept render" app components'
 ck 'design-target framing present'                    bash -c 'grep -rqF "design target" app components'
-ck 'no Offer/Product JSON-LD for unbuilt hardware'    bash -c '! grep -rqE "\"@type\":[[:space:]]*\"(Offer|Product)\"" components app'
+# Sharpened by patch 45, not relaxed. Product markup stays banned outright. An
+# Offer is permitted ONLY at price "0" — the seven browser tools genuinely are
+# free — and no robot may ever appear as a schema entity.
+ck 'no Product JSON-LD anywhere'                      bash -c '! grep -rqE "\"@type\":[[:space:]]*\"Product\"" components app lib'
+ck 'every schema Offer is zero-price'                 bash -c '! grep -rhA3 "\"@type\": \"Offer\"" lib/discovery.ts | grep -qE "price: \"[^0]"'
+ck 'no robot is a schema entity'                      bash -c '! grep -qE "\"@type\": \"(Product|IndividualProduct|Vehicle)\"" lib/discovery.ts'
 ck 'mailto fallback still wired (no dead CTA)'        bash -c 'grep -rqF "mailto:" components lib'
 
 hdr 'Accessibility — the audited invariants'
@@ -184,6 +189,25 @@ ck 'the audit matrix covers the new route'            g  audit/scripts/viewports
 ck 'limits attributed to the industry, not us'        g  components/MoistureLog.tsx "not FloorForge"
 ck 'no certification is implied'                      g  components/MoistureLog.tsx 'certifies nothing'
 
+hdr 'What a machine sees (patch 45)'
+ck 'the llms.txt pointer is a shared helper'          g  lib/discovery.ts 'export function pageAlternates'
+# INDEXABLE pages only. /dashboard, /operator and /pro-simulator are noindex and
+# must NOT advertise the summary or carry page schema — they hand-write their
+# canonical on purpose, and that is the correct state, not an oversight.
+ck 'no indexable page hand-writes its canonical'      bash -c '! grep -rlq "alternates: { canonical:" app/page.tsx app/systems app/estimator app/jobs app/live app/moisture app/report app/simulator 2>/dev/null'
+ck 'all 7 indexable tool/content pages use the helper' bash -c "test \$(grep -rl 'pageAlternates(' app | wc -l) -eq 7"
+ck 'noindex routes are deliberately excluded'         bash -c 'grep -q "canonical: \"/dashboard\"" app/dashboard/layout.tsx && grep -q "canonical: \"/operator\"" app/operator/layout.tsx'
+ck 'per-page JSON-LD component exists'                test -f components/PageSchema.tsx
+ck 'the graph is built from one place'                g  lib/discovery.ts 'export function buildPageGraph'
+ck 'pages emit WebPage, not just Organization'        g  lib/discovery.ts '"@type": "WebPage"'
+ck 'breadcrumbs are emitted'                          g  lib/discovery.ts 'BreadcrumbList'
+ck 'the free tools are machine-readable software'     g  lib/discovery.ts 'SoftwareApplication'
+ck 'and are marked accessible for free'               g  lib/discovery.ts 'isAccessibleForFree: true'
+ck 'the tool registry is derived, not typed'          bash -c 'grep -qF "./moisture" lib/discovery.ts && grep -qF "./robots" lib/discovery.ts'
+ck 'the homepage renders its own schema'              g  app/page.tsx 'PageSchema'
+ck 'the moisture schema cites NWFA and ASTM'          bash -c 'grep -qF "NWFA differential" lib/discovery.ts && grep -qF "ASTM F2170" lib/discovery.ts'
+ck 'and still attributes the limits away from us'     g  lib/discovery.ts 'not FloorForge claims'
+
 # ---------------------------------------------------------------------------
 printf '\n%s\n' "$(printf '%.0s-' {1..72})"
 printf '\033[1m%d in, %d out\033[0m\n' "$PASS" "$FAIL"
@@ -193,4 +217,4 @@ if [ "$FAIL" -gt 0 ]; then
   printf '\nEach line above is one patch that is missing, reverted, or overwritten.\n'
   exit 1
 fi
-printf 'Every patch through 44 is present in this working tree.\n'
+printf 'Every patch through 45 is present in this working tree.\n'
