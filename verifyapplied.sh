@@ -152,6 +152,19 @@ ck 'perimeter is linked-until-touched'                g  components/JobEstimator
 ck 'a saved job never gets its perimeter overwritten' g  components/JobEstimator.tsx 'setEdgingTouched(true)'
 ck 'the field explains where its number came from'    g  components/JobEstimator.tsx 'aria-describedby'
 
+hdr 'The assistant answers from source, not memory (patch 43)'
+ck 'software tiers defined once, in lib/product.ts'   g  lib/product.ts 'SOFTWARE_TIERS'
+ck 'hardware band is numeric, label derived'          g  lib/product.ts 'HARDWARE_UNIT_COST_LOW_USD'
+ck 'published throughput band is computed'            g  lib/product.ts 'COMPLETE_FLOOR_SQFT_PER_DAY_LABEL'
+ck 'chatbot reads lib/product.ts'                     g  components/ChatbotPanel.tsx '@/lib/product'
+ck 'chatbot names machines from lib/robots.ts'        g  components/ChatbotPanel.tsx '@/lib/robots'
+# Comment lines excluded — ChatbotPanel.tsx carries a comment naming the figure
+# it stopped publishing, which is the opposite of publishing it.
+ck 'the retired field-only figure is not published'   bash -c '! grep -rhF "1,579" components app 2>/dev/null | grep -qvE "^[[:space:]]*(\\*|//|/\\*)"'
+ck 'no tier price typed in the chatbot'               bash -c '! grep -qE "\\\$(299|799|149)\\b" components/ChatbotPanel.tsx'
+ck 'pricing table reads the tier constants'           g  app/page.tsx 'SOFTWARE_TIERS.essentials.baseUsd'
+ck 'no tier price typed in the pricing table'         bash -c '! grep -qE ">\\\$(299|799)<" app/page.tsx'
+
 # ---------------------------------------------------------------------------
 printf '\n%s\n' "$(printf '%.0s-' {1..72})"
 printf '\033[1m%d in, %d out\033[0m\n' "$PASS" "$FAIL"
@@ -161,4 +174,4 @@ if [ "$FAIL" -gt 0 ]; then
   printf '\nEach line above is one patch that is missing, reverted, or overwritten.\n'
   exit 1
 fi
-printf 'Every patch through 42 is present in this working tree.\n'
+printf 'Every patch through 43 is present in this working tree.\n'

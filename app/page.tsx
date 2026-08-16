@@ -23,6 +23,7 @@ import {
   RAAS_TERM_MONTHS,
   RAAS_SERVICE_RESERVE_PCT,
   MACHINES_PER_COMPLETE_FLOOR,
+  SOFTWARE_TIERS,
 } from "@/lib/product";
 import { scrollToElement } from "@/lib/scroll";
 import { openChatbot } from "@/lib/chatbot";
@@ -603,10 +604,14 @@ export default function FloorForgeLanding() {
               <div>
                 <div className="text-sm font-semibold tracking-widest text-muted-foreground">ESSENTIALS</div>
                 <div className="mt-6 flex items-baseline">
-                  <span className="text-6xl font-semibold tracking-[-2px]">$299</span>
+                  <span className="text-6xl font-semibold tracking-[-2px]">
+                    ${SOFTWARE_TIERS.essentials.baseUsd}
+                  </span>
                   <span className="text-muted-foreground ml-1.5">/mo base</span>
                 </div>
-                <div className="text-sm mt-1 text-muted-foreground">+ $149 /robot /month</div>
+                <div className="text-sm mt-1 text-muted-foreground">
+                  + ${SOFTWARE_TIERS.essentials.perRobotUsd} /robot /month
+                </div>
               </div>
               <ul className="mt-8 space-y-3.5 text-sm flex-1">
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Core autonomous sanding + reporting</li>
@@ -617,8 +622,8 @@ export default function FloorForgeLanding() {
                     Essentials is a D1 only, and a drum cannot cut the band at
                     the wall — so this tier leaves ~4.5% of every floor for
                     somebody to edge by hand. At the estimator's own 40 ft/h
-                    that is hours per job, and a contractor comparing $299 to
-                    $799 had no way to see it before the sales call. Same
+                    that is hours per job, and a contractor comparing the two tiers
+                    had no way to see it before the sales call. Same
                     principle as the hardware-priced-separately banner below. */}
                 <li className="flex gap-3 text-muted-foreground">
                   <MinusCircle className="h-4 w-4 mt-1 flex-shrink-0" />
@@ -637,10 +642,14 @@ export default function FloorForgeLanding() {
               <div>
                 <div className="text-sm font-semibold tracking-widest text-accent">PROFESSIONAL</div>
                 <div className="mt-6 flex items-baseline">
-                  <span className="text-6xl font-semibold tracking-[-2px]">$799</span>
+                  <span className="text-6xl font-semibold tracking-[-2px]">
+                    ${SOFTWARE_TIERS.professional.baseUsd}
+                  </span>
                   <span className="text-muted-foreground ml-1.5">/mo base</span>
                 </div>
-                <div className="text-sm mt-1 text-muted-foreground">+ $99 /robot /month</div>
+                <div className="text-sm mt-1 text-muted-foreground">
+                  + ${SOFTWARE_TIERS.professional.perRobotUsd} /robot /month
+                </div>
               </div>
               <ul className="mt-8 space-y-3.5 text-sm flex-1">
                 <li className="flex gap-3"><CheckCircle className="h-4 w-4 mt-1 text-success flex-shrink-0" /> Full sanding + edging + finish assist</li>

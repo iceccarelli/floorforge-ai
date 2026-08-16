@@ -4,6 +4,23 @@ import React, { useState, useRef, useEffect } from "react";
 import { X, Send, Bot, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import {
+  BLENDED_LABOR_RATE_USD,
+  COMPLETE_FLOOR_SQFT_PER_DAY_LABEL,
+  GRIT_SEQUENCE,
+  HARDWARE_UNIT_COST_HIGH_USD,
+  HARDWARE_UNIT_COST_LABEL,
+  HARDWARE_UNIT_COST_LOW_USD,
+  JOB_TYPE_ADJUSTMENT_PP,
+  LABOR_TIME_REDUCTION_PCT,
+  MACHINES_PER_COMPLETE_FLOOR,
+  RAAS_MONTHLY_HIGH_USD,
+  RAAS_MONTHLY_LABEL,
+  RAAS_MONTHLY_LOW_USD,
+  RAAS_TERM_MONTHS,
+  SOFTWARE_TIERS,
+} from "@/lib/product";
+import { getRobot } from "@/lib/robots";
 
 interface Message {
   id: number;
@@ -20,21 +37,70 @@ const quickReplies = [
   "How do I join the pilot?",
 ];
 
-// Scripted demo responses. This assistant is explicitly labeled as a demo —
-// it makes no claims about deployed hardware or existing customers.
+/**
+ * Scripted demo responses.
+ *
+ * EVERY FIGURE BELOW IS INTERPOLATED FROM lib/product.ts. None is typed.
+ *
+ * The previous version carried this warning above the pricing answer: "Kept in
+ * step with the pricing section by hand — this string is the one place on the
+ * site that restates it in prose, so a change there that misses here turns the
+ * assistant into a second, stale price list."
+ *
+ * That is exactly what happened. FLOORFORGE_31 retired the field-only
+ * throughput constant in favour of completeFloorSqftPerDay(), which counts the
+ * perimeter the drum cannot reach, and every surface moved to the ~1,400–1,500
+ * band — except this file, which went on answering "1,579 sqft/robot/day" to
+ * anyone who asked about the ROI model. A figure roughly 5% high, appearing
+ * nowhere else on the site, and high for precisely the reason the two-machine
+ * argument exists: it ignored the perimeter.
+ *
+ * A hand-kept copy of a number is a stale number with a delay on it. So the
+ * assistant now reads the same constants the pricing table and the ROI model
+ * read, and cannot answer with a figure the site does not publish.
+ *
+ * Prose that has no job size in hand quotes the BAND, never a point from it:
+ * throughput moves with room size because a perimeter grows with the square
+ * root of the area while the field grows with the area.
+ *
+ * This assistant is explicitly labelled a demo and makes no claim about
+ * deployed hardware or existing customers.
+ */
+const TIER = SOFTWARE_TIERS;
+const FLEET_MONTHLY = `$${(RAAS_MONTHLY_LOW_USD * MACHINES_PER_COMPLETE_FLOOR).toLocaleString()}\u2013${(
+  RAAS_MONTHLY_HIGH_USD * MACHINES_PER_COMPLETE_FLOOR
+).toLocaleString()}`;
+const FLEET_CAPITAL = `$${
+  (HARDWARE_UNIT_COST_LOW_USD * MACHINES_PER_COMPLETE_FLOOR) / 1000
+}\u2013${(HARDWARE_UNIT_COST_HIGH_USD * MACHINES_PER_COMPLETE_FLOOR) / 1000}K`;
+
 const demoResponses: Record<string, string> = {
-  what: "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning from a site scan, multi-grit sanding orchestration, edging assistance, finish application monitoring, and per-job dust and quality reporting. The hardware and software are in development — the pilot program is how refinishing crews get involved now.",
-  // Kept in step with the pricing section by hand — this string is the one
-  // place on the site that restates it in prose, so a change there that misses
-  // here turns the assistant into a second, stale price list.
-  pricing: "Planned pricing (subject to change at launch): Essentials at $299/mo base + $149 per robot, Professional at $799/mo base + $99 per robot, and custom Enterprise terms. Those are software subscriptions. For the machines there are two planned routes: robots-as-a-service at an indicative $600–1,000 per robot per month, all-in over a 36-month term, or buying outright at an indicative $15–25K per unit. Note a finished floor takes two machines — a ForgeSand D1 for the field and a ForgeEdge E1 for the band at the wall a drum cannot reach — so a complete setup is roughly $1,200–2,000/mo on the service route or $30–50K of capital on the purchase route. Essentials covers the field only; the perimeter is edged manually or by an E1 on Professional. None of this is locked or an offer — no machine has been built and no manufacturer has quoted a unit cost. Pilot participants get a loaner unit at no hardware cost and preferential launch pricing. Want to join the waitlist?",
-  grit: "FloorForge plans and logs a 36→80→120 sequence — 36 to strip the old finish, 80 to level, 120 to finish sand. That is the sequence the firmware reads and the post-job report writes back. Hand crews often run more steps (60, 150, 180) and walnut or exotics often start at 60 grit to protect color; species-adaptive sequences are a design goal, not something the first pilot units will do. FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.",
+  what: "FloorForge is an early-stage operating system for autonomous hardwood floor refinishing: job planning from a site scan, multi-grit sanding orchestration, edging assistance, finish application monitoring, and per-job dust and quality reporting. The hardware and software are in development \u2014 the pilot program is how refinishing crews get involved now.",
+  pricing:
+    `Planned pricing (subject to change at launch): ${TIER.essentials.name} at $${TIER.essentials.baseUsd}/mo base + $${TIER.essentials.perRobotUsd} per robot, ` +
+    `${TIER.professional.name} at $${TIER.professional.baseUsd}/mo base + $${TIER.professional.perRobotUsd} per robot, and custom Enterprise terms. ` +
+    `Those are software subscriptions. For the machines there are two planned routes: robots-as-a-service at an indicative ` +
+    `${RAAS_MONTHLY_LABEL} per robot per month, all-in over a ${RAAS_TERM_MONTHS}-month term, or buying outright at an indicative ` +
+    `${HARDWARE_UNIT_COST_LABEL} per unit. Note a finished floor takes ${MACHINES_PER_COMPLETE_FLOOR} machines \u2014 a ${getRobot("sand").name} for the field and a ` +
+    `${getRobot("edge").name} for the band at the wall a drum cannot reach \u2014 so a complete setup is roughly ${FLEET_MONTHLY}/mo on the service route or ` +
+    `${FLEET_CAPITAL} of capital on the purchase route. ${TIER.essentials.name} covers the field only; the perimeter is edged manually or by an ` +
+    `${getRobot("edge").codename} on ${TIER.professional.name}. None of this is locked or an offer \u2014 no machine has been built and no manufacturer has quoted a unit cost. ` +
+    `Pilot participants get a loaner unit at no hardware cost and preferential launch pricing. Want to join the waitlist?`,
+  grit:
+    `FloorForge plans and logs a ${GRIT_SEQUENCE.join("\u2192")} sequence \u2014 ${GRIT_SEQUENCE[0]} to strip the old finish, ${GRIT_SEQUENCE[1]} to level, ` +
+    `${GRIT_SEQUENCE[GRIT_SEQUENCE.length - 1]} to finish sand. That is the sequence the firmware reads and the post-job report writes back. Hand crews often run more steps ` +
+    `(60, 150, 180) and walnut or exotics often start at 60 grit to protect color; species-adaptive sequences are a design goal, not something the first pilot units will do. ` +
+    `FloorForge is designed to auto-select and log the sequence per job using load sensing and species detection.`,
   dust: "The design pairs HEPA filtration with cyclonic pre-separation and logs airborne particulate readings throughout the job, so dust performance is documented in the job record rather than promised verbally. Final specs will be validated during the pilot program.",
-  roi: "The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a 50% labor time-reduction baseline (reduced by 7 points for commercial complexity), a $78/hr blended labor rate, and a 1,579 sqft/robot/day throughput target across a 36→80→120 grit sequence — the same coverage rate the 3D simulator runs. Those are design assumptions, not measured field results — validating them is a core goal of the pilot.",
+  roi:
+    `The ROI model on this page is fully transparent: it takes your square footage, current manual hours, and job type, then applies a ` +
+    `${LABOR_TIME_REDUCTION_PCT}% labor time-reduction baseline (reduced by ${Math.abs(JOB_TYPE_ADJUSTMENT_PP.commercial)} points for commercial complexity), a ` +
+    `$${BLENDED_LABOR_RATE_USD}/hr blended labor rate, and a throughput target of ${COMPLETE_FLOOR_SQFT_PER_DAY_LABEL} sqft of FINISHED floor per robot-day \u2014 ` +
+    `field and perimeter, across a ${GRIT_SEQUENCE.join("\u2192")} sequence. It is a band rather than one number because a perimeter grows with the square root of the area ` +
+    `while the field grows with the area, so the figure moves with room size. Those are design assumptions, not measured field results \u2014 validating them is a core goal of the pilot.`,
   pilot: "Scroll to the waitlist section and drop your details, or use the button in the header. We're recruiting a small group of residential, commercial, and specialty refinishing operations to define requirements and test early workflows, in exchange for preferential launch terms.",
   default: "I'm a scripted demo assistant for FloorForge, an early-stage autonomous floor refinishing platform. I can explain the concept, the planned workflow, grit sequencing, the transparent ROI model, planned pricing, or how to join the pilot program. What would you like to know?",
 };
-
 export default function ChatbotPanel({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [messages, setMessages] = useState<Message[]>([
     {

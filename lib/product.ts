@@ -160,7 +160,54 @@ export const BLENDED_LABOR_RATE_USD = 78;
  * hardware sale PLUS SaaS subscription. A contractor reading "$799/mo" would
  * not have budgeted for the machine (audit/PRODUCT_TRUTH.md T1-3).
  */
-export const HARDWARE_UNIT_COST_LABEL = "$15–25K";
+export const HARDWARE_UNIT_COST_LOW_USD = 15_000;
+export const HARDWARE_UNIT_COST_HIGH_USD = 25_000;
+/** Renders exactly as before: "$15–25K". Now derived, so a change to the band
+ *  above cannot leave the label behind. */
+export const HARDWARE_UNIT_COST_LABEL = `$${HARDWARE_UNIT_COST_LOW_USD / 1000}–${
+  HARDWARE_UNIT_COST_HIGH_USD / 1000
+}K`;
+
+/**
+ * The software subscription tiers, USD per month.
+ *
+ * These four numbers were typed twice: once as JSX literals in the homepage
+ * pricing cards and once inside a prose answer in components/ChatbotPanel.tsx.
+ * Two hand-kept copies of a price is how this file came to exist — four
+ * different throughput figures on four surfaces (audit/PRODUCT_TRUTH.md T0-2) —
+ * and a chatbot that quotes a price the pricing table no longer shows is worse
+ * than one that refuses to quote at all.
+ *
+ * The values are lifted from what the site already published, not chosen here.
+ * Enterprise is deliberately not a number: it is "custom" on the page and must
+ * stay custom in every retelling.
+ *
+ * Design targets for a launch that has not happened, like everything else in
+ * this file. Not an offer.
+ */
+export const SOFTWARE_TIERS = {
+  essentials: { name: "Essentials", baseUsd: 299, perRobotUsd: 149 },
+  professional: { name: "Professional", baseUsd: 799, perRobotUsd: 99 },
+} as const;
+
+/**
+ * The throughput band the site publishes, as a label.
+ *
+ * `completeFloorSqftPerDay()` needs a job size, because a perimeter grows with
+ * the square root of the area while the field grows with the area — so the
+ * figure genuinely moves with room size and no single number is honest. Any
+ * surface that has no job size in hand (the assistant, prose) must quote the
+ * BAND across typical residential sizes rather than pick a point from it.
+ *
+ * Computed, not typed: change a machine's working width in lib/robots.ts and
+ * this label moves with it.
+ */
+export const TYPICAL_RESIDENTIAL_SQFT = [1000, 3000] as const;
+export const COMPLETE_FLOOR_SQFT_PER_DAY_LABEL = `${(
+  Math.floor(completeFloorSqftPerDay(TYPICAL_RESIDENTIAL_SQFT[0]) / 50) * 50
+).toLocaleString()}–${(
+  Math.ceil(completeFloorSqftPerDay(TYPICAL_RESIDENTIAL_SQFT[1]) / 50) * 50
+).toLocaleString()}`;
 
 /* ------------------------------------------------------------------ RaaS */
 
