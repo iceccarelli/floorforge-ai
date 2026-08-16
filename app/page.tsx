@@ -74,11 +74,13 @@ const tools = [
     icon: Cpu,
     title: "Live job console",
     description:
-      "Watch a simulated ForgeSand D1 work through the grit sequence for your job — pressure, dust and coverage the whole way — then hand its results to the completion report.",
+      `Watch a simulated ${getRobot("sand").name} cut the field and a simulated ` +
+      `${getRobot("edge").name} cut the band at the wall, alternating once per grit — ` +
+      "pressure, dust and coverage the whole way, then handed to the completion report.",
     bullets: [
       "Real firmware-contract telemetry",
-      "Fills the report automatically",
-      "Simulated machine, real data path",
+      "Field and perimeter reported separately",
+      "Simulated machines, real data path",
     ],
     cta: "Run a job",
   },

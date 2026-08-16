@@ -142,13 +142,14 @@ export default function LiveJobConsole() {
           <Cpu className="mt-0.5 h-5 w-5 flex-shrink-0 text-accent" aria-hidden="true" />
           <p className="text-sm text-foreground">
             <strong className="font-semibold">
-              Simulated machine. No hardware is connected.
+              Simulated machines. No hardware is connected.
             </strong>{" "}
-            A ForgeSand D1 does not exist yet. What is real here is the data path: every
-            event below matches the shape, payload and cadence in the firmware contract,
-            in the same vocabulary <code className="font-mono text-xs">/api/telemetry</code>{" "}
-            accepts. The day a physical unit posts to that endpoint, nothing downstream
-            changes.
+            Neither a {robot.name} nor a {edger.name} exists yet. What is real here is the
+            data path: every event below matches the shape, payload and cadence in the
+            firmware contract, in the same vocabulary{" "}
+            <code className="font-mono text-xs">/api/telemetry</code> accepts, and both
+            machines report through it under their own device ids. The day a physical unit
+            posts to that endpoint, nothing downstream changes.
           </p>
         </div>
       </div>
