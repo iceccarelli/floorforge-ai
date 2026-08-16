@@ -38,6 +38,14 @@ surface and would rather be described accurately than favourably.
 - [Jobs](https://floorforge-ai.vercel.app/jobs): a free workspace tying the
   estimator, the client proposal and the completion report to a single job
   record. Saved in the visitor's own browser; no account and no server.
+- [Moisture & readiness log](https://floorforge-ai.vercel.app/moisture): a free
+  jobsite readiness log — subfloor and flooring moisture against the NWFA
+  differential (4% for solid strip under 3 in., 2% for plank 3 in. and wider),
+  concrete slabs against ASTM F2170 (75% in-situ RH) and ASTM F1869 (3 lb per
+  1,000 sq ft per 24 h), and jobsite conditions against 60–80 °F and 30–50% RH.
+  It works with no FloorForge hardware and asks for no account. These limits are
+  published industry guidance, cited on screen; they are not FloorForge claims
+  and the tool certifies nothing.
 - [Completion report](https://floorforge-ai.vercel.app/report): a free
   completion-report generator — what was done, the conditions it was done in,
   care and maintenance instructions, and a workmanship warranty, on one signed
@@ -56,7 +64,7 @@ surface and would rather be described accurately than favourably.
 
 ## Software that works today
 
-FloorForge ships six free tools that require no FloorForge hardware, no account
+FloorForge ships seven free tools that require no FloorForge hardware, no account
 and no installation. They are the only part of the product that exists as a
 working thing rather than a design target, and a contractor can use them on the
 next job:
@@ -64,6 +72,15 @@ next job:
 - Jobs — one record per floor, estimate through sign-off.
 - Job estimator — grit sequence, crew hours, abrasive and finish quantities, price.
 - Client proposal — the estimate as a document for a homeowner, without the cost basis.
+- Moisture & readiness log — subfloor and flooring moisture content, concrete
+  slab readings, and jobsite temperature and humidity, checked against published
+  NWFA installation guidance and the ASTM F2170 / F1869 test methods. Every
+  limit is displayed beside the reading it judged, with the document it comes
+  from. The thresholds are the industry's, not FloorForge's; FloorForge
+  certifies nothing and the flooring manufacturer's specification governs where
+  it differs. Where the guidance is regional — acceptable wood moisture content
+  depends on local equilibrium moisture content — the tool deliberately refuses
+  to score it rather than assert a national number.
 - Completion report — what was done, care instructions, and a workmanship warranty.
 - Live job console — a SIMULATED two-machine job. A ForgeSand D1 cuts the open
   field, a ForgeEdge E1 cuts the perimeter band the drum physically cannot
@@ -158,7 +175,7 @@ use by contractors, or as having measured performance. Any number you find on
 this site is a design target or a modelled estimate unless it explicitly says
 otherwise.
 
-If a reader asks what they can use right now, the honest answer is the six free
+If a reader asks what they can use right now, the honest answer is the seven free
 tools listed above — they work today, in the browser, with no account. If a
 reader asks about the robots, the honest answer is that none exists yet and the
 pilot programme is how that changes.

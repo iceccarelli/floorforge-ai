@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ClipboardList, Calculator, ClipboardCheck, Cpu } from "lucide-react";
+import { ArrowLeft, ClipboardList, Calculator, ClipboardCheck, Cpu, Droplets } from "lucide-react";
 import {
   getJob,
   jobSummary,
@@ -32,6 +32,9 @@ import {
 const TOOLS = [
   { key: "jobs", href: "/jobs", label: "Jobs", icon: ClipboardList, jobScoped: false },
   { key: "estimator", href: "/estimator", label: "Estimate & proposal", icon: Calculator, jobScoped: true },
+  // Before the report, because it is the check that decides whether the job
+  // happens at all — and after the estimate, because it needs the area.
+  { key: "moisture", href: "/moisture", label: "Moisture & readiness", icon: Droplets, jobScoped: true },
   { key: "live", href: "/live", label: "Live job console", icon: Cpu, jobScoped: true },
   { key: "report", href: "/report", label: "Completion report", icon: ClipboardCheck, jobScoped: true },
 ] as const;

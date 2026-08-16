@@ -165,6 +165,25 @@ ck 'no tier price typed in the chatbot'               bash -c '! grep -qE "\\\$(
 ck 'pricing table reads the tier constants'           g  app/page.tsx 'SOFTWARE_TIERS.essentials.baseUsd'
 ck 'no tier price typed in the pricing table'         bash -c '! grep -qE ">\\\$(299|799)<" app/page.tsx'
 
+hdr 'Moisture & readiness — the seventh tool (patch 44)'
+ck 'lib/moisture.ts holds the published limits'       test -f lib/moisture.ts
+ck 'NWFA differential 4% strip / 2% plank'            g  lib/moisture.ts 'strip: 4, plank: 2'
+ck 'ASTM F2170 slab RH limit is 75%'                  g  lib/moisture.ts 'SLAB_RH_MAX_PCT = 75'
+ck 'ASTM F1869 emission limit is 3 lb'                g  lib/moisture.ts 'SLAB_MVER_MAX_LB = 3'
+ck 'ambient window 60-80F / 30-50% RH'                bash -c 'grep -qF "min: 60, max: 80" lib/moisture.ts && grep -qF "min: 30, max: 50" lib/moisture.ts'
+ck 'F2170 test-location count is computed'            g  lib/moisture.ts 'requiredSlabTestLocations'
+ck 'every threshold carries its source document'      g  lib/moisture.ts 'export const SOURCES'
+ck 'flooring MC is deliberately NOT scored'           g  lib/moisture.ts 'Deliberately not scored'
+ck 'the /moisture route exists'                       test -f app/moisture/page.tsx
+ck 'the tool joins the workspace shell'               g  components/WorkspaceShell.tsx '/moisture'
+ck 'the job record can carry readings'                g  lib/jobs.ts 'moisture?: MoistureInputs'
+ck 'homepage offers it'                               g  app/page.tsx 'href: "/moisture"'
+ck 'sitemap declares it'                              g  app/sitemap.ts '/moisture'
+ck 'llms.txt says seven tools, not six'               g  public/llms.txt 'seven free tools'
+ck 'the audit matrix covers the new route'            g  audit/scripts/viewports.mjs '/moisture'
+ck 'limits attributed to the industry, not us'        g  components/MoistureLog.tsx "not FloorForge"
+ck 'no certification is implied'                      g  components/MoistureLog.tsx 'certifies nothing'
+
 # ---------------------------------------------------------------------------
 printf '\n%s\n' "$(printf '%.0s-' {1..72})"
 printf '\033[1m%d in, %d out\033[0m\n' "$PASS" "$FAIL"
@@ -174,4 +193,4 @@ if [ "$FAIL" -gt 0 ]; then
   printf '\nEach line above is one patch that is missing, reverted, or overwritten.\n'
   exit 1
 fi
-printf 'Every patch through 43 is present in this working tree.\n'
+printf 'Every patch through 44 is present in this working tree.\n'

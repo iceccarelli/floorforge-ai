@@ -4,7 +4,7 @@ import React from "react";
 import {
   Zap, Shield, Target, Layers, Bot, BarChart3,
   CheckCircle, MinusCircle, ArrowRight, ArrowDown,
-  ClipboardList, Calculator, FileSignature, ClipboardCheck, Cpu,
+  ClipboardList, Calculator, FileSignature, ClipboardCheck, Cpu, Droplets,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import ROICalculator from "@/components/ROICalculator";
@@ -84,6 +84,19 @@ const tools = [
       "Simulated machines, real data path",
     ],
     cta: "Run a job",
+  },
+  {
+    href: "/moisture",
+    icon: Droplets,
+    title: "Moisture & readiness",
+    description:
+      "The check that decides whether the job happens at all. Subfloor and flooring moisture, slab readings and room conditions against the published NWFA and ASTM limits — each printed beside the reading it judged.",
+    bullets: [
+      "Every limit shown with its source",
+      "Wood differential and concrete slabs",
+      "Dated record if it is ever disputed",
+    ],
+    cta: "Log the readings",
   },
   {
     href: "/report",

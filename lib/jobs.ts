@@ -6,6 +6,7 @@ import {
   type EstimatorInputs,
 } from "@/lib/estimator";
 import { EMPTY_REPORT, type ReportInput } from "@/lib/report";
+import type { MoistureInputs } from "@/lib/moisture";
 
 /**
  * The job record — one floor, all the way through.
@@ -58,6 +59,12 @@ export interface JobRecord {
   estimate: EstimatorInputs;
   assumptions: Assumptions;
   report: ReportInput;
+  /**
+   * Jobsite readiness readings. OPTIONAL on purpose: these records live in a
+   * contractor's own browser, and a job saved before FLOORFORGE_44 must keep
+   * opening. Readers use `job.moisture ?? DEFAULT_MOISTURE`.
+   */
+  moisture?: MoistureInputs;
 }
 
 const KEY = "floorforge.jobs.v1";

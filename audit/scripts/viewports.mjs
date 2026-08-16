@@ -18,6 +18,7 @@ export const ROUTES = [
   "/estimator",
   "/jobs",
   "/live",
+  "/moisture",
   "/report",
   "/simulator",
   "/pro-simulator",
