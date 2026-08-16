@@ -1,0 +1,205 @@
+FLOORFORGE_40 — the live console's copy describes a one-machine run; it runs two.
+
+WHAT IS WRONG
+
+FLOORFORGE_30 turned /live into a two-machine job. The ForgeSand D1 works the
+open field, parks, and the ForgeEdge E1 cuts the 12 cm band at the wall a drum
+physically cannot reach; they alternate once per grit under separate device ids
+(FF-S001, FF-E001), and the finished run writes field coverage and perimeter
+coverage into the completion report as two separately attributed figures.
+
+The stage, the HUD and the status chip were all updated to follow whichever
+machine is actually cutting. Three surfaces were not:
+
+  app/live/page.tsx        h1 "Watch a D1 run the floor.", the intro, and the
+                           <meta name="description"> all announced one machine.
+  components/LiveJobConsole.tsx
+                           the honesty note read "A ForgeSand D1 does not exist
+                           yet" — denying the existence of one machine on a page
+                           that simulates two.
+  app/page.tsx             the homepage card linking to /live described a single
+                           D1 and a bullet reading "Simulated machine".
+
+So the page understated what it does, and it contradicted public/llms.txt, which
+has described the two-machine run since FLOORFORGE_37. On a site whose entire
+credibility rests on its own description being accurate, a page describing itself
+wrongly is a defect of the same class as a wrong number.
+
+WHAT THIS CHANGES
+
+Copy only. No behaviour, no styling, no layout, no new claim.
+
+  * The headline names the machine count and what the console proves:
+    "Two machines. One floor. Every event accounted for."
+  * The intro describes the actual sequence — field, park, perimeter, alternate
+    once per grit — and the split figures the report receives.
+  * Machine names and the edge gap are READ FROM lib/robots.ts (getRobot("sand"),
+    getRobot("edge"), edgeGapM * 100) rather than typed, so this cannot drift
+    again silently. "12 cm" on the page is 0.12 m from the spec.
+
+THE DISCLAIMERS GOT STRONGER, NOT WEAKER
+
+Per the standing constraint, nothing was removed, shortened, softened or moved:
+
+  before: "A ForgeSand D1 does not exist yet."
+  after:  "Neither a ForgeSand D1 nor a ForgeEdge E1 exists yet."
+
+  before: "No FloorForge machine has refinished a floor, and none is connected
+           here."
+  after:  unchanged, plus "Neither the D1 nor the E1 has been built."
+
+  eyebrow: "SIMULATED MACHINE" -> "SIMULATED MACHINES"
+  card bullet: "Simulated machine, real data path" -> "Simulated machines, ..."
+
+No performance figure, customer count, testimonial, case study, certification or
+partner logo was added. Nothing implies a shipped product or an existing
+customer.
+
+VERIFIED against a production build served on :3111
+
+  verify40                44/44 pass, including: old single-machine copy gone
+                          from page, head and homepage card; both machines named
+                          in intro, note, description and title; the 12 cm figure
+                          equals getRobot("sand").edgeGapM * 100; both machines
+                          still appear in the console during a live run.
+  axe-core                0 violations across 11 routes
+  responsive              0 FAIL — continuous 320->1920, reflow 320x256,
+                          200% text (the longer headline was the risk here)
+  overflow (/live)        0px at 320x256, 320, 390, 768, 1440 and at 200% text
+  structure               one h1, landmarks and heading order unchanged
+  link crawl              0 defects, 11/11 targets 200
+  tsc --noEmit            clean
+  eslint                  0 errors (1 pre-existing warning, lib/db/client.ts:172)
+  next build              20/20 routes
+
+NOT FIXED HERE, REPORTED HONESTLY
+
+audit/scripts/contrast.mjs exits 1 with 45 rendered-contrast failures. NONE are
+on /live and none are on text this patch touches. Roughly two thirds are false
+positives — sr-only text, which the script measures as white-on-white because it
+is clipped to 1px. The remainder look real: overlay labels on the concept-render
+carousel at 4.44:1, /systems at 3.56:1, /simulator's orbit hint at 4.23:1 and
+/pro-simulator at 4.43:1, all against the 4.5:1 requirement. axe does not catch
+these because it declines to judge text over an image. That is the next patch,
+not this one.
+
+---
+--- a/app/live/page.tsx
++++ b/app/live/page.tsx
+@@ -1,11 +1,20 @@
+ import type { Metadata } from "next";
+ import WorkspaceShell from "@/components/WorkspaceShell";
+ import LiveJobConsole from "@/components/LiveJobConsole";
++import { getRobot } from "@/lib/robots";
++
++const SAND = getRobot("sand");
++const EDGE = getRobot("edge");
++const GAP_CM = Math.round((SAND.edgeGapM ?? 0) * 100);
+ 
+ export const metadata: Metadata = {
+-  title: "Live Job Console | FloorForge — Watch a Simulated D1 Run a Floor",
++  title: "Live Job Console | FloorForge — Watch Two Machines Finish a Floor",
+   description:
+-    "A simulated ForgeSand D1 runs a multi-grit job and emits telemetry in the exact shape the firmware contract specifies, then fills in the completion report from what it emitted. No hardware is connected; the data path is real.",
++    `A simulated ${SAND.name} cuts the open field and a simulated ${EDGE.name} cuts the ` +
++    `${GAP_CM} cm band at the wall the drum cannot reach, alternating once per grit. Both emit ` +
++    "telemetry in the exact shape the firmware contract specifies, and the finished run writes " +
++    "field and perimeter coverage into the completion report as separate figures. No hardware is " +
++    "connected; the data path is real.",
+   alternates: { canonical: "/live" },
+ };
+ 
+@@ -23,26 +32,42 @@
+  * event vocabulary, the envelope and the cadences are the ones in
+  * SOFTWARE_HARDWARE_CONTRACT.md and lib/types.ts, which is what makes this a
+  * demonstration rather than an animation.
++ *
++ * COPY DRIFT, corrected here. FLOORFORGE_30 made this a two-machine run — the
++ * D1 works the field, parks, and the E1 cuts the band the drum physically
++ * cannot reach, alternating once per grit — and the report started carrying
++ * field and perimeter coverage as separate, separately attributed figures. The
++ * stage, the HUD and the status chip were all updated to follow whichever
++ * machine is actually cutting. This page's own headline, intro and description
++ * were not: they still announced a single D1 running the whole floor. The page
++ * was therefore understating what it does and contradicting public/llms.txt,
++ * which has described the two-machine run since FLOORFORGE_37. Machine names,
++ * and the gap that is the entire reason a second machine exists, are read from
++ * lib/robots.ts here rather than typed, so this cannot drift again silently.
+  */
+ export default function LivePage() {
+   return (
+     <WorkspaceShell
+       active="live"
+-      eyebrow="FREE TOOL · SIMULATED MACHINE"
+-      title="Watch a D1 run the floor."
++      eyebrow="FREE TOOL · SIMULATED MACHINES"
++      title="Two machines. One floor. Every event accounted for."
+       intro={
+         <>
+-          A simulated ForgeSand D1 works through the grit sequence for your job, reporting
+-          pressure, dust and coverage the whole way — then hands the results to the
+-          completion report.
++          A simulated {SAND.name} cuts the open field. It parks, and a simulated{" "}
++          {EDGE.name} cuts the {GAP_CM} cm band at the wall a drum physically cannot
++          reach. They alternate once per grit, reporting pressure, dust and coverage the
++          whole way — and the finished run hands the completion report field coverage and
++          perimeter coverage as two figures, each attributed to the machine that earned
++          it.
+         </>
+       }
+       note={
+         <>
+-          No FloorForge machine has refinished a floor, and none is connected here. The
+-          numbers are generated from the design targets published elsewhere on this site.
+-          What is real is the shape of the data — the same events, envelope and cadences
+-          the firmware contract specifies.
++          No FloorForge machine has refinished a floor, and none is connected here.
++          Neither the {SAND.codename} nor the {EDGE.codename} has been built. The numbers
++          are generated from the design targets published elsewhere on this site. What is
++          real is the shape of the data — the same events, envelope and cadences the
++          firmware contract specifies.
+         </>
+       }
+     >
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -74,11 +74,13 @@
+     icon: Cpu,
+     title: "Live job console",
+     description:
+-      "Watch a simulated ForgeSand D1 work through the grit sequence for your job — pressure, dust and coverage the whole way — then hand its results to the completion report.",
++      `Watch a simulated ${getRobot("sand").name} cut the field and a simulated ` +
++      `${getRobot("edge").name} cut the band at the wall, alternating once per grit — ` +
++      "pressure, dust and coverage the whole way, then handed to the completion report.",
+     bullets: [
+       "Real firmware-contract telemetry",
+-      "Fills the report automatically",
+-      "Simulated machine, real data path",
++      "Field and perimeter reported separately",
++      "Simulated machines, real data path",
+     ],
+     cta: "Run a job",
+   },
+--- a/components/LiveJobConsole.tsx
++++ b/components/LiveJobConsole.tsx
+@@ -142,13 +142,14 @@
+           <Cpu className="mt-0.5 h-5 w-5 flex-shrink-0 text-accent" aria-hidden="true" />
+           <p className="text-sm text-foreground">
+             <strong className="font-semibold">
+-              Simulated machine. No hardware is connected.
++              Simulated machines. No hardware is connected.
+             </strong>{" "}
+-            A ForgeSand D1 does not exist yet. What is real here is the data path: every
+-            event below matches the shape, payload and cadence in the firmware contract,
+-            in the same vocabulary <code className="font-mono text-xs">/api/telemetry</code>{" "}
+-            accepts. The day a physical unit posts to that endpoint, nothing downstream
+-            changes.
++            Neither a {robot.name} nor a {edger.name} exists yet. What is real here is the
++            data path: every event below matches the shape, payload and cadence in the
++            firmware contract, in the same vocabulary{" "}
++            <code className="font-mono text-xs">/api/telemetry</code> accepts, and both
++            machines report through it under their own device ids. The day a physical unit
++            posts to that endpoint, nothing downstream changes.
+           </p>
+         </div>
+       </div>
