@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db/client";
 import * as types from "@/lib/types";
+import { requireOperator, OperatorAuthError } from "@/lib/apiAuth";
 
 interface RouteParams {
   params: Promise<{
@@ -18,6 +19,7 @@ export async function GET(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
+    await requireOperator();
     const { id } = await params;
     const application = await db.getPilotApplicationById(id);
 
@@ -28,6 +30,15 @@ export async function GET(
       { status: 200 }
     );
   } catch (error) {
+    if (error instanceof OperatorAuthError) {
+      return NextResponse.json(
+        {
+          error: { code: error.code, message: error.message },
+        } as types.ApiResponse<never>,
+        { status: error.status }
+      );
+    }
+
     console.error("GET /api/applications/[id] error:", error);
     return NextResponse.json(
       {
@@ -46,6 +57,7 @@ export async function PATCH(
   { params }: RouteParams
 ): Promise<NextResponse> {
   try {
+    await requireOperator();
     const { id } = await params;
     const body = await req.json();
 
@@ -71,6 +83,15 @@ export async function PATCH(
       { status: 200 }
     );
   } catch (error) {
+    if (error instanceof OperatorAuthError) {
+      return NextResponse.json(
+        {
+          error: { code: error.code, message: error.message },
+        } as types.ApiResponse<never>,
+        { status: error.status }
+      );
+    }
+
     console.error("PATCH /api/applications/[id] error:", error);
     return NextResponse.json(
       {

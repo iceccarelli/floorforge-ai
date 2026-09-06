@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import * as db from "@/lib/db/client";
 import * as validators from "@/lib/validators";
 import * as types from "@/lib/types";
+import { requireOperator, OperatorAuthError } from "@/lib/apiAuth";
 
 // ============================================================================
 // POST /api/applications
@@ -60,13 +61,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
+    // The pilot pipeline is the company's sales pipeline. Before this guard
+    // the route's own comment said "For now, this is open for demo purposes."
+    // and it returned every lead's name, email, phone and internal notes to
+    // anyone who asked. Unconfigured auth now yields 503, never data.
+    await requireOperator();
+
     // Extract query parameters
     const status = req.nextUrl.searchParams.get("status");
     const limit = parseInt(req.nextUrl.searchParams.get("limit") || "20", 10);
     const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
-
-    // TODO: Add auth check - only allow system_admin, pilot_admin, support roles
-    // For now, this is open for demo purposes.
 
     // Fetch applications
     const { applications, total_count } = await db.getPilotApplications({
@@ -87,6 +91,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
+    if (error instanceof OperatorAuthError) {
+      return NextResponse.json(
+        {
+          error: { code: error.code, message: error.message },
+        } as types.ApiResponse<never>,
+        { status: error.status }
+      );
+    }
+
     console.error("GET /api/applications error:", error);
     return NextResponse.json(
       {

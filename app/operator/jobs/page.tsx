@@ -118,14 +118,19 @@ export default function JobsPage() {
   ) {
     try {
       setUpdatingId(id);
-      const response = await fetch(`/api/jobs/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          ...updates,
-        }),
-      });
+      // tenant_id is now required on this route: PATCH /api/jobs/[id] used to
+      // update any job in any tenant from its id alone.
+      const response = await fetch(
+        `/api/jobs/${id}?tenant_id=${encodeURIComponent(selectedTenantId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: newStatus,
+            ...updates,
+          }),
+        }
+      );
 
       const json = (await response.json()) as types.ApiResponse<types.Job>;
 
