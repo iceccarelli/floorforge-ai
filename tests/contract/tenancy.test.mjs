@@ -1,0 +1,320 @@
+/**
+ * Tenant isolation.
+ *
+ * Every tenant-scoped route in this product used to take `tenant_id` from the
+ * request — a query parameter on `GET`, the body on `POST` — so the caller
+ * chose whose data to read and write. `GET /api/jobs/[id]` had no tenant filter
+ * at all, and `updateJob(id, updates)` had none either, so a known job id from
+ * any caller was writable in any tenant.
+ *
+ * The database's answer to this, RLS, could never fire: every policy in
+ * migrations/001 is keyed on `auth.uid()`, the subject of a **Supabase Auth**
+ * session, and this product authenticates with **Clerk** and never creates one.
+ * That means there is no second line of defence underneath `lib/apiAuth.ts`.
+ * It is the whole boundary, so it is tested like one.
+ *
+ * The rule, in one sentence: **`resolveTenantScope` never returns a tenant the
+ * caller did not already have a right to.**
+ */
+
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  resolveTenantScope,
+  requireRole,
+  isPlatformRole,
+  PLATFORM_ROLES,
+  OperatorAuthError,
+} from "@/lib/apiAuth";
+
+const TENANT_A = "11111111-1111-1111-1111-111111111111";
+const TENANT_B = "22222222-2222-2222-2222-222222222222";
+
+const identity = (role, tenantId = TENANT_A) => ({
+  subject: `clerk_${role}`,
+  userId: `user-${role}`,
+  tenantId,
+  role,
+});
+
+const CUSTOMER_ROLES = ["pilot_admin", "pilot_technician", "pilot_customer"];
+
+function captureThrow(fn) {
+  try {
+    fn();
+  } catch (error) {
+    return error;
+  }
+  assert.fail("expected the call to throw, and it did not");
+}
+
+// ---------------------------------------------------------------------------
+// Customer users are pinned to their own tenant
+// ---------------------------------------------------------------------------
+
+test("a customer user gets their own tenant when they ask for nothing", () => {
+  for (const role of CUSTOMER_ROLES) {
+    assert.equal(resolveTenantScope(identity(role), null), TENANT_A);
+    assert.equal(resolveTenantScope(identity(role), undefined), TENANT_A);
+    assert.equal(resolveTenantScope(identity(role), ""), TENANT_A);
+  }
+});
+
+test("a customer user asking for another tenant is refused, not corrected", () => {
+  // Refused rather than silently scoped back: a client sending the wrong tenant
+  // is either broken or probing, and quietly returning the right data teaches
+  // neither of them anything.
+  for (const role of CUSTOMER_ROLES) {
+    const err = captureThrow(() => resolveTenantScope(identity(role), TENANT_B));
+    assert.ok(err instanceof OperatorAuthError, role);
+    assert.equal(err.code, "TENANT_FORBIDDEN", role);
+    assert.equal(err.status, 403, role);
+  }
+});
+
+test("a customer user naming their own tenant explicitly is fine", () => {
+  // The operator console sends it in some paths. Agreement is not an attack.
+  assert.equal(resolveTenantScope(identity("pilot_admin"), TENANT_A), TENANT_A);
+});
+
+test("pilot_admin is a customer role, not a platform role", () => {
+  // The distinction that matters commercially: pilot_admin administers *a
+  // flooring company's* account. If it reached across tenants, every pilot
+  // customer could read every other pilot's jobs.
+  assert.equal(isPlatformRole("pilot_admin"), false);
+  const err = captureThrow(() => resolveTenantScope(identity("pilot_admin"), TENANT_B));
+  assert.equal(err.code, "TENANT_FORBIDDEN");
+});
+
+test("a user with no tenant reaches nothing", () => {
+  const err = captureThrow(() =>
+    resolveTenantScope(identity("pilot_technician", null), TENANT_A)
+  );
+  assert.equal(err.code, "NO_TENANT");
+  assert.equal(err.status, 403);
+});
+
+// ---------------------------------------------------------------------------
+// Platform staff
+// ---------------------------------------------------------------------------
+
+test("platform staff may name any tenant", () => {
+  // Supporting a pilot means being able to look at it.
+  for (const role of PLATFORM_ROLES) {
+    assert.equal(resolveTenantScope(identity(role, null), TENANT_B), TENANT_B);
+  }
+});
+
+test("platform staff must name a tenant — there is no implicit all-tenants", () => {
+  // This is how a support tool becomes an export of the whole platform by
+  // accident.
+  for (const role of PLATFORM_ROLES) {
+    const err = captureThrow(() => resolveTenantScope(identity(role, null), null));
+    assert.equal(err.code, "NO_TENANT", role);
+    assert.equal(err.status, 400, role);
+  }
+});
+
+test("the platform role list is exactly system_admin and support", () => {
+  // Pinned deliberately. Adding a role here silently widens cross-tenant reach
+  // for everyone who holds it, which is not a change that should pass review
+  // unnoticed.
+  assert.deepEqual([...PLATFORM_ROLES].sort(), ["support", "system_admin"]);
+});
+
+// ---------------------------------------------------------------------------
+// Roles
+// ---------------------------------------------------------------------------
+
+test("requireRole refuses a role outside the allow-list", () => {
+  const err = captureThrow(() =>
+    requireRole(identity("pilot_technician"), ["system_admin", "support"])
+  );
+  assert.ok(err instanceof OperatorAuthError);
+  assert.equal(err.code, "ROLE_FORBIDDEN");
+  assert.equal(err.status, 403);
+  // The message has to say what would have worked.
+  assert.match(err.message, /system_admin/);
+});
+
+test("requireRole admits a role on the allow-list", () => {
+  assert.doesNotThrow(() =>
+    requireRole(identity("support"), ["system_admin", "support"])
+  );
+});
+
+test("the pipeline is closed to a contractor's own technicians", () => {
+  // GET /api/applications is the sales pipeline — names, emails, phones,
+  // internal notes. It was open to the internet; it must not now be open to
+  // every user of every pilot account.
+  const PIPELINE_ROLES = ["system_admin", "pilot_admin", "support"];
+  for (const role of ["pilot_technician", "pilot_customer"]) {
+    const err = captureThrow(() => requireRole(identity(role), PIPELINE_ROLES));
+    assert.equal(err.code, "ROLE_FORBIDDEN", role);
+  }
+  for (const role of PIPELINE_ROLES) {
+    assert.doesNotThrow(() => requireRole(identity(role), PIPELINE_ROLES), role);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The property, stated directly
+// ---------------------------------------------------------------------------
+
+test("resolveTenantScope never returns a tenant the caller had no right to", () => {
+  // Exhaustive over every role, both tenants, and the absent case. Either the
+  // call throws, or it returns a tenant the caller was entitled to — their own
+  // for a customer, anything for platform staff.
+  const roles = [...CUSTOMER_ROLES, ...PLATFORM_ROLES];
+  const requests = [null, undefined, "", TENANT_A, TENANT_B, "not-a-tenant"];
+
+  for (const role of roles) {
+    for (const ownTenant of [TENANT_A, TENANT_B, null]) {
+      for (const requested of requests) {
+        const who = identity(role, ownTenant);
+        let result;
+        try {
+          result = resolveTenantScope(who, requested);
+        } catch (error) {
+          assert.ok(
+            error instanceof OperatorAuthError,
+            `${role}/${ownTenant}/${requested} threw something that is not an auth error`
+          );
+          continue;
+        }
+
+        if (isPlatformRole(role)) {
+          assert.equal(
+            result,
+            requested,
+            `platform staff got ${result} after asking for ${requested}`
+          );
+        } else {
+          assert.equal(
+            result,
+            ownTenant,
+            `${role} with tenant ${ownTenant} resolved to ${result} ` +
+              `after requesting ${requested}`
+          );
+        }
+      }
+    }
+  }
+});
+
+// ---------------------------------------------------------------------------
+// requireOperator: the failure ladder
+// ---------------------------------------------------------------------------
+
+import { requireOperator } from "@/lib/apiAuth";
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+const storeWith = (user) => ({
+  async findUserByAuthSubject() {
+    return user;
+  },
+});
+
+async function captureReject(fn) {
+  try {
+    await fn();
+  } catch (error) {
+    return error;
+  }
+  assert.fail("expected the call to reject, and it resolved");
+}
+
+test("with no identity provider configured, the operator API is unavailable", async () => {
+  // The important half of this assertion is the status: 503, not 200 with data
+  // and not 401. "Nobody configured Clerk" must never resolve to "serve the
+  // pipeline to the internet", which is what the route did before.
+  assert.equal(
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+    undefined,
+    "this test asserts the unconfigured path; the env var must not be set"
+  );
+
+  const err = await captureReject(() =>
+    requireOperator(storeWith({ id: "u1", tenant_id: TENANT_A, role: "system_admin" }), async () => "clerk_sub")
+  );
+  assert.ok(err instanceof OperatorAuthError);
+  assert.equal(err.code, "OPERATOR_AUTH_NOT_CONFIGURED");
+  assert.equal(err.status, 503);
+});
+
+test("a Clerk account with no users row is not an operator", async () => {
+  // The provisioning gap, made explicit. A signed-in stranger is 401, not a
+  // user with a null tenant who then reaches whatever a null tenant matches.
+  const err = await captureReject(() =>
+    requireOperator(storeWith(null), async () => "clerk_unknown")
+  );
+  assert.equal(
+    err.code,
+    // Which of the two fires depends on configuration; both are refusals, and
+    // neither returns an identity.
+    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+      ? "IDENTITY_NOT_PROVISIONED"
+      : "OPERATOR_AUTH_NOT_CONFIGURED"
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Schema drift: no policy may depend on auth.uid()
+// ---------------------------------------------------------------------------
+
+test("no surviving RLS policy depends on auth.uid()", () => {
+  // migrations/001 wrote thirteen references to auth.uid(), and 002 added more.
+  // auth.uid() is a Supabase Auth subject; this product authenticates with
+  // Clerk and never establishes a Supabase Auth session, so every one of those
+  // policies denied silently — including the ones that looked like they granted
+  // access. migrations/003 drops them.
+  //
+  // This test replays the migration series and fails if a policy keyed on
+  // auth.uid() survives, or if a future migration adds one back. Either is the
+  // same bug returning: an authorization model written for an identity provider
+  // this product does not use.
+  const files = readdirSync(path.join(ROOT, "migrations"))
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+
+  const live = new Map(); // "table::policy" -> uses auth.uid()
+
+  for (const file of files) {
+    const sql = readFileSync(path.join(ROOT, "migrations", file), "utf8");
+
+    for (const m of sql.matchAll(
+      /CREATE POLICY\s+"([^"]+)"\s+ON\s+(\w+)([\s\S]*?);\n/g
+    )) {
+      live.set(`${m[2]}::${m[1]}`, m[3].includes("auth.uid()"));
+    }
+    for (const m of sql.matchAll(
+      /DROP POLICY(?: IF EXISTS)?\s+"([^"]+)"\s+ON\s+(\w+)/g
+    )) {
+      live.delete(`${m[2]}::${m[1]}`);
+    }
+  }
+
+  const dead = [...live.entries()]
+    .filter(([, usesAuthUid]) => usesAuthUid)
+    .map(([key]) => key);
+
+  assert.deepEqual(
+    dead,
+    [],
+    "these policies can never grant anything, because auth.uid() is NULL for " +
+      "every request this product makes. Either drop them, or wire Supabase's " +
+      "third-party Clerk auth and key them on users.auth_subject."
+  );
+
+  // And the one that must survive: the public waitlist write.
+  assert.ok(
+    live.has("pilot_applications::Anyone may submit a pilot application"),
+    "the public waitlist INSERT policy was dropped — POST /api/applications " +
+      "from a browser would now be denied"
+  );
+});
