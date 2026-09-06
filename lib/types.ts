@@ -385,3 +385,74 @@ export interface PaginatedResponse<T> {
   limit: number;
   has_more: boolean;
 }
+
+// ============================================================================
+// DATA PROVENANCE
+// ============================================================================
+
+/**
+ * What kind of thing a stored value is.
+ *
+ * FLOORFORGE_SYSTEM_BASELINE.md §3.6. `lib/simulation.ts` emits events in the
+ * exact shape of SOFTWARE_HARDWARE_CONTRACT.md, into the same endpoint, with
+ * the same event types. Nothing in the schema distinguished them, so the first
+ * day both a simulator and a machine wrote to `telemetry_events` the dataset
+ * would have become permanently inadmissible — no query could separate what was
+ * measured from what was modelled, and every quality claim built on it would
+ * have been unprovable.
+ *
+ * Mirrors the `data_provenance` enum in migrations/002_telemetry_integrity.sql.
+ * There is deliberately no value meaning "unspecified": a row that cannot say
+ * what it is does not get written.
+ */
+export type Provenance =
+  | "measured"
+  | "simulated"
+  | "model_estimated"
+  | "operator_entered"
+  | "manufacturer_specified"
+  | "design_target"
+  | "historical";
+
+/** Mirrors the `device_kind` enum in migrations/002_telemetry_integrity.sql. */
+export type DeviceKind = "hardware" | "simulator" | "test_harness";
+
+export type CredentialStatus = "active" | "revoked";
+
+/**
+ * An issued device credential. One row per credential, not per machine: a
+ * machine may hold several (rotation, a staging key) and revoking one must not
+ * brick the other.
+ *
+ * The key itself is never stored or returned. `key_prefix` exists so an
+ * operator can tell two credentials apart, and so a leaked key can be traced
+ * from a log line without the log holding the secret.
+ */
+export interface DeviceCredential {
+  id: string;
+  robot_id: string;
+  tenant_id: string;
+  kind: DeviceKind;
+  label?: string;
+  key_prefix: string;
+  status: CredentialStatus;
+  last_seen_at?: string;
+  created_at: string;
+  revoked_at?: string;
+}
+
+/**
+ * Provenance is decided by the credential that presented the event, never by
+ * the event itself. A simulator cannot claim measurement even if it asks to,
+ * and a test harness is simulated on purpose — CI traffic must never be able to
+ * enter the corpus as evidence.
+ */
+export function provenanceForDeviceKind(kind: DeviceKind): Provenance {
+  switch (kind) {
+    case "hardware":
+      return "measured";
+    case "simulator":
+    case "test_harness":
+      return "simulated";
+  }
+}

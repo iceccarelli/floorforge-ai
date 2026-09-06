@@ -4,6 +4,7 @@
  */
 
 import * as types from "./types";
+import { isJobStatus } from "./jobState";
 
 export interface ValidationError {
   field: string;
@@ -88,7 +89,16 @@ export function validatePilotApplicationInput(
       source: input.source as "floorforge-site" | "ecowoods-referral" | "partner" | "direct",
       source_details: input.source_details ? String(input.source_details).trim() : undefined,
       status: "new" as const,
-      internal_notes: input.internal_notes ? String(input.internal_notes).trim() : undefined,
+      // `internal_notes` is deliberately NOT read from input. This validator
+      // serves the public waitlist form (lib/waitlist.ts:103), and it used to
+      // copy an attacker-supplied `internal_notes` straight into the column the
+      // operator console shows as staff commentary on a lead — an unauthenticated
+      // write into a trusted field. The RLS policy added in
+      // migrations/002_telemetry_integrity.sql §5 refuses such a row outright;
+      // dropping it here means a caller who tries gets their application
+      // accepted with the field ignored, rather than a confusing policy error.
+      // Staff notes are written through PATCH /api/applications/[id], which is
+      // behind requireOperator().
     },
   };
 }
@@ -429,19 +439,12 @@ function isValidPilotApplicationStatus(status: unknown): boolean {
   return typeof status === "string" && validStatuses.includes(status as types.PilotApplicationStatus);
 }
 
+// Delegates to lib/jobState.ts rather than repeating the list. A second copy of
+// an enum in the same repository is how migrations/001 came to store eleven
+// telemetry event types while this file accepted fifteen
+// (FLOORFORGE_SYSTEM_BASELINE.md §3.1). One list, one place.
 function isValidJobStatus(status: unknown): boolean {
-  const validStatuses: types.JobStatus[] = [
-    "draft",
-    "queued",
-    "in_progress",
-    "paused",
-    "completed",
-    "approved",
-    "rework",
-    "failed",
-    "archived",
-  ];
-  return typeof status === "string" && validStatuses.includes(status as types.JobStatus);
+  return isJobStatus(status);
 }
 
 function isValidEventType(eventType: unknown): boolean {

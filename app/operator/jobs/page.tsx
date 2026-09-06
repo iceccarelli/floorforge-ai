@@ -72,18 +72,18 @@ export default function JobsPage() {
       await Promise.resolve();
       if (!active) return;
 
-      if (!selectedTenantId) {
-        setJobs([]);
-        setLoading(false);
-        return;
-      }
-
+      // No tenant gate any more. Tenancy comes from the session
+      // (lib/apiAuth.ts): a contractor's own staff are pinned to their tenant
+      // and never needed to type one. The field below is only meaningful for
+      // FloorForge staff, who may look into any tenant and must name which —
+      // the API answers NO_TENANT if they do not, and that message is shown.
       setLoading(true);
       try {
-        const query =
-          filterStatus === "all"
-            ? `/api/jobs?tenant_id=${selectedTenantId}`
-            : `/api/jobs?tenant_id=${selectedTenantId}&status=${filterStatus}`;
+        const params = new URLSearchParams();
+        if (filterStatus !== "all") params.set("status", filterStatus);
+        if (selectedTenantId) params.set("tenant_id", selectedTenantId);
+        const qs = params.toString();
+        const query = qs ? `/api/jobs?${qs}` : "/api/jobs";
 
         const response = await fetch(query);
         const json = (await response.json()) as types.ApiResponse<
@@ -118,14 +118,23 @@ export default function JobsPage() {
   ) {
     try {
       setUpdatingId(id);
-      const response = await fetch(`/api/jobs/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: newStatus,
-          ...updates,
-        }),
-      });
+      // tenant_id is sent only when a FloorForge staff user has named one.
+      // For everyone else the session decides, and a tenant_id that disagrees
+      // with the session is refused with 403 rather than silently corrected.
+      const scope = selectedTenantId
+        ? `?tenant_id=${encodeURIComponent(selectedTenantId)}`
+        : "";
+      const response = await fetch(
+        `/api/jobs/${id}${scope}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status: newStatus,
+            ...updates,
+          }),
+        }
+      );
 
       const json = (await response.json()) as types.ApiResponse<types.Job>;
 

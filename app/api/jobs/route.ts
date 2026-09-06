@@ -1,43 +1,104 @@
 /**
- * POST /api/jobs - Create job
- * GET /api/jobs - List jobs for authenticated user's tenant
+ * POST /api/jobs - Create a job in the caller's tenant
+ * GET  /api/jobs - List jobs in the caller's tenant
+ *
+ * WHAT CHANGED. Both handlers used to carry `// TODO: Add auth check` and take
+ * `tenant_id` from the request — the body on POST, a query parameter on GET. The
+ * caller chose whose data to create and read. Tenancy now comes from the
+ * session (`lib/apiAuth.ts`), and `tenant_id` in a request is either ignored or
+ * refused, never obeyed.
+ *
+ * Platform staff (system_admin, support) may still name a tenant, because
+ * supporting a pilot means being able to look at it. Everyone else is pinned to
+ * their own, and a mismatched `tenant_id` is a 403 rather than a silent
+ * substitution — a client sending the wrong tenant is broken or probing, and
+ * quietly returning the right answer teaches neither of them anything.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import * as db from "@/lib/db/client";
+import * as db from "@/lib/db/server";
 import * as validators from "@/lib/validators";
 import * as types from "@/lib/types";
+import {
+  requireOperator,
+  resolveTenantScope,
+  OperatorAuthError,
+} from "@/lib/apiAuth";
+import { ServiceClientUnavailableError } from "@/lib/db/service";
 
-// ============================================================================
-// POST /api/jobs
-// ============================================================================
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function errorBody(code: string, message: string, details?: Record<string, unknown>) {
+  return { error: { code, message, details } } as types.ApiResponse<never>;
+}
+
+/** One place that turns an auth or configuration failure into a response. */
+function failureResponse(error: unknown): NextResponse | null {
+  if (error instanceof OperatorAuthError) {
+    return NextResponse.json(errorBody(error.code, error.message), {
+      status: error.status,
+    });
+  }
+  if (error instanceof ServiceClientUnavailableError) {
+    return NextResponse.json(
+      errorBody("DATABASE_NOT_CONFIGURED", error.message),
+      { status: 503 }
+    );
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
-    const body = await req.json();
+    const identity = await requireOperator(db.createIdentityStore());
 
-    // TODO: Add auth check - extract tenant_id from auth context
-    // For now, tenant_id must be provided in request body.
-
-    // Validate input
-    const validation = validators.validateJobInput(body);
-    if (!validation.valid) {
+    let body: unknown;
+    try {
+      body = await req.json();
+    } catch {
       return NextResponse.json(
-        {
-          error: {
-            code: "VALIDATION_ERROR",
-            message: "Invalid input",
-            details: { errors: validation.errors },
-          },
-        } as types.ApiResponse<never>,
+        errorBody("MALFORMED_BODY", "Request body is not valid JSON"),
         { status: 400 }
       );
     }
 
-    // Create job
+    const requestedTenant =
+      body && typeof body === "object" && "tenant_id" in body
+        ? String((body as Record<string, unknown>).tenant_id)
+        : null;
+    const tenantId = resolveTenantScope(identity, requestedTenant);
+
+    // The tenant is overwritten, not trusted. validateJobInput requires the
+    // field, and this is the value it must see.
+    const validation = validators.validateJobInput({
+      ...(body as Record<string, unknown>),
+      tenant_id: tenantId,
+    });
+    if (!validation.valid) {
+      return NextResponse.json(
+        errorBody("VALIDATION_ERROR", "Invalid input", { errors: validation.errors }),
+        { status: 400 }
+      );
+    }
+
+    // A job may only be assigned a robot in the same tenant. Without this,
+    // telemetry, quality evidence and the completion report for this job are
+    // attributed across a tenant boundary. migrations/003 §4 enforces the same
+    // rule in the database for writes that never come through here.
+    const robot = await db.getRobotById(validation.data!.robot_id, tenantId);
+    if (!robot) {
+      return NextResponse.json(
+        errorBody(
+          "ROBOT_NOT_FOUND",
+          `No robot ${validation.data!.robot_id} in this tenant.`
+        ),
+        { status: 400 }
+      );
+    }
+
     const job = await db.createJob(validation.data!);
 
-    // Create associated post-job report (draft)
     await db.createPostJobReport({
       job_id: job.id,
       status: "draft",
@@ -52,80 +113,71 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       photos: [],
     });
 
-    return NextResponse.json(
-      {
-        data: job,
-      } as types.ApiResponse<types.Job>,
-      { status: 201 }
-    );
+    return NextResponse.json({ data: job } as types.ApiResponse<types.Job>, {
+      status: 201,
+    });
   } catch (error) {
+    const handled = failureResponse(error);
+    if (handled) return handled;
+
     console.error("POST /api/jobs error:", error);
     return NextResponse.json(
-      {
-        error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: error instanceof Error ? error.message : "Unknown error",
-        },
-      } as types.ApiResponse<never>,
+      errorBody(
+        "INTERNAL_SERVER_ERROR",
+        error instanceof Error ? error.message : "Unknown error"
+      ),
       { status: 500 }
     );
   }
 }
 
-// ============================================================================
-// GET /api/jobs
-// ============================================================================
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
-    // TODO: Extract tenant_id from auth context
-    // For now, require it as a query parameter.
-    const tenantId = req.nextUrl.searchParams.get("tenant_id");
+    const identity = await requireOperator(db.createIdentityStore());
+    const tenantId = resolveTenantScope(
+      identity,
+      req.nextUrl.searchParams.get("tenant_id")
+    );
+
     const status = req.nextUrl.searchParams.get("status");
-    const robotId = req.nextUrl.searchParams.get("robot_id");
-    const limit = parseInt(req.nextUrl.searchParams.get("limit") || "20", 10);
-    const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
+    const limit = Math.min(
+      Math.max(parseInt(req.nextUrl.searchParams.get("limit") || "20", 10) || 20, 1),
+      100
+    );
+    const offset = Math.max(
+      parseInt(req.nextUrl.searchParams.get("offset") || "0", 10) || 0,
+      0
+    );
 
-    if (!tenantId) {
-      return NextResponse.json(
-        {
-          error: {
-            code: "MISSING_PARAMETER",
-            message: "tenant_id is required",
-          },
-        } as types.ApiResponse<never>,
-        { status: 400 }
-      );
-    }
-
-    // Fetch jobs
     const { jobs, total_count } = await db.getJobs(tenantId, {
       status: status as types.JobStatus | undefined,
-      robot_id: robotId || undefined,
-      limit: Math.min(limit, 100), // Cap at 100
+      robot_id: req.nextUrl.searchParams.get("robot_id") || undefined,
+      limit,
       offset,
     });
 
-    const response: types.ApiResponse<types.PaginatedResponse<types.Job>> = {
-      data: {
-        data: jobs,
-        total_count,
-        offset,
-        limit,
-        has_more: offset + limit < total_count,
-      },
-    };
-
-    return NextResponse.json(response, { status: 200 });
-  } catch (error) {
-    console.error("GET /api/jobs error:", error);
     return NextResponse.json(
       {
-        error: {
-          code: "INTERNAL_SERVER_ERROR",
-          message: error instanceof Error ? error.message : "Unknown error",
+        data: {
+          data: jobs,
+          total_count,
+          offset,
+          limit,
+          has_more: offset + limit < total_count,
         },
-      } as types.ApiResponse<never>,
+      } as types.ApiResponse<types.PaginatedResponse<types.Job>>,
+      { status: 200 }
+    );
+  } catch (error) {
+    const handled = failureResponse(error);
+    if (handled) return handled;
+
+    console.error("GET /api/jobs error:", error);
+    return NextResponse.json(
+      errorBody(
+        "INTERNAL_SERVER_ERROR",
+        error instanceof Error ? error.message : "Unknown error"
+      ),
       { status: 500 }
     );
   }
