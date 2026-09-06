@@ -64,6 +64,19 @@ jobs:
       - name: typecheck
         run: npx tsc --noEmit
 
+      # There were no tests on this repository at all before this step. That is
+      # how migrations/001 came to store eleven telemetry event types while
+      # lib/validators.ts accepted fifteen, losing 100% of the 1 Hz pressure
+      # stream — a two-line difference between two files in the same repo, which
+      # survived a dedicated product-truth audit that cited both of them.
+      #
+      # No new dependency: `node --test` ships with Node, and Node 22 strips
+      # TypeScript natively, so these run against the real modules rather than a
+      # compiled copy that could drift from them. No database and no network —
+      # the store is injected. See tests/support/resolver.mjs.
+      - name: test
+        run: npm test
+
       # A real gate, not a warning. `npm run lint` exited 1 on `main` before
       # this patch (audit/FINDINGS.md P0-6); the two react-hooks errors in
       # app/operator/** are fixed in this same patch precisely so this step can

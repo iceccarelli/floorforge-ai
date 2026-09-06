@@ -5,6 +5,12 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // Rejects TypeScript syntax that cannot be erased — parameter properties,
+    // `enum`, namespaces, `import =`. With it on, every source file runs
+    // unmodified under Node 22's native type stripping, which is what lets
+    // `npm test` load the real modules instead of a compiled copy that could
+    // drift from them. See tests/support/resolver.mjs.
+    "erasableSyntaxOnly": true,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",

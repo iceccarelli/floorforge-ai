@@ -357,6 +357,22 @@ export class JobSimulation {
     return out;
   }
 
+  /**
+   * The whole event stream, in order.
+   *
+   * Exposed because this class is the reference telemetry producer: the file
+   * header promises that "the day a real D1 posts to /api/telemetry, nothing
+   * downstream changes". That promise was false — two of the five event types
+   * emitted below were accepted by the validator and rejected by the database
+   * enum (FLOORFORGE_SYSTEM_BASELINE.md §3.1) — and the only way to keep it
+   * from going false again is a test that reads what this actually emits and
+   * checks every event against the ingest path.
+   * See tests/telemetry/simulator-contract.test.mjs.
+   */
+  allEvents(): readonly SimEvent[] {
+    return this.events;
+  }
+
   /** State of the machine at simulated time `t`. */
   snapshotAt(t: number): SimSnapshot {
     const clamped = Math.max(0, Math.min(t, this.totalDurationSec));

@@ -36,12 +36,13 @@ export const operatorAuthConfigured = Boolean(
 export type OperatorAuthCode = "OPERATOR_AUTH_NOT_CONFIGURED" | "UNAUTHENTICATED";
 
 export class OperatorAuthError extends Error {
-  constructor(
-    readonly code: OperatorAuthCode,
-    message: string,
-    readonly status: number
-  ) {
+  readonly code: OperatorAuthCode;
+  readonly status: number;
+
+  constructor(code: OperatorAuthCode, message: string, status: number) {
     super(message);
+    this.code = code;
+    this.status = status;
     this.name = "OperatorAuthError";
   }
 }

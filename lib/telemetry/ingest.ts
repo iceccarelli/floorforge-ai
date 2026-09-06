@@ -165,12 +165,13 @@ export type IngestFailureCode =
   | "BATCH_TOO_LARGE";
 
 export class IngestError extends Error {
-  constructor(
-    readonly code: IngestFailureCode,
-    message: string,
-    readonly status: number
-  ) {
+  readonly code: IngestFailureCode;
+  readonly status: number;
+
+  constructor(code: IngestFailureCode, message: string, status: number) {
     super(message);
+    this.code = code;
+    this.status = status;
     this.name = "IngestError";
   }
 }
@@ -251,6 +252,27 @@ function readSeq(raw: unknown): number | null {
   const v = raw.seq;
   if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return null;
   return v;
+}
+
+// ----------------------------------------------------------------------------
+// Composite keys
+// ----------------------------------------------------------------------------
+//
+// A robot id or job id could in principle contain any separator character
+// chosen by hand, and a collision here would silently merge two machines'
+// streams. JSON encoding is unambiguous for every input, which is worth more
+// than the microseconds a string concatenation would save on a 500-row batch.
+
+function idempotencyKey(robotId: string, jobId: string, seq: number): string {
+  return JSON.stringify([robotId, jobId, seq]);
+}
+
+function pairKey(robotId: string, jobId: string): string {
+  return JSON.stringify([robotId, jobId]);
+}
+
+function splitPairKey(key: string): [string, string] {
+  return JSON.parse(key) as [string, string];
 }
 
 export interface IngestOptions {
@@ -449,7 +471,7 @@ export async function ingestTelemetry(opts: IngestOptions): Promise<IngestReport
   const toInsert: Array<{ index: number; row: TelemetryInsertRow }> = [];
   const dupInBatch: Array<{ index: number; row: TelemetryInsertRow }> = [];
   for (const entry of admissible) {
-    const key = `${entry.row.robot_id} ${entry.row.job_id} ${entry.row.seq}`;
+    const key = idempotencyKey(entry.row.robot_id, entry.row.job_id, entry.row.seq);
     if (seenInBatch.has(key)) dupInBatch.push(entry);
     else {
       seenInBatch.add(key);
@@ -496,11 +518,11 @@ export async function ingestTelemetry(opts: IngestOptions): Promise<IngestReport
 
   // --- 5. Resume high-water marks -----------------------------------------
   const pairs = Array.from(
-    new Set(admissible.map((e) => `${e.row.robot_id} ${e.row.job_id}`))
+    new Set(admissible.map((e) => pairKey(e.row.robot_id, e.row.job_id)))
   );
   const resume = await Promise.all(
     pairs.map(async (p) => {
-      const [robot_id, job_id] = p.split(" ");
+      const [robot_id, job_id] = splitPairKey(p);
       return { robot_id, job_id, max_seq: await store.maxSeq(robot_id, job_id) };
     })
   );

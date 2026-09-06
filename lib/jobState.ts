@@ -52,7 +52,14 @@ export const JOB_TRANSITIONS: Readonly<Record<JobStatus, readonly JobStatus[]>> 
 export const JOB_STATUSES = Object.keys(JOB_TRANSITIONS) as JobStatus[];
 
 export function isJobStatus(value: unknown): value is JobStatus {
-  return typeof value === "string" && value in JOB_TRANSITIONS;
+  // `value in JOB_TRANSITIONS` would walk the prototype chain, so "constructor",
+  // "toString" and "valueOf" would all read as valid job statuses — and this
+  // function is what PATCH /api/jobs/[id] uses to decide whether a
+  // caller-supplied string may be written.
+  return (
+    typeof value === "string" &&
+    Object.prototype.hasOwnProperty.call(JOB_TRANSITIONS, value)
+  );
 }
 
 export function canTransition(from: JobStatus, to: JobStatus): boolean {
@@ -64,10 +71,14 @@ export function canTransition(from: JobStatus, to: JobStatus): boolean {
 
 export class IllegalTransitionError extends Error {
   readonly code = "ILLEGAL_STATUS_TRANSITION";
-  constructor(
-    readonly from: JobStatus,
-    readonly to: JobStatus
-  ) {
+  // Written out as fields rather than TypeScript parameter properties: the
+  // tsconfig sets `erasableSyntaxOnly`, so every source file here runs under
+  // Node's native type stripping with no build step. That is what lets
+  // `node --test` load the real modules instead of a compiled copy of them.
+  readonly from: JobStatus;
+  readonly to: JobStatus;
+
+  constructor(from: JobStatus, to: JobStatus) {
     const allowed = JOB_TRANSITIONS[from];
     super(
       `Illegal job status transition: ${from} → ${to}. ` +
@@ -75,6 +86,8 @@ export class IllegalTransitionError extends Error {
           ? `Allowed from ${from}: ${allowed.join(", ")}.`
           : `${from} is terminal.`)
     );
+    this.from = from;
+    this.to = to;
     this.name = "IllegalTransitionError";
   }
 }
