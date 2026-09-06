@@ -1,0 +1,685 @@
+From 7ce026928479df337314d3d4f3e28bda87bd8229 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 6 Sep 2026 14:41:32 +0000
+Subject: [PATCH 5/6] fix(api): close the open pipeline, and make a job status
+ mean something
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Three defects from FLOORFORGE_SYSTEM_BASELINE.md §3.4 and §3.5.
+
+1. GET /api/applications returned every pilot lead — name, email, phone,
+   company, sqft target, internal notes — to anyone who asked. Its own comment
+   said "For now, this is open for demo purposes." /operator/* was never in
+   proxy.ts's protected matcher either, so neither the console nor the API
+   behind it was covered.
+
+   lib/apiAuth.ts guards it, and fails closed: with no identity provider
+   configured these routes answer 503, never data. The repository's principle
+   that the site deploys with zero env vars is right for the marketing site;
+   "no auth configured" must still mean the operator API is unavailable, not
+   that it is open. The API routes guard themselves in the handler rather than
+   in middleware, because a middleware match redirects to a sign-in page — the
+   right answer for a page, the wrong one for a fetch.
+
+2. PATCH /api/jobs/[id] hand-rolled an allowlist and wrote `status` from the
+   body with no enum check, although validateJobUpdate had existed at
+   lib/validators.ts:248 the whole time as dead code. And 001 wrote out nine
+   status transition rules as a comment while enforcing one of them, so a job
+   could reach `approved` without ever having run. A completion report is a
+   commercial document; if `approved` can be set from `draft`, every report,
+   warranty and pilot metric derived from it means nothing.
+
+   lib/jobState.ts holds the table, checked here for a 409 that names what was
+   allowed and again by the trigger in migration 002 §6, which holds under
+   concurrency and holds for callers who never came through this file.
+
+3. GET /api/jobs/[id] called getJobById(id) with one argument although the
+   helper takes tenant_id, so any job id read any job in any tenant.
+
+   Now scoped — and labelled in the file as scoping, not authorisation. It
+   narrows what a request touches; it does not verify the caller belongs to
+   that tenant, because `users` has no column linking a row to a session. That
+   gap is the next mission, not a thing to paper over.
+
+Two smaller ones found along the way: the public waitlist validator copied
+attacker-supplied `internal_notes` into the field the operator console shows as
+staff commentary, and isValidJobStatus kept a second copy of the status list —
+the same duplicate-enum pattern that made telemetry unstorable.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014pRDhZ6XzDZyaeJoUR5Xuo
+---
+ app/api/applications/[id]/route.ts |  21 ++++
+ app/api/applications/route.ts      |  19 +++-
+ app/api/jobs/[id]/route.ts         | 154 ++++++++++++++++++++++-------
+ app/operator/jobs/page.tsx         |  21 ++--
+ lib/apiAuth.ts                     |  76 ++++++++++++++
+ lib/jobState.ts                    |  94 ++++++++++++++++++
+ lib/validators.ts                  |  29 +++---
+ proxy.ts                           |  17 +++-
+ 8 files changed, 370 insertions(+), 61 deletions(-)
+ create mode 100644 lib/apiAuth.ts
+ create mode 100644 lib/jobState.ts
+
+diff --git a/app/api/applications/[id]/route.ts b/app/api/applications/[id]/route.ts
+index 7e823a8..ce04ce3 100644
+--- a/app/api/applications/[id]/route.ts
++++ b/app/api/applications/[id]/route.ts
+@@ -6,6 +6,7 @@
+ import { NextRequest, NextResponse } from "next/server";
+ import * as db from "@/lib/db/client";
+ import * as types from "@/lib/types";
++import { requireOperator, OperatorAuthError } from "@/lib/apiAuth";
+ 
+ interface RouteParams {
+   params: Promise<{
+@@ -18,6 +19,7 @@ export async function GET(
+   { params }: RouteParams
+ ): Promise<NextResponse> {
+   try {
++    await requireOperator();
+     const { id } = await params;
+     const application = await db.getPilotApplicationById(id);
+ 
+@@ -28,6 +30,15 @@ export async function GET(
+       { status: 200 }
+     );
+   } catch (error) {
++    if (error instanceof OperatorAuthError) {
++      return NextResponse.json(
++        {
++          error: { code: error.code, message: error.message },
++        } as types.ApiResponse<never>,
++        { status: error.status }
++      );
++    }
++
+     console.error("GET /api/applications/[id] error:", error);
+     return NextResponse.json(
+       {
+@@ -46,6 +57,7 @@ export async function PATCH(
+   { params }: RouteParams
+ ): Promise<NextResponse> {
+   try {
++    await requireOperator();
+     const { id } = await params;
+     const body = await req.json();
+ 
+@@ -71,6 +83,15 @@ export async function PATCH(
+       { status: 200 }
+     );
+   } catch (error) {
++    if (error instanceof OperatorAuthError) {
++      return NextResponse.json(
++        {
++          error: { code: error.code, message: error.message },
++        } as types.ApiResponse<never>,
++        { status: error.status }
++      );
++    }
++
+     console.error("PATCH /api/applications/[id] error:", error);
+     return NextResponse.json(
+       {
+diff --git a/app/api/applications/route.ts b/app/api/applications/route.ts
+index 63f6d51..0461e09 100644
+--- a/app/api/applications/route.ts
++++ b/app/api/applications/route.ts
+@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
+ import * as db from "@/lib/db/client";
+ import * as validators from "@/lib/validators";
+ import * as types from "@/lib/types";
++import { requireOperator, OperatorAuthError } from "@/lib/apiAuth";
+ 
+ // ============================================================================
+ // POST /api/applications
+@@ -60,14 +61,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
+ 
+ export async function GET(req: NextRequest): Promise<NextResponse> {
+   try {
++    // The pilot pipeline is the company's sales pipeline. Before this guard
++    // the route's own comment said "For now, this is open for demo purposes."
++    // and it returned every lead's name, email, phone and internal notes to
++    // anyone who asked. Unconfigured auth now yields 503, never data.
++    await requireOperator();
++
+     // Extract query parameters
+     const status = req.nextUrl.searchParams.get("status");
+     const limit = parseInt(req.nextUrl.searchParams.get("limit") || "20", 10);
+     const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0", 10);
+ 
+-    // TODO: Add auth check - only allow system_admin, pilot_admin, support roles
+-    // For now, this is open for demo purposes.
+-
+     // Fetch applications
+     const { applications, total_count } = await db.getPilotApplications({
+       status: status as types.PilotApplicationStatus | undefined,
+@@ -87,6 +91,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
+ 
+     return NextResponse.json(response, { status: 200 });
+   } catch (error) {
++    if (error instanceof OperatorAuthError) {
++      return NextResponse.json(
++        {
++          error: { code: error.code, message: error.message },
++        } as types.ApiResponse<never>,
++        { status: error.status }
++      );
++    }
++
+     console.error("GET /api/applications error:", error);
+     return NextResponse.json(
+       {
+diff --git a/app/api/jobs/[id]/route.ts b/app/api/jobs/[id]/route.ts
+index 08c119a..343e865 100644
+--- a/app/api/jobs/[id]/route.ts
++++ b/app/api/jobs/[id]/route.ts
+@@ -1,11 +1,39 @@
+ /**
+- * PATCH /api/jobs/[id] - Update job status
+- * GET /api/jobs/[id] - Fetch single job with telemetry
++ * GET   /api/jobs/[id] - Fetch a single job
++ * PATCH /api/jobs/[id] - Update a job
++ *
++ * WHAT CHANGED AND WHY.
++ *
++ * `PATCH` hand-rolled its own allowlist and wrote `allowedUpdates.status =
++ * body.status` with no enum check, although `lib/validators.ts:248` already
++ * defined `validateJobUpdate`, which checks the enum and bounds `coverage_pct`
++ * and `approval_score`. The validator was dead code and `{"status":"finished!"}`
++ * reached Postgres. It now goes through the validator.
++ *
++ * Status changes are additionally checked against `lib/jobState.ts`, so a job
++ * cannot reach `approved` without having been `completed` first. A completion
++ * report is a commercial document; if `approved` can be set from `draft` then
++ * every report, warranty and pilot metric derived from it means nothing.
++ *
++ * `GET` called `db.getJobById(id)` with one argument although the helper takes
++ * an optional `tenant_id` (`lib/db/client.ts:149-165`), so any job id read any
++ * job, in any tenant. It is now scoped.
++ *
++ * WHAT IS STILL NOT FIXED, STATED PLAINLY. `tenant_id` arrives as a query
++ * parameter, so this is *scoping*, not *authorisation*: it narrows what a
++ * request touches but does not verify that the caller belongs to that tenant.
++ * The real boundary needs an identity mapping between the session and
++ * `users.tenant_id`, which this repository does not have yet — `users` has no
++ * column linking it to a Clerk subject. That is the named next mission in
++ * FLOORFORGE_SYSTEM_BASELINE.md, and calling this fixed before then would be
++ * exactly the kind of claim the rest of the codebase is careful not to make.
+  */
+ 
+ import { NextRequest, NextResponse } from "next/server";
+ import * as db from "@/lib/db/client";
++import * as validators from "@/lib/validators";
+ import * as types from "@/lib/types";
++import { assertTransition, IllegalTransitionError } from "@/lib/jobState";
+ 
+ interface RouteParams {
+   params: Promise<{
+@@ -13,29 +41,38 @@ interface RouteParams {
+   }>;
+ }
+ 
++function errorBody(code: string, message: string, details?: Record<string, unknown>) {
++  return { error: { code, message, details } } as types.ApiResponse<never>;
++}
++
+ export async function GET(
+   req: NextRequest,
+   { params }: RouteParams
+ ): Promise<NextResponse> {
+   try {
+     const { id } = await params;
+-    const job = await db.getJobById(id);
++    const tenantId = req.nextUrl.searchParams.get("tenant_id");
++
++    if (!tenantId) {
++      return NextResponse.json(
++        errorBody(
++          "MISSING_PARAMETER",
++          "tenant_id is required. A job is only ever fetched within a tenant."
++        ),
++        { status: 400 }
++      );
++    }
++
++    const job = await db.getJobById(id, tenantId);
+ 
+     return NextResponse.json(
+-      {
+-        data: job,
+-      } as types.ApiResponse<types.Job>,
++      { data: job } as types.ApiResponse<types.Job>,
+       { status: 200 }
+     );
+   } catch (error) {
+     console.error("GET /api/jobs/[id] error:", error);
+     return NextResponse.json(
+-      {
+-        error: {
+-          code: "NOT_FOUND",
+-          message: error instanceof Error ? error.message : "Job not found",
+-        },
+-      } as types.ApiResponse<never>,
++      errorBody("NOT_FOUND", error instanceof Error ? error.message : "Job not found"),
+       { status: 404 }
+     );
+   }
+@@ -47,44 +84,91 @@ export async function PATCH(
+ ): Promise<NextResponse> {
+   try {
+     const { id } = await params;
+-    const body = await req.json();
++    const tenantId = req.nextUrl.searchParams.get("tenant_id");
+ 
+-    // Only allow updating status, coverage, and time fields
+-    const allowedUpdates: Partial<types.Job> = {};
++    if (!tenantId) {
++      return NextResponse.json(
++        errorBody(
++          "MISSING_PARAMETER",
++          "tenant_id is required. A job is only ever updated within a tenant."
++        ),
++        { status: 400 }
++      );
++    }
+ 
+-    if ("status" in body && body.status) {
+-      allowedUpdates.status = body.status;
++    let body: unknown;
++    try {
++      body = await req.json();
++    } catch {
++      return NextResponse.json(
++        errorBody("MALFORMED_BODY", "Request body is not valid JSON"),
++        { status: 400 }
++      );
+     }
+-    if ("coverage_pct" in body && typeof body.coverage_pct === "number") {
+-      allowedUpdates.coverage_pct = body.coverage_pct;
++
++    const validation = validators.validateJobUpdate(body);
++    if (!validation.valid) {
++      return NextResponse.json(
++        errorBody("VALIDATION_ERROR", "Invalid input", {
++          errors: validation.errors,
++        }),
++        { status: 400 }
++      );
+     }
+-    if ("coverage_area_m2" in body && typeof body.coverage_area_m2 === "number") {
+-      allowedUpdates.coverage_area_m2 = body.coverage_area_m2;
++
++    const updates = validation.data!;
++
++    if (Object.keys(updates).length === 0) {
++      return NextResponse.json(
++        errorBody("VALIDATION_ERROR", "No updatable fields supplied"),
++        { status: 400 }
++      );
+     }
+-    if ("time_elapsed_sec" in body && typeof body.time_elapsed_sec === "number") {
+-      allowedUpdates.time_elapsed_sec = body.time_elapsed_sec;
++
++    // A status change is checked against the current status, so the job has to
++    // be read first. This read-then-write is not atomic; the trigger in
++    // migrations/002_telemetry_integrity.sql §6 is what makes the rule hold
++    // under concurrency. This check exists so the caller gets a 409 naming what
++    // was allowed, rather than an opaque Postgres exception.
++    let current: types.Job;
++    try {
++      current = await db.getJobById(id, tenantId);
++    } catch {
++      return NextResponse.json(errorBody("NOT_FOUND", `No job ${id}`), {
++        status: 404,
++      });
+     }
+-    if ("approval_score" in body && typeof body.approval_score === "number") {
+-      allowedUpdates.approval_score = body.approval_score;
++
++    if (updates.status) {
++      try {
++        assertTransition(current.status, updates.status);
++      } catch (error) {
++        if (error instanceof IllegalTransitionError) {
++          return NextResponse.json(
++            errorBody(error.code, error.message, {
++              from: error.from,
++              to: error.to,
++            }),
++            { status: 409 }
++          );
++        }
++        throw error;
++      }
+     }
+ 
+-    const updated = await db.updateJob(id, allowedUpdates);
++    const updated = await db.updateJob(id, updates);
+ 
+     return NextResponse.json(
+-      {
+-        data: updated,
+-      } as types.ApiResponse<types.Job>,
++      { data: updated } as types.ApiResponse<types.Job>,
+       { status: 200 }
+     );
+   } catch (error) {
+     console.error("PATCH /api/jobs/[id] error:", error);
+     return NextResponse.json(
+-      {
+-        error: {
+-          code: "INTERNAL_SERVER_ERROR",
+-          message: error instanceof Error ? error.message : "Unknown error",
+-        },
+-      } as types.ApiResponse<never>,
++      errorBody(
++        "INTERNAL_SERVER_ERROR",
++        error instanceof Error ? error.message : "Unknown error"
++      ),
+       { status: 500 }
+     );
+   }
+diff --git a/app/operator/jobs/page.tsx b/app/operator/jobs/page.tsx
+index cf102b0..fc880d4 100644
+--- a/app/operator/jobs/page.tsx
++++ b/app/operator/jobs/page.tsx
+@@ -118,14 +118,19 @@ export default function JobsPage() {
+   ) {
+     try {
+       setUpdatingId(id);
+-      const response = await fetch(`/api/jobs/${id}`, {
+-        method: "PATCH",
+-        headers: { "Content-Type": "application/json" },
+-        body: JSON.stringify({
+-          status: newStatus,
+-          ...updates,
+-        }),
+-      });
++      // tenant_id is now required on this route: PATCH /api/jobs/[id] used to
++      // update any job in any tenant from its id alone.
++      const response = await fetch(
++        `/api/jobs/${id}?tenant_id=${encodeURIComponent(selectedTenantId)}`,
++        {
++          method: "PATCH",
++          headers: { "Content-Type": "application/json" },
++          body: JSON.stringify({
++            status: newStatus,
++            ...updates,
++          }),
++        }
++      );
+ 
+       const json = (await response.json()) as types.ApiResponse<types.Job>;
+ 
+diff --git a/lib/apiAuth.ts b/lib/apiAuth.ts
+new file mode 100644
+index 0000000..ec84817
+--- /dev/null
++++ b/lib/apiAuth.ts
+@@ -0,0 +1,76 @@
++/**
++ * The operator boundary.
++ *
++ * WHAT THIS CLOSES. `GET /api/applications` returned the entire pilot pipeline
++ * — name, email, phone, company, monthly sqft target, internal notes — to
++ * anyone who requested it. Its own comment read "TODO: Add auth check… For now,
++ * this is open for demo purposes." `proxy.ts` protected `/dashboard(.*)` only,
++ * so neither the operator pages nor the API behind them were covered. That is
++ * the company's sales pipeline, and it was curl-able.
++ *
++ * FAIL CLOSED. When Clerk is not configured these routes return **503**, not
++ * data. The repository's guiding principle is that the site builds and deploys
++ * with zero environment variables (`.env.example:1`), and that principle is
++ * right for the marketing site — but "no auth configured" must mean "the
++ * operator API is unavailable", never "the operator API is open". A deployment
++ * that has not been given an identity provider does not get to serve leads.
++ *
++ * WHAT THIS IS NOT. This proves the caller is *signed in*. It does not prove
++ * *which tenant* they belong to, because `users` has no column linking a row to
++ * a Clerk subject — there is no way, today, to turn a session into a
++ * `tenant_id`. So tenant-scoped routes still take `tenant_id` as a parameter
++ * and this guard cannot check it.
++ *
++ * That gap is named, not papered over. Closing it is the next mission in
++ * FLOORFORGE_SYSTEM_BASELINE.md: add the identity mapping, resolve tenancy from
++ * the session, and delete every `tenant_id` query parameter in the API. Until
++ * then this file removes an open door and does not claim to be a lock.
++ */
++
++import { auth } from "@clerk/nextjs/server";
++
++export const operatorAuthConfigured = Boolean(
++  process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
++);
++
++export type OperatorAuthCode = "OPERATOR_AUTH_NOT_CONFIGURED" | "UNAUTHENTICATED";
++
++export class OperatorAuthError extends Error {
++  constructor(
++    readonly code: OperatorAuthCode,
++    message: string,
++    readonly status: number
++  ) {
++    super(message);
++    this.name = "OperatorAuthError";
++  }
++}
++
++export interface OperatorIdentity {
++  /** Clerk subject. Not yet resolvable to a `users` row — see the note above. */
++  subject: string;
++}
++
++export async function requireOperator(): Promise<OperatorIdentity> {
++  if (!operatorAuthConfigured) {
++    throw new OperatorAuthError(
++      "OPERATOR_AUTH_NOT_CONFIGURED",
++      "The operator API is unavailable because no identity provider is " +
++        "configured. Set NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY and CLERK_SECRET_KEY. " +
++        "This endpoint returns 503 rather than serving pilot applications " +
++        "without an authenticated caller.",
++      503
++    );
++  }
++
++  const { userId } = await auth();
++  if (!userId) {
++    throw new OperatorAuthError(
++      "UNAUTHENTICATED",
++      "Sign-in required.",
++      401
++    );
++  }
++
++  return { subject: userId };
++}
+diff --git a/lib/jobState.ts b/lib/jobState.ts
+new file mode 100644
+index 0000000..879e9f2
+--- /dev/null
++++ b/lib/jobState.ts
+@@ -0,0 +1,94 @@
++/**
++ * Job status transitions.
++ *
++ * migrations/001_initial_schema.sql:380-406 wrote out nine transition rules in
++ * a comment and then enforced exactly one of them — nothing leaves `archived`.
++ * Everything else was legal, so a job could go `draft -> approved` without ever
++ * having run, and `app/api/jobs/[id]/route.ts:56` wrote `status` straight from
++ * the request body with no enum check at all, so `{"status":"definitely_done"}`
++ * reached Postgres.
++ *
++ * A completion report is a commercial document. If a job can reach `approved`
++ * without passing through `in_progress` and `completed`, then "approved" means
++ * nothing, and so does every report, warranty and pilot metric derived from it.
++ *
++ * TWO ENFORCEMENT POINTS, DELIBERATELY. This table is enforced here, where a
++ * bad transition becomes a 409 with a message naming what was allowed, and
++ * again by the trigger in migrations/002_telemetry_integrity.sql §6, which
++ * refuses it even if a future code path forgets to ask. The two are kept
++ * identical by tests/contract/job-state-machine.test.mjs, which parses the SQL
++ * and fails when they drift — the same class of drift that made the event
++ * vocabulary unstorable for months.
++ *
++ * The application check is not redundant with the database check. Without it
++ * the user-facing failure is an opaque Postgres exception; without the database
++ * check, the rule holds only for callers who went through this file.
++ */
++
++import type { JobStatus } from "@/lib/types";
++
++export const JOB_TRANSITIONS: Readonly<Record<JobStatus, readonly JobStatus[]>> =
++  Object.freeze({
++    /** Being written. May be queued for a machine, started by hand, or abandoned. */
++    draft: ["queued", "in_progress", "failed", "archived"],
++    /** Scheduled. May go back to draft while nothing has run yet. */
++    queued: ["in_progress", "draft", "failed", "archived"],
++    /** A machine is working. Only pausing, finishing or failing from here. */
++    in_progress: ["paused", "completed", "failed", "archived"],
++    /** Stopped mid-job. Resume or abandon — a paused job was never completed. */
++    paused: ["in_progress", "failed", "archived"],
++    /** The machine finished. Inspection decides between approved and rework. */
++    completed: ["approved", "rework", "failed", "archived"],
++    /** Inspected and accepted. Terminal except for archival. */
++    approved: ["archived"],
++    /** Inspection refused it. Back into the queue for another attempt. */
++    rework: ["queued", "failed", "archived"],
++    /** Terminal. */
++    failed: ["archived"],
++    /** Immutable. The audit trail is the point. */
++    archived: [],
++  });
++
++export const JOB_STATUSES = Object.keys(JOB_TRANSITIONS) as JobStatus[];
++
++export function isJobStatus(value: unknown): value is JobStatus {
++  return typeof value === "string" && value in JOB_TRANSITIONS;
++}
++
++export function canTransition(from: JobStatus, to: JobStatus): boolean {
++  // A no-op update is always legal: a PATCH that restates the current status
++  // alongside a coverage update is the common case, not an error.
++  if (from === to) return true;
++  return JOB_TRANSITIONS[from].includes(to);
++}
++
++export class IllegalTransitionError extends Error {
++  readonly code = "ILLEGAL_STATUS_TRANSITION";
++  constructor(
++    readonly from: JobStatus,
++    readonly to: JobStatus
++  ) {
++    const allowed = JOB_TRANSITIONS[from];
++    super(
++      `Illegal job status transition: ${from} → ${to}. ` +
++        (allowed.length
++          ? `Allowed from ${from}: ${allowed.join(", ")}.`
++          : `${from} is terminal.`)
++    );
++    this.name = "IllegalTransitionError";
++  }
++}
++
++export function assertTransition(from: JobStatus, to: JobStatus): void {
++  if (!canTransition(from, to)) throw new IllegalTransitionError(from, to);
++}
++
++/**
++ * Statuses in which a job is expected to be producing telemetry. Used by the
++ * fleet view to tell "quiet because it is finished" from "quiet because it
++ * stopped reporting", which are the same picture and very different problems.
++ */
++export const TELEMETRY_ACTIVE_STATUSES: readonly JobStatus[] = Object.freeze([
++  "in_progress",
++  "paused",
++]);
+diff --git a/lib/validators.ts b/lib/validators.ts
+index 3736fc4..8cada2e 100644
+--- a/lib/validators.ts
++++ b/lib/validators.ts
+@@ -4,6 +4,7 @@
+  */
+ 
+ import * as types from "./types";
++import { isJobStatus } from "./jobState";
+ 
+ export interface ValidationError {
+   field: string;
+@@ -88,7 +89,16 @@ export function validatePilotApplicationInput(
+       source: input.source as "floorforge-site" | "ecowoods-referral" | "partner" | "direct",
+       source_details: input.source_details ? String(input.source_details).trim() : undefined,
+       status: "new" as const,
+-      internal_notes: input.internal_notes ? String(input.internal_notes).trim() : undefined,
++      // `internal_notes` is deliberately NOT read from input. This validator
++      // serves the public waitlist form (lib/waitlist.ts:103), and it used to
++      // copy an attacker-supplied `internal_notes` straight into the column the
++      // operator console shows as staff commentary on a lead — an unauthenticated
++      // write into a trusted field. The RLS policy added in
++      // migrations/002_telemetry_integrity.sql §5 refuses such a row outright;
++      // dropping it here means a caller who tries gets their application
++      // accepted with the field ignored, rather than a confusing policy error.
++      // Staff notes are written through PATCH /api/applications/[id], which is
++      // behind requireOperator().
+     },
+   };
+ }
+@@ -429,19 +439,12 @@ function isValidPilotApplicationStatus(status: unknown): boolean {
+   return typeof status === "string" && validStatuses.includes(status as types.PilotApplicationStatus);
+ }
+ 
++// Delegates to lib/jobState.ts rather than repeating the list. A second copy of
++// an enum in the same repository is how migrations/001 came to store eleven
++// telemetry event types while this file accepted fifteen
++// (FLOORFORGE_SYSTEM_BASELINE.md §3.1). One list, one place.
+ function isValidJobStatus(status: unknown): boolean {
+-  const validStatuses: types.JobStatus[] = [
+-    "draft",
+-    "queued",
+-    "in_progress",
+-    "paused",
+-    "completed",
+-    "approved",
+-    "rework",
+-    "failed",
+-    "archived",
+-  ];
+-  return typeof status === "string" && validStatuses.includes(status as types.JobStatus);
++  return isJobStatus(status);
+ }
+ 
+ function isValidEventType(eventType: unknown): boolean {
+diff --git a/proxy.ts b/proxy.ts
+index 1b2b9ac..cd1e43e 100644
+--- a/proxy.ts
++++ b/proxy.ts
+@@ -2,12 +2,25 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+ import { NextResponse } from "next/server";
+ 
+ // Clerk is optional: without keys the middleware is a pass-through so the
+-// site deploys on Vercel with zero env vars. With keys, /dashboard is protected.
++// site deploys on Vercel with zero env vars. With keys, the routes below are
++// protected.
+ const authEnabled = Boolean(
+   process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY
+ );
+ 
+-const isProtectedRoute = createRouteMatcher(["/dashboard(.*)"]);
++// /operator/* reads and writes the pilot pipeline and was never in this list,
++// so the operator console was open to anyone who knew the path.
++//
++// The API routes behind it are deliberately NOT matched here. A middleware
++// match redirects an unauthenticated browser to a sign-in page, which is the
++// right answer for a page and the wrong one for an API — a machine or a fetch
++// needs a status code, not HTML. So /api/applications guards itself in the
++// handler via lib/apiAuth.ts, which answers 401 when signed out and 503 when no
++// identity provider is configured at all. Fail closed either way.
++const isProtectedRoute = createRouteMatcher([
++  "/dashboard(.*)",
++  "/operator(.*)",
++]);
+ 
+ const handler = authEnabled
+   ? clerkMiddleware(async (auth, req) => {

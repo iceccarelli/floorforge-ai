@@ -1,0 +1,345 @@
+From 9c273716a0c6da669dff630aff66693b5054e7b8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 6 Sep 2026 14:31:34 +0000
+Subject: [PATCH 2/6] docs(baseline): classify every capability in the system,
+ honestly
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+FLOORFORGE_SYSTEM_BASELINE.md. Every file under app/, lib/, components/,
+migrations/, scripts/ and .github/ read and classified REAL / PARTIAL /
+SIMULATED / MOCKED / BROKEN / MISSING / STRATEGIC, ranked P0-P3, with a
+file:line on every claim and a reproduce command on every break.
+
+audit/FINDINGS.md asked whether the site works. audit/PRODUCT_TRUTH.md
+asked whether the site describes the product the engineering documents
+describe. Neither asked whether the backend is real, and nothing in
+audit/scripts/ can see a database, an auth boundary or a telemetry
+event.
+
+The finding that sets the execution order: lib/types.ts:191-209 and
+lib/validators.ts:447-462 accept fifteen telemetry event types;
+migrations/001_initial_schema.sql:83-95 stores eleven. The four missing
+are exactly the four the firmware contract owns, including the 1 Hz
+pressure stream — the raw material for the closed-loop process
+intelligence this company calls its moat. A device following the
+contract is accepted by the validator and rejected by Postgres, which
+surfaces as a 500 with no retry contract, no buffer and no dead-letter.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014pRDhZ6XzDZyaeJoUR5Xuo
+---
+ FLOORFORGE_SYSTEM_BASELINE.md | 303 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 303 insertions(+)
+ create mode 100644 FLOORFORGE_SYSTEM_BASELINE.md
+
+diff --git a/FLOORFORGE_SYSTEM_BASELINE.md b/FLOORFORGE_SYSTEM_BASELINE.md
+new file mode 100644
+index 0000000..af09b0c
+--- /dev/null
++++ b/FLOORFORGE_SYSTEM_BASELINE.md
+@@ -0,0 +1,303 @@
++# FloorForge — System Baseline
++
++**Base commit:** `794bfdf`
++**Date:** 2026-09-06
++**Method:** every file under `app/`, `lib/`, `components/`, `migrations/`, `scripts/`,
++`.github/` read and classified. Every claim below carries a `file:line` and, where it
++asserts a break, a command that reproduces it.
++
++This document changes no behaviour. It is the map the execution order is drawn from.
++
++---
++
++## 0. What this audit is not
++
++`audit/FINDINGS.md` asked whether the site *works*.
++`audit/PRODUCT_TRUTH.md` asked whether the site *describes the product the engineering
++documents describe*.
++
++Neither asked whether the **backend is real**. Nothing in `audit/scripts/` can see a
++database, an auth boundary, or a telemetry event. Every finding in §3 below is invisible
++to every instrument this repository currently owns, and four of them are fatal to the
++thing the company says is its moat.
++
++The short version: **the front of the product is genuinely good and honestly labelled.
++The back of the product does not exist yet, and in three places it is worse than absent —
++it is present, plausible, and wrong.**
++
++---
++
++## 1. Capability register
++
++| Capability | Where | Class | Rank |
++|---|---|---|---|
++| Estimator (area → grit sequence → hours → price) | `lib/estimator.ts` | **REAL** | — |
++| Moisture / readiness gate | `lib/moisture.ts` | **REAL** | — |
++| Proposal generation | `lib/proposal.ts` | **REAL** | — |
++| Completion report builder | `lib/report.ts` | **REAL** | — |
++| Local-first job record (one floor, all surfaces) | `lib/jobs.ts` | **REAL** | — |
++| Coverage path planning (boustrophedon + perimeter) | `lib/pathPlanning.ts` | **REAL** | — |
++| Deterministic machine simulator | `lib/simulation.ts` | **REAL** *(honestly labelled simulation)* | — |
++| Marketing site, discovery, SEO, design system | `app/`, `components/` | **REAL** | — |
++| a11y / responsive / contrast audit harness | `audit/scripts/` | **REAL** | — |
++| ROI calculator | `components/ROICalculator.tsx` | **PARTIAL** — output exceeds sanctioned claim (`audit/PRODUCT_TRUTH.md` T0-1) | P1 |
++| REST API (`/api/jobs`, `/api/applications`, `/api/telemetry`) | `app/api/**` | **PARTIAL** — routes and validation exist; no auth, no tenancy, no idempotency | **P0** |
++| CI gate | `.github/workflows/verify.yml` | **BROKEN** — red on `main`, see §3.3 | **P0** |
++| Telemetry ingest | `app/api/telemetry/route.ts` | **BROKEN** — drops 2 of 5 contract event types, see §3.1 | **P0** |
++| Database write path | `migrations/001_initial_schema.sql` | **BROKEN** — RLS denies every write, see §3.2 | **P0** |
++| Tenant isolation | `app/api/**` | **MISSING** — see §3.4 | **P0** |
++| Device identity / telemetry authentication | — | **MISSING** | **P0** |
++| Idempotency, sequence numbers, duplicate handling | — | **MISSING** | **P0** |
++| Automated tests (any kind) | — | **MISSING** | **P0** |
++| Data provenance (MEASURED vs SIMULATED …) | — | **MISSING** | **P0** |
++| Job / machine state machine | `migrations/001:380-406` (one rule of nine) | **PARTIAL** | P1 |
++| Operator dashboard | `app/dashboard/page.tsx:24` `mockJobs` | **MOCKED** *(labelled at `:295`)* | P2 |
++| FloorTwin (canonical floor object) | — | **MISSING** — **STRATEGIC** | P1 |
++| Process planner (species/condition → executable plan) | — | **MISSING** — **STRATEGIC** | P1 |
++| Closed-loop sanding | — | **MISSING** — **STRATEGIC** | P2 |
++| Fleet OS, maintenance intelligence, MCP tools, `/api/v1` | — | **MISSING** | P2 |
++| Billing, SSO, enterprise, marketplace | — | **MISSING** | P3 |
++
++---
++
++## 2. What is genuinely strong
++
++Worth saying plainly, because the execution order below is otherwise all bad news.
++
++- **The honesty discipline is already in place.** `lib/simulation.ts:17-27` states in the
++  file itself that no FloorForge machine has ever refinished a floor and that every number
++  is a design target plus bounded noise. `app/robots.ts:39` keeps the mock dashboard out of
++  the index. That instinct is the hardest thing to retrofit and it is already here.
++- **The unit reconciliation was done right.** `lib/types.ts:220-236` — the `avg_pressure_bar`
++  → `avg_pressure_psi` fix, with the 14.5038× failure mode written down. That is the
++  standard the rest of the backend has to meet.
++- **One job record already exists** (`lib/jobs.ts:14-30`) and deliberately mirrors
++  `types.Job`. The canonical-object work is half-done and pointed the right way.
++- **`lib/pathPlanning.ts` is real coverage planning**, not a decorative animation.
++
++---
++
++## 3. The breaks
++
++### 3.1 · P0 — Telemetry ingest silently destroys the 1 Hz pressure stream
++
++The single highest-value stream in the product cannot be stored.
++
++| Layer | Accepts `pressure_reading`? |
++|---|---|
++| `lib/types.ts:191-209` — `EventType` union | **yes** (15 types) |
++| `lib/validators.ts:447-462` — `isValidEventType` | **yes** (15 types) |
++| `migrations/001_initial_schema.sql:83-95` — PG `event_type` enum | **no** (11 types) |
++
++Reproduce:
++
++```bash
++node -e '
++const fs=require("fs");
++const ts=[...fs.readFileSync("lib/types.ts","utf8")
++  .match(/export type EventType =([\s\S]*?);/)[1].matchAll(/"([a-z_]+)"/g)].map(m=>m[1]);
++const sql=[...fs.readFileSync("migrations/001_initial_schema.sql","utf8")
++  .match(/CREATE TYPE event_type AS ENUM \(([\s\S]*?)\);/)[1].matchAll(/'"'"'([a-z_]+)'"'"'/g)].map(m=>m[1]);
++console.log("accepted by API, rejected by database:", ts.filter(t=>!sql.includes(t)));
++'
++# accepted by API, rejected by database:
++#   [ 'pressure_reading', 'coverage_checkpoint', 'job_paused', 'job_resumed' ]
++```
++
++The four missing values are exactly the four the firmware contract owns
++(`SOFTWARE_HARDWARE_CONTRACT.md:103`). The July fix added them to TypeScript and to the
++validator and stopped there. So the failure mode moved rather than closing: a device
++following the contract used to be rejected at validation with a clean `400 Invalid event
++type`; it is now **accepted at validation and rejected by Postgres**, which surfaces at
++`app/api/telemetry/route.ts:70-84` as a `500 INTERNAL_SERVER_ERROR`. There is no retry
++contract, no buffer, no dead-letter. The event is gone.
++
++**What is actually lost.** `lib/simulation.ts:322-327` — the reference telemetry producer,
++the one written so that "the day a real D1 posts to /api/telemetry, nothing downstream
++changes" (`:35`) — emits five event types:
++
++| Emitted at | Type | Storable |
++|---|---|---|
++| `simulation.ts:303` | `pass_started` | yes |
++| `simulation.ts:322` | `pressure_reading` — **1 Hz** | **no** |
++| `simulation.ts:323` | `dust_reading` — 1 Hz | yes |
++| `simulation.ts:327` | `coverage_checkpoint` — ~5 min | **no** |
++| `simulation.ts:343` | `pass_completed` | yes |
++
++Two of five, including **100 % of the pressure samples**. Pressure against species,
++grit, speed and surface response *is* the dataset this company calls its moat. At the
++first hop, the moat is a `500`.
++
++The sentence at `simulation.ts:35` is not true today. Making it true is Mission 1.
++
++---
++
++### 3.2 · P0 — Row Level Security denies every write in the product
++
++`migrations/001_initial_schema.sql:274-280` enables RLS on all seven tables.
++`:283-347` then defines seven policies. All seven are `FOR SELECT`.
++
++```bash
++grep -c "FOR SELECT" migrations/001_initial_schema.sql   # 7
++grep -c "FOR INSERT" migrations/001_initial_schema.sql   # 0
++grep -c "FOR UPDATE" migrations/001_initial_schema.sql   # 0
++grep -c "FOR ALL"    migrations/001_initial_schema.sql   # 0
++```
++
++RLS enabled with no permissive policy for a verb denies that verb. There is no
++`INSERT`, `UPDATE` or `DELETE` policy on any table, and the application connects with the
++**anon** key (`lib/db/client.ts:10-22`). Against a correctly migrated database:
++
++- `POST /api/applications` — every pilot lead — fails.
++- `POST /api/jobs` — every job — fails.
++- `POST /api/telemetry` — every event — fails.
++
++The read policies do not work either: they resolve `auth.uid()`, which is `NULL` for an
++anon key, so each `USING` clause evaluates to `NULL` and denies.
++
++This is invisible today only because Supabase is not configured and
++`lib/db/client.ts:19-20` silently substitutes `https://example.supabase.co`. **The first
++day real credentials are added, the entire write side of the product stops**, and the
++failure will look like a hundred unrelated 500s rather than one missing migration.
++
++The architectural fix is not "add anon write policies". Devices must never hold a
++database-writing key. The server authenticates the caller and writes with a service-role
++client that is never bundled to the browser. See §4, Mission 1.
++
++---
++
++### 3.3 · P0 — CI is red on `main`, so no gate has run in weeks
++
++```bash
++node scripts/check-repo-hygiene.mjs; echo "exit=$?"
++# ✗ 1 patch file(s) tracked in the repository:
++#     FLOORFORGE_46_database_not_configured.patch
++# exit=1
++```
++
++`.github/workflows/verify.yml:53-54` runs hygiene as step 2 of 8. It exits 1, so
++**`typecheck`, `lint`, `build` and the audit scripts have not run on `main`.** The
++workflow's own header comment (`:7-9`) says this gate exists because "a delivery patch
++file reached `main` twice through the GitHub web UI". It reached `main` a third time and
++the gate that was built to catch it is now the reason nothing else is being checked.
++
++For the record, both gates behind it currently pass — `npx tsc --noEmit` is clean and
++`npx eslint` reports one warning, zero errors. The damage is not a hidden type error; it
++is that **nobody can know that**, and that a genuinely red build has been normalised.
++
++---
++
++### 3.4 · P0 — No authentication or authorisation exists on any API route
++
++```bash
++grep -rn -i "service_role\|api_key\|Authorization\|bearer" --include=*.ts app lib
++# (no matches)
++```
++
++Not "weak". Absent. Concretely:
++
++- **`GET /api/applications` (`app/api/applications/route.ts:62-68`)** returns the entire
++  pilot pipeline — name, email, phone, company, monthly sqft target, internal notes — to
++  anyone who requests it. The route's own comment reads *"TODO: Add auth check… For now,
++  this is open for demo purposes."* This is the company's sales pipeline and it is
++  `curl`-able. `proxy.ts:10-14` protects `/dashboard(.*)` only; the matcher at `:23` includes
++  `/api/*` but `auth.protect()` is never called for it.
++- **`GET /api/jobs` (`:81-95`)** takes `tenant_id` from a **query parameter**. The caller
++  chooses whose data to read.
++- **`GET /api/jobs/[id]` (`app/api/jobs/[id]/route.ts:22-24`)** applies no tenant filter
++  at all — `db.getJobById(id)` is called with one argument although the helper accepts a
++  `tenant_id` (`lib/db/client.ts:149-165`).
++- **`POST /api/telemetry`** accepts events for any `job_id` and any `robot_id` from any
++  caller on the internet. Quality evidence, warranty evidence and the training corpus are
++  all forgeable by design.
++
++The last one is the one that matters commercially. A digital job passport is worth
++exactly as much as the difficulty of forging it, and today that is zero.
++
++---
++
++### 3.5 · P1 — `PATCH /api/jobs/[id]` bypasses its own validator
++
++`lib/validators.ts:248-320` defines `validateJobUpdate`, which checks status against the
++enum and bounds `coverage_pct` and `approval_score`. `app/api/jobs/[id]/route.ts:56-76`
++does not call it. It hand-rolls an allowlist and writes `allowedUpdates.status =
++body.status` **with no enum check**, so `{"status":"definitely_finished"}` reaches
++Postgres. It also skips `current_pass`, which the validator handles.
++
++The state machine is in the same condition. `migrations/001:380-406` writes out nine
++transition rules as a comment and then enforces exactly one of them (no transition out of
++`archived`). A job can go `draft → approved` without ever having run.
++
++---
++
++### 3.6 · P1 — No provenance column anywhere
++
++`lib/simulation.ts` emits events in the exact shape of the firmware contract, into the
++same endpoint, with the same event types. Nothing in `telemetry_events`
++(`migrations/001:237-247`) distinguishes them.
++
++The moment both a simulator and a machine post to the same table, the dataset is
++permanently inadmissible: no query can separate what was measured from what was modelled,
++and every quality claim built on it becomes unprovable. This is cheap to fix now and
++impossible to fix retroactively.
++
++---
++
++### 3.7 · P0 — No tests
++
++No test runner, no test script, no test file.
++
++```bash
++grep -c '"test"' package.json   # 0
++find . -name '*.test.*' -not -path './node_modules/*' | wc -l   # 0
++```
++
++§3.1 is a two-line contract drift between two files in the same repository. It survived a
++dedicated product-truth audit that cited both files, because no instrument compares them.
++Every finding above is of that class.
++
++---
++
++## 4. Execution order
++
++**P0 — blocks product, pilot, safety, data integrity or revenue**
++
++1. **The ingest path.** §3.1 + §3.2 + §3.4 + §3.6 are one mission, because none of them
++   can be fixed alone: the enum fix does nothing while RLS denies the insert, RLS cannot
++   be opened without a device identity to open it for, and a device identity is what
++   makes provenance non-forgeable. Ship it with the dedup and resume semantics an
++   offline-first machine needs, or it will be rebuilt in six months.
++2. **CI green** (§3.3) — one file. Do it first; nothing else is verifiable without it.
++3. **Test infrastructure** (§3.7), starting with a contract test that fails when
++   TypeScript and SQL disagree about the event vocabulary.
++4. **Tenant isolation and the job state machine** (§3.4, §3.5).
++
++**P1 — materially improves autonomy, quality, economics or adoption**
++
++5. FloorTwin as the canonical floor object; `lib/floorPlan.ts` is the seed.
++6. Process planner: species + condition + target quality → executable plan.
++7. Reconcile the four throughput numbers (`audit/PRODUCT_TRUTH.md` T0-2) — the planner
++   cannot be honest while the product has four answers to "how long does my floor take".
++8. ROI calculator claim ceiling (`PRODUCT_TRUTH.md` T0-1).
++
++**P2 — strategically useful later**
++
++Fleet OS, maintenance intelligence, closed-loop sanding, MCP tool surface, `/api/v1`,
++inspection, replay and fault injection in the simulator.
++
++**P3 — distraction**
++
++Billing, SSO, enterprise administration, third-party hardware, marketplace. Nothing here
++is touched until a machine has refinished a floor for a paying contractor.
++
++---
++
++## 5. Mission 1, stated precisely
++
++> Make `POST /api/telemetry` an interface a real machine can be built against: authenticated
++> per device, storable for every event type the firmware contract defines, idempotent under
++> at-least-once delivery, resumable after a network outage, provenance-stamped so simulated
++> and measured data can never be confused, and proven by tests that fail when any of those
++> properties regresses.
++
++Everything else in this document waits.

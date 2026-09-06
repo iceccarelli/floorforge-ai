@@ -1,0 +1,1263 @@
+From bc3088a897a3c7484ac386bb2842fed13a8694bc Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sun, 6 Sep 2026 14:38:19 +0000
+Subject: [PATCH 4/6] feat(telemetry): an ingest path a real machine can be
+ built against
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+POST /api/telemetry took any JSON from anyone on the internet and inserted it.
+Now it authenticates the device, stamps provenance from the credential, absorbs
+retries, dead-letters what it refuses, and tells the machine what it holds.
+
+  lib/telemetry/ingest.ts   the contract, as a pure function of an injected
+                            store. Who may write, what a duplicate is, what
+                            happens to a poison event — none of it touches the
+                            network, so all of it is testable.
+  lib/db/service.ts         server-only service-role client. Throws if
+                            evaluated in a browser; refuses to start rather
+                            than falling back to a placeholder project, which
+                            is the pattern in lib/db/client.ts:19-20 that let a
+                            completely non-functional write path look healthy.
+  app/api/telemetry/route.ts        HTTP adapter, and nothing else.
+  app/api/telemetry/resume/route.ts what the platform already holds, so an edge
+                            coming back from an outage replays from max_seq
+                            instead of resending four hours of 1 Hz samples.
+  scripts/issue-device-key.mjs      mint a credential. Prints the key once.
+
+The delivery contract, stated in one place (lib/telemetry/ingest.ts): the edge
+assigns `seq` per (robot_id, job_id), buffers, and retries until each event
+comes back accepted, duplicate or rejected. All three are terminal, so a
+malformed event can never wedge the queue — which is what a 500 with no
+per-event answer did before.
+
+Three refusals worth naming. A credential may only speak for its own robot: one
+leaked key must not forge the quality record of the whole fleet. A job in
+another tenant answers exactly as a job that does not exist, so a valid key
+cannot enumerate the platform. And provenance comes from the credential's
+registered kind, never from the request body — a simulator cannot claim
+measurement even if it asks to.
+
+Status codes are chosen so a machine can branch without parsing prose: 200
+processed, 401 bad key, 413 split the batch, 422 the whole batch is poison, 503
+not configured. 422 rather than 200 for a wholly-rejected batch is deliberate —
+a 200 there makes a machine emitting nothing but garbage indistinguishable,
+to every dashboard, from one running perfectly.
+
+No AI anywhere in this path. It decides whether a row is admissible and stores
+it exactly as sent. Anything that interprets a reading belongs downstream of
+the stored truth, never in front of it.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_014pRDhZ6XzDZyaeJoUR5Xuo
+---
+ .env.example                      |  13 +
+ app/api/telemetry/resume/route.ts | 102 ++++++
+ app/api/telemetry/route.ts        | 163 ++++++----
+ lib/db/service.ts                 | 156 +++++++++
+ lib/telemetry/ingest.ts           | 513 ++++++++++++++++++++++++++++++
+ lib/types.ts                      |  71 +++++
+ scripts/issue-device-key.mjs      | 110 +++++++
+ 7 files changed, 1065 insertions(+), 63 deletions(-)
+ create mode 100644 app/api/telemetry/resume/route.ts
+ create mode 100644 lib/db/service.ts
+ create mode 100644 lib/telemetry/ingest.ts
+ create mode 100644 scripts/issue-device-key.mjs
+
+diff --git a/.env.example b/.env.example
+index 93018fb..06b8853 100644
+--- a/.env.example
++++ b/.env.example
+@@ -11,3 +11,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
+ # Formspree form ID for the pilot waitlist form (e.g. abcdwxyz).
+ # Without it, the waitlist CTA falls back to a mailto link.
+ NEXT_PUBLIC_FORMSPREE_FORM_ID=
++
++# ---------------------------------------------------------------------------
++# Telemetry ingest (server-side only)
++# ---------------------------------------------------------------------------
++# Required for POST /api/telemetry and GET /api/telemetry/resume. Without it
++# both return 503 TELEMETRY_NOT_CONFIGURED — a clear refusal, not a silent
++# write to a placeholder project.
++#
++# NO NEXT_PUBLIC_ PREFIX, EVER. This key bypasses Row Level Security. Prefixing
++# it would inline it into the browser bundle and hand every visitor full read
++# and write access to every tenant. lib/db/service.ts throws if it is evaluated
++# in a browser, so an accidental client import fails loudly rather than shipping.
++SUPABASE_SERVICE_ROLE_KEY=
+diff --git a/app/api/telemetry/resume/route.ts b/app/api/telemetry/resume/route.ts
+new file mode 100644
+index 0000000..bbc9762
+--- /dev/null
++++ b/app/api/telemetry/resume/route.ts
+@@ -0,0 +1,102 @@
++/**
++ * GET /api/telemetry/resume?job_id=<id> — what does the platform already hold?
++ *
++ * The first call a machine makes when it comes back from an outage. Without it,
++ * an edge with four hours of buffered 1 Hz samples has two choices: replay all
++ * of them and rely on the idempotency index to absorb the ones that landed
++ * before the network dropped, or guess. The first wastes the job site's uplink
++ * on ~14,000 events that are already stored; the second loses data.
++ *
++ * With it the edge sends one request, reads `max_seq`, and replays from there.
++ *
++ * Authenticated with the same device credential as ingest, through the same
++ * `authenticateDevice`, and scoped the same way: a machine may only ask about
++ * its own telemetry, on a job inside its own tenant. Otherwise this endpoint
++ * becomes an oracle for enumerating other tenants' job ids.
++ */
++
++import { NextRequest, NextResponse } from "next/server";
++import { createHash } from "node:crypto";
++import { authenticateDevice, IngestError } from "@/lib/telemetry/ingest";
++import {
++  createSupabaseTelemetryStore,
++  ServiceClientUnavailableError,
++} from "@/lib/db/service";
++import type * as types from "@/lib/types";
++
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++const sha256Hex = (input: string): string =>
++  createHash("sha256").update(input, "utf8").digest("hex");
++
++function errorBody(code: string, message: string) {
++  return { error: { code, message } } as types.ApiResponse<never>;
++}
++
++export async function GET(req: NextRequest): Promise<NextResponse> {
++  try {
++    const store = createSupabaseTelemetryStore();
++    const credential = await authenticateDevice(
++      store,
++      sha256Hex,
++      req.headers.get("authorization")
++    );
++
++    const jobId = req.nextUrl.searchParams.get("job_id");
++    if (!jobId) {
++      return NextResponse.json(
++        errorBody("MISSING_PARAMETER", "job_id is required"),
++        { status: 400 }
++      );
++    }
++
++    const [job] = await store.getJobs([jobId]);
++
++    // A job in another tenant and a job that does not exist give the same
++    // answer. The alternative tells an attacker with one valid device key which
++    // job ids exist across the whole platform.
++    if (!job || job.tenant_id !== credential.tenant_id) {
++      return NextResponse.json(errorBody("NOT_FOUND", `No job ${jobId}`), {
++        status: 404,
++      });
++    }
++
++    const maxSeq = await store.maxSeq(credential.robot_id, jobId);
++
++    return NextResponse.json(
++      {
++        data: {
++          job_id: jobId,
++          robot_id: credential.robot_id,
++          job_status: job.status,
++          max_seq: maxSeq,
++          /** Resume from here. Null max_seq means the platform holds nothing. */
++          next_seq: maxSeq === null ? 0 : maxSeq + 1,
++          accepts_telemetry: job.status !== "archived",
++        },
++      },
++      { status: 200 }
++    );
++  } catch (error) {
++    if (error instanceof IngestError) {
++      return NextResponse.json(errorBody(error.code, error.message), {
++        status: error.status,
++      });
++    }
++    if (error instanceof ServiceClientUnavailableError) {
++      return NextResponse.json(
++        errorBody("TELEMETRY_NOT_CONFIGURED", error.message),
++        { status: 503 }
++      );
++    }
++    console.error("GET /api/telemetry/resume error:", error);
++    return NextResponse.json(
++      errorBody(
++        "INTERNAL_SERVER_ERROR",
++        error instanceof Error ? error.message : "Unknown error"
++      ),
++      { status: 500 }
++    );
++  }
++}
+diff --git a/app/api/telemetry/route.ts b/app/api/telemetry/route.ts
+index c3fd87e..13b4200 100644
+--- a/app/api/telemetry/route.ts
++++ b/app/api/telemetry/route.ts
+@@ -1,86 +1,123 @@
+ /**
+- * POST /api/telemetry - Ingest telemetry event(s)
++ * POST /api/telemetry — ingest telemetry from an authenticated device.
++ * GET  /api/telemetry/resume?job_id=&robot_id= is served from this route's
++ *      sibling; see lib/telemetry/ingest.ts for the delivery contract.
++ *
++ * This file is deliberately thin. Every decision that matters — who may write,
++ * what a duplicate is, what happens to a poison event — lives in
++ * lib/telemetry/ingest.ts, where it is a pure function of an injected store and
++ * is covered by tests/contract/telemetry-ingest.test.mjs. What is left here is
++ * HTTP: read a header, pick a status code, shape a body.
++ *
++ * STATUS CODES, and why they are what they are. A machine has to be able to
++ * branch on the answer without parsing prose:
++ *
++ *   200  the batch was processed. Read `accepted`, `duplicate` and `rejected`.
++ *        All three outcomes are terminal — drop those events from the buffer.
++ *   401  the device key is missing, unknown or revoked. Do not retry; escalate.
++ *   400  the body is not a telemetry envelope at all.
++ *   413  the batch is too large. Split it and resend.
++ *   422  every event in the batch was rejected. The batch is poison; the body
++ *        says why, per event. Retrying it unchanged will never succeed.
++ *   503  this deployment has no telemetry database configured.
++ *   500  something else. Retry with backoff; the events are not stored.
++ *
++ * 422 rather than 200 for a wholly-rejected batch is the one debatable choice.
++ * It is deliberate: a 200 there would make a machine emitting nothing but
++ * malformed events indistinguishable, to every dashboard and alert, from a
++ * machine running perfectly.
+  */
+ 
+ import { NextRequest, NextResponse } from "next/server";
+-import * as db from "@/lib/db/client";
+-import * as validators from "@/lib/validators";
+-import * as types from "@/lib/types";
++import { createHash } from "node:crypto";
++import {
++  ingestTelemetry,
++  IngestError,
++  type IngestReport,
++} from "@/lib/telemetry/ingest";
++import {
++  createSupabaseTelemetryStore,
++  ServiceClientUnavailableError,
++} from "@/lib/db/service";
++import type * as types from "@/lib/types";
+ 
+-// ============================================================================
+-// POST /api/telemetry
+-// ============================================================================
++// node:crypto, and the service-role client, are not available on the edge
++// runtime. Stating it here means a future default change cannot silently move
++// this route somewhere its dependencies do not exist.
++export const runtime = "nodejs";
++export const dynamic = "force-dynamic";
++
++const sha256Hex = (input: string): string =>
++  createHash("sha256").update(input, "utf8").digest("hex");
++
++function errorBody(code: string, message: string, details?: Record<string, unknown>) {
++  return { error: { code, message, details } } as types.ApiResponse<never>;
++}
+ 
+ export async function POST(req: NextRequest): Promise<NextResponse> {
++  let body: unknown;
+   try {
+-    const body = await req.json();
++    body = await req.json();
++  } catch {
++    return NextResponse.json(
++      errorBody("MALFORMED_BODY", "Request body is not valid JSON"),
++      { status: 400 }
++    );
++  }
+ 
+-    // Support both single event and batch (array)
+-    const events = Array.isArray(body) ? body : [body];
++  try {
++    const report: IngestReport = await ingestTelemetry({
++      store: createSupabaseTelemetryStore(),
++      sha256Hex,
++      authorizationHeader: req.headers.get("authorization"),
++      body,
++    });
+ 
+-    if (events.length === 0) {
+-      return NextResponse.json(
+-        {
+-          error: {
+-            code: "VALIDATION_ERROR",
+-            message: "At least one event is required",
+-          },
+-        } as types.ApiResponse<never>,
+-        { status: 400 }
+-      );
+-    }
++    // Every event refused: the batch cannot succeed on retry, and a monitor
++    // watching error rates must be able to see it.
++    const status = report.accepted + report.duplicate === 0 ? 422 : 200;
+ 
+-    // Validate all events
+-    const validatedEvents: Omit<types.TelemetryEvent, "id" | "received_at" | "created_at">[] = [];
+-    const errors: Array<{ index: number; errors: validators.ValidationError[] }> = [];
++    // One structured line per request. There is no observability in this
++    // repository yet (FLOORFORGE_SYSTEM_BASELINE.md §1); a parseable log is the
++    // smallest thing that makes ingest loss visible before a contractor
++    // reports it.
++    console.log(
++      JSON.stringify({
++        at: "telemetry.ingest",
++        accepted: report.accepted,
++        duplicate: report.duplicate,
++        rejected: report.rejected,
++        reject_codes: Array.from(
++          new Set(
++            report.results
++              .filter((r) => r.outcome === "rejected")
++              .map((r) => r.reason_code)
++          )
++        ),
++      })
++    );
+ 
+-    for (let i = 0; i < events.length; i++) {
+-      const validation = validators.validateTelemetryEvent(events[i]);
+-      if (!validation.valid) {
+-        errors.push({ index: i, errors: validation.errors! });
+-      } else {
+-        validatedEvents.push(validation.data!);
+-      }
++    return NextResponse.json({ data: report }, { status });
++  } catch (error) {
++    if (error instanceof IngestError) {
++      return NextResponse.json(errorBody(error.code, error.message), {
++        status: error.status,
++      });
+     }
+ 
+-    if (errors.length > 0) {
++    if (error instanceof ServiceClientUnavailableError) {
+       return NextResponse.json(
+-        {
+-          error: {
+-            code: "VALIDATION_ERROR",
+-            message: `${errors.length} event(s) failed validation`,
+-            details: { validation_errors: errors },
+-          },
+-        } as types.ApiResponse<never>,
+-        { status: 400 }
++        errorBody("TELEMETRY_NOT_CONFIGURED", error.message),
++        { status: 503 }
+       );
+     }
+ 
+-    // Ingest events
+-    let createdEvents: types.TelemetryEvent[] = [];
+-
+-    if (validatedEvents.length === 1) {
+-      const event = await db.createTelemetryEvent(validatedEvents[0]);
+-      createdEvents = [event];
+-    } else {
+-      createdEvents = await db.createTelemetryEventBatch(validatedEvents);
+-    }
+-
+-    return NextResponse.json(
+-      {
+-        data: createdEvents,
+-      } as types.ApiResponse<types.TelemetryEvent[]>,
+-      { status: 201 }
+-    );
+-  } catch (error) {
+     console.error("POST /api/telemetry error:", error);
+     return NextResponse.json(
+-      {
+-        error: {
+-          code: "INTERNAL_SERVER_ERROR",
+-          message: error instanceof Error ? error.message : "Unknown error",
+-        },
+-      } as types.ApiResponse<never>,
++      errorBody(
++        "INTERNAL_SERVER_ERROR",
++        error instanceof Error ? error.message : "Unknown error"
++      ),
+       { status: 500 }
+     );
+   }
+diff --git a/lib/db/service.ts b/lib/db/service.ts
+new file mode 100644
+index 0000000..abc24d0
+--- /dev/null
++++ b/lib/db/service.ts
+@@ -0,0 +1,156 @@
++/**
++ * Server-only Supabase client, and the telemetry store built on it.
++ *
++ * WHY A SECOND CLIENT EXISTS. `lib/db/client.ts` connects with the anon key,
++ * which is public by design and subject to Row Level Security. That is correct
++ * for anything a browser does. It is wrong for telemetry ingest, because the
++ * alternative to a server-side write is handing every machine in the field a
++ * key that can write to the database directly — and a machine that can write to
++ * the database directly is a machine that can forge the quality record of a job
++ * it never ran.
++ *
++ * So `migrations/002_telemetry_integrity.sql` §5 gives `telemetry_events` no
++ * anon or authenticated write policy at all. The only path in is this client,
++ * reached only from a route handler that has already authenticated the device
++ * against `device_credentials`. The service role bypasses RLS; the auth check
++ * in lib/telemetry/ingest.ts is what replaces it.
++ *
++ * THE GUARD BELOW IS NOT DECORATION. A service-role key reaching a browser
++ * bundle is a total compromise of every tenant's data at once. `SUPABASE_SERVICE_ROLE_KEY`
++ * has no NEXT_PUBLIC_ prefix so Next.js will not inline it, and this module
++ * throws on any attempt to evaluate it in a browser, so an accidental import
++ * from a client component fails loudly at the first call instead of shipping.
++ */
++
++import { createClient, type SupabaseClient } from "@supabase/supabase-js";
++import type {
++  JobOwnership,
++  TelemetryInsertRow,
++  TelemetryRejectRow,
++  TelemetryStore,
++} from "@/lib/telemetry/ingest";
++import type * as types from "@/lib/types";
++
++export class ServiceClientUnavailableError extends Error {
++  constructor(message: string) {
++    super(message);
++    this.name = "ServiceClientUnavailableError";
++  }
++}
++
++let cached: SupabaseClient | null = null;
++
++/** True when the deployment is configured to accept device telemetry. */
++export function serviceClientConfigured(): boolean {
++  return Boolean(
++    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
++  );
++}
++
++export function getServiceClient(): SupabaseClient {
++  if (typeof window !== "undefined") {
++    throw new ServiceClientUnavailableError(
++      "lib/db/service.ts was imported into a browser bundle. The service role " +
++        "key must never leave the server."
++    );
++  }
++
++  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
++  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
++
++  if (!url || !serviceKey) {
++    // Deliberately not a silent fallback to a placeholder project. That
++    // pattern in lib/db/client.ts:19-20 is why a completely non-functional
++    // write path looked healthy for months: every insert went to a URL that
++    // does not exist and the only signal was a console warning at boot.
++    throw new ServiceClientUnavailableError(
++      "Telemetry ingest is not configured. Set NEXT_PUBLIC_SUPABASE_URL and " +
++        "SUPABASE_SERVICE_ROLE_KEY (server-side only, never NEXT_PUBLIC_)."
++    );
++  }
++
++  if (!cached) {
++    cached = createClient(url, serviceKey, {
++      auth: { persistSession: false, autoRefreshToken: false },
++    });
++  }
++  return cached;
++}
++
++// ============================================================================
++// TELEMETRY STORE
++// ============================================================================
++
++export function createSupabaseTelemetryStore(
++  client: SupabaseClient = getServiceClient()
++): TelemetryStore {
++  return {
++    async findActiveCredentialByKeyHash(keyHash) {
++      const { data, error } = await client
++        .from("device_credentials")
++        .select("id, robot_id, tenant_id, kind, label, key_prefix, status, created_at")
++        .eq("key_hash", keyHash)
++        .eq("status", "active")
++        .maybeSingle();
++
++      if (error) throw new Error(`Credential lookup failed: ${error.message}`);
++      return (data as types.DeviceCredential | null) ?? null;
++    },
++
++    async getJobs(jobIds) {
++      const { data, error } = await client
++        .from("jobs")
++        .select("id, tenant_id, status")
++        .in("id", jobIds);
++
++      if (error) throw new Error(`Job lookup failed: ${error.message}`);
++      return (data ?? []) as JobOwnership[];
++    },
++
++    async insertEvents(rows: TelemetryInsertRow[]) {
++      // ON CONFLICT (robot_id, job_id, seq) DO NOTHING, then read back what was
++      // actually written. `ignoreDuplicates` is what turns an at-least-once
++      // delivery into an exactly-once row, and `.select()` is what lets the
++      // machine be told which of its events were new.
++      const { data, error } = await client
++        .from("telemetry_events")
++        .upsert(rows, {
++          onConflict: "robot_id,job_id,seq",
++          ignoreDuplicates: true,
++        })
++        .select("seq");
++
++      if (error) throw new Error(`Telemetry insert failed: ${error.message}`);
++      return {
++        insertedSeqs: ((data ?? []) as Array<{ seq: number }>).map((r) => r.seq),
++      };
++    },
++
++    async recordRejects(rows: TelemetryRejectRow[]) {
++      const { error } = await client.from("telemetry_rejects").insert(rows);
++      if (error) throw new Error(`Reject write failed: ${error.message}`);
++    },
++
++    async maxSeq(robotId, jobId) {
++      const { data, error } = await client
++        .from("telemetry_events")
++        .select("seq")
++        .eq("robot_id", robotId)
++        .eq("job_id", jobId)
++        .not("seq", "is", null)
++        .order("seq", { ascending: false })
++        .limit(1)
++        .maybeSingle();
++
++      if (error) throw new Error(`Resume lookup failed: ${error.message}`);
++      return (data as { seq: number } | null)?.seq ?? null;
++    },
++
++    async touchCredential(credentialId) {
++      await client
++        .from("device_credentials")
++        .update({ last_seen_at: new Date().toISOString() })
++        .eq("id", credentialId);
++    },
++  };
++}
+diff --git a/lib/telemetry/ingest.ts b/lib/telemetry/ingest.ts
+new file mode 100644
+index 0000000..3f8e98e
+--- /dev/null
++++ b/lib/telemetry/ingest.ts
+@@ -0,0 +1,513 @@
++/**
++ * Telemetry ingest — the interface a real machine is built against.
++ *
++ * WHAT WAS HERE BEFORE. `app/api/telemetry/route.ts` took any JSON from anyone
++ * on the internet, validated it against a vocabulary four values wider than the
++ * database enum, and inserted it. That produced three failures at once:
++ *
++ *   - A device following SOFTWARE_HARDWARE_CONTRACT.md:103 passed validation and
++ *     was rejected by Postgres. The route turned that into a 500 with no retry
++ *     contract, no buffer and no dead-letter, so 100% of the 1 Hz pressure
++ *     stream was lost. (FLOORFORGE_SYSTEM_BASELINE.md §3.1)
++ *   - Any caller could post events for any robot on any job. Quality evidence,
++ *     warranty evidence and the training corpus were forgeable. (§3.4)
++ *   - Nothing recorded whether a row came from a machine or from
++ *     lib/simulation.ts, which emits the same event types into the same
++ *     endpoint. (§3.6)
++ *
++ * WHY THIS FILE IS SEPARATE FROM THE ROUTE. Everything below is a pure function
++ * of its inputs and an injected `TelemetryStore`. The route is a thin adapter
++ * that supplies a Supabase-backed store; the tests supply an in-memory one. The
++ * ingest contract — who may write, what counts as a duplicate, what happens to
++ * a poison event — is the part that has to be provable, so it is the part that
++ * does not touch the network.
++ *
++ * THE DELIVERY CONTRACT, stated once:
++ *
++ *   The edge assigns `seq`, monotonically increasing per (robot_id, job_id),
++ *   before an event leaves the machine. It buffers locally and retries until
++ *   the platform reports each event as `accepted`, `duplicate` or `rejected`.
++ *   All three are terminal. At-least-once from the edge, exactly-once in
++ *   storage, and a poison event can never wedge the queue because it comes back
++ *   `rejected` with a reason rather than as a 500.
++ *
++ *   On reconnect the edge reads `resume.max_seq` from any response and replays
++ *   only what the platform does not have.
++ *
++ * WHAT IS NOT HERE, DELIBERATELY. No AI, no inference, no smoothing, no
++ * "helpful" correction of an out-of-range reading. This layer decides whether a
++ * row is admissible and stores it exactly as the machine sent it. Anything that
++ * interprets a reading belongs downstream of the stored truth, never in front
++ * of it.
++ */
++
++import * as types from "@/lib/types";
++import { validateTelemetryEvent } from "@/lib/validators";
++
++// ============================================================================
++// LIMITS
++// ============================================================================
++
++/**
++ * A 1 Hz stream from one machine is 3,600 events per hour. 500 lets an edge
++ * flush eight minutes of backlog in one request while keeping a single body
++ * small enough to fail fast. It is a bound on blast radius, not a throughput
++ * target: an edge with more than this buffered sends several requests, which is
++ * what the resume contract is for.
++ */
++export const MAX_BATCH_SIZE = 500;
++
++/**
++ * A machine whose real-time clock has not been set yet reports 1970, or a date
++ * years out. Timestamps are the axis every replay, benchmark and quality
++ * comparison is built on, so an implausible one is rejected rather than stored:
++ * a wrong timestamp is not a small error, it is a row that silently reorders
++ * the history of a job.
++ */
++export const MAX_CLOCK_SKEW_AHEAD_MS = 24 * 60 * 60 * 1000;
++export const EARLIEST_PLAUSIBLE_TIMESTAMP_MS = Date.UTC(2024, 0, 1);
++
++// ============================================================================
++// STORE PORT
++// ============================================================================
++
++export interface JobOwnership {
++  id: string;
++  tenant_id: string;
++  status: types.JobStatus;
++}
++
++export interface TelemetryInsertRow {
++  job_id: string;
++  robot_id: string;
++  timestamp: string;
++  event_type: types.EventType;
++  data: Record<string, unknown>;
++  seq: number;
++  provenance: types.Provenance;
++  device_credential_id: string;
++  firmware_version?: string;
++  software_version?: string;
++}
++
++export interface TelemetryRejectRow {
++  device_credential_id: string | null;
++  claimed_robot_id: string | null;
++  claimed_job_id: string | null;
++  reason_code: RejectCode;
++  reason: string;
++  raw: unknown;
++}
++
++export interface TelemetryStore {
++  /** Looks up an *active* credential by SHA-256 hex of the presented key. */
++  findActiveCredentialByKeyHash(
++    keyHash: string
++  ): Promise<types.DeviceCredential | null>;
++
++  /** Ownership and status for the given job ids. Missing ids are simply absent. */
++  getJobs(jobIds: string[]): Promise<JobOwnership[]>;
++
++  /**
++   * Inserts with ON CONFLICT (robot_id, job_id, seq) DO NOTHING and returns the
++   * `seq` values that were actually written. Everything else in the batch was
++   * already stored, which is the definition of a duplicate here.
++   */
++  insertEvents(rows: TelemetryInsertRow[]): Promise<{ insertedSeqs: number[] }>;
++
++  /** Dead-letter. Best-effort: a reject that cannot be stored must not fail ingest. */
++  recordRejects(rows: TelemetryRejectRow[]): Promise<void>;
++
++  /** Highest stored seq for the pair, or null if the platform holds nothing. */
++  maxSeq(robotId: string, jobId: string): Promise<number | null>;
++
++  /** Liveness for the fleet view. Best-effort. */
++  touchCredential(credentialId: string): Promise<void>;
++}
++
++// ============================================================================
++// RESULT VOCABULARY
++// ============================================================================
++
++export type RejectCode =
++  | "VALIDATION_FAILED"
++  | "INVALID_SEQ"
++  | "ROBOT_MISMATCH"
++  | "JOB_NOT_FOUND"
++  | "JOB_TENANT_MISMATCH"
++  | "JOB_ARCHIVED"
++  | "IMPLAUSIBLE_TIMESTAMP";
++
++export type EventOutcome = "accepted" | "duplicate" | "rejected";
++
++export interface EventResult {
++  index: number;
++  seq: number | null;
++  outcome: EventOutcome;
++  reason_code?: RejectCode;
++  reason?: string;
++}
++
++export interface IngestReport {
++  accepted: number;
++  duplicate: number;
++  rejected: number;
++  results: EventResult[];
++  /** Per (robot_id, job_id) high-water marks, for edge resume after an outage. */
++  resume: Array<{ robot_id: string; job_id: string; max_seq: number | null }>;
++}
++
++export type IngestFailureCode =
++  | "UNAUTHENTICATED"
++  | "CREDENTIAL_UNKNOWN"
++  | "MALFORMED_BODY"
++  | "EMPTY_BATCH"
++  | "BATCH_TOO_LARGE";
++
++export class IngestError extends Error {
++  constructor(
++    readonly code: IngestFailureCode,
++    message: string,
++    readonly status: number
++  ) {
++    super(message);
++    this.name = "IngestError";
++  }
++}
++
++// ============================================================================
++// AUTHENTICATION
++// ============================================================================
++
++/**
++ * Devices present `Authorization: Bearer <key>`. The key is never stored — the
++ * platform holds SHA-256 of it — so this is a lookup by digest, not a string
++ * comparison, and there is no timing channel to exploit.
++ */
++export function parseBearerToken(header: string | null | undefined): string | null {
++  if (!header) return null;
++  const match = /^Bearer\s+(\S+)$/i.exec(header.trim());
++  return match ? match[1] : null;
++}
++
++export type Sha256Hex = (input: string) => string;
++
++/**
++ * Resolves an `Authorization: Bearer` header to an active credential, or throws.
++ *
++ * Shared by ingest and by the resume endpoint, so there is exactly one place
++ * that decides what a valid device is. Two implementations of that question is
++ * how one of them ends up more permissive than the other.
++ */
++export async function authenticateDevice(
++  store: Pick<TelemetryStore, "findActiveCredentialByKeyHash">,
++  sha256Hex: Sha256Hex,
++  authorizationHeader: string | null | undefined
++): Promise<types.DeviceCredential> {
++  const token = parseBearerToken(authorizationHeader);
++  if (!token) {
++    throw new IngestError(
++      "UNAUTHENTICATED",
++      "Missing Authorization: Bearer <device key>",
++      401
++    );
++  }
++
++  const credential = await store.findActiveCredentialByKeyHash(sha256Hex(token));
++  if (!credential) {
++    // Unknown and revoked are the same answer on purpose. Telling a caller that
++    // a key existed but was revoked confirms the key, and confirms the machine.
++    throw new IngestError("CREDENTIAL_UNKNOWN", "Unknown or revoked device key", 401);
++  }
++  return credential;
++}
++
++// ============================================================================
++// INGEST
++// ============================================================================
++
++function isPlainObject(v: unknown): v is Record<string, unknown> {
++  return typeof v === "object" && v !== null && !Array.isArray(v);
++}
++
++/**
++ * Normalises a request body into a list of candidate events.
++ * Accepts a single event, a bare array, or `{ events: [...] }` — the three
++ * shapes a firmware author will reach for. Anything else is a malformed body.
++ */
++export function normaliseBatch(body: unknown): unknown[] {
++  if (Array.isArray(body)) return body;
++  if (isPlainObject(body) && Array.isArray(body.events)) return body.events;
++  if (isPlainObject(body)) return [body];
++  throw new IngestError(
++    "MALFORMED_BODY",
++    "Body must be a telemetry event, an array of events, or { events: [...] }",
++    400
++  );
++}
++
++function readSeq(raw: unknown): number | null {
++  if (!isPlainObject(raw)) return null;
++  const v = raw.seq;
++  if (typeof v !== "number" || !Number.isInteger(v) || v < 0) return null;
++  return v;
++}
++
++export interface IngestOptions {
++  store: TelemetryStore;
++  sha256Hex: Sha256Hex;
++  authorizationHeader: string | null | undefined;
++  body: unknown;
++  /** Injected so tests are not a function of the wall clock. */
++  now?: () => number;
++}
++
++export async function ingestTelemetry(opts: IngestOptions): Promise<IngestReport> {
++  const { store, sha256Hex, authorizationHeader, body } = opts;
++  const now = opts.now ?? Date.now;
++
++  // --- 1. Who is this ------------------------------------------------------
++  const credential = await authenticateDevice(store, sha256Hex, authorizationHeader);
++
++  // --- 2. Envelope ---------------------------------------------------------
++  const candidates = normaliseBatch(body);
++  if (candidates.length === 0) {
++    throw new IngestError("EMPTY_BATCH", "At least one event is required", 400);
++  }
++  if (candidates.length > MAX_BATCH_SIZE) {
++    throw new IngestError(
++      "BATCH_TOO_LARGE",
++      `Batch of ${candidates.length} exceeds the limit of ${MAX_BATCH_SIZE}. ` +
++        `Send in chunks and use resume.max_seq to confirm what landed.`,
++      413
++    );
++  }
++
++  // --- 3. Per-event admissibility -----------------------------------------
++  const results: EventResult[] = new Array(candidates.length);
++  const rejects: TelemetryRejectRow[] = [];
++  const admissible: Array<{ index: number; row: TelemetryInsertRow }> = [];
++
++  const reject = (
++    index: number,
++    seq: number | null,
++    code: RejectCode,
++    reason: string,
++    raw: unknown,
++    jobId: string | null
++  ) => {
++    results[index] = { index, seq, outcome: "rejected", reason_code: code, reason };
++    rejects.push({
++      device_credential_id: credential.id,
++      claimed_robot_id: credential.robot_id,
++      claimed_job_id: jobId,
++      reason_code: code,
++      reason,
++      raw,
++    });
++  };
++
++  // Job ownership is resolved in one query for the whole batch rather than per
++  // event: a 500-event flush from one machine touches one job.
++  const claimedJobIds = Array.from(
++    new Set(
++      candidates
++        .map((c) => (isPlainObject(c) && typeof c.job_id === "string" ? c.job_id : null))
++        .filter((v): v is string => v !== null)
++    )
++  );
++  const jobs = claimedJobIds.length ? await store.getJobs(claimedJobIds) : [];
++  const jobById = new Map(jobs.map((j) => [j.id, j]));
++
++  const nowMs = now();
++  const provenance = types.provenanceForDeviceKind(credential.kind);
++
++  for (let i = 0; i < candidates.length; i++) {
++    const raw = candidates[i];
++    const seq = readSeq(raw);
++    const claimedJobId =
++      isPlainObject(raw) && typeof raw.job_id === "string" ? raw.job_id : null;
++
++    if (seq === null) {
++      reject(
++        i,
++        null,
++        "INVALID_SEQ",
++        "Each event requires `seq`: a non-negative integer, monotonically " +
++          "increasing per (robot_id, job_id), assigned by the edge. It is what " +
++          "makes a retry distinguishable from a second reading.",
++        raw,
++        claimedJobId
++      );
++      continue;
++    }
++
++    const validation = validateTelemetryEvent(raw);
++    if (!validation.valid) {
++      reject(
++        i,
++        seq,
++        "VALIDATION_FAILED",
++        validation.errors!.map((e) => `${e.field}: ${e.message}`).join("; "),
++        raw,
++        claimedJobId
++      );
++      continue;
++    }
++    const event = validation.data!;
++
++    // A machine may only ever speak for itself. Without this, one leaked
++    // credential forges the quality record of every machine in the fleet.
++    if (event.robot_id !== credential.robot_id) {
++      reject(
++        i,
++        seq,
++        "ROBOT_MISMATCH",
++        `Credential is bound to robot ${credential.robot_id}; event claims ${event.robot_id}`,
++        raw,
++        event.job_id
++      );
++      continue;
++    }
++
++    const ts = Date.parse(event.timestamp);
++    if (ts > nowMs + MAX_CLOCK_SKEW_AHEAD_MS || ts < EARLIEST_PLAUSIBLE_TIMESTAMP_MS) {
++      reject(
++        i,
++        seq,
++        "IMPLAUSIBLE_TIMESTAMP",
++        `Timestamp ${event.timestamp} is outside the plausible window. ` +
++          `Check the machine's real-time clock before replaying.`,
++        raw,
++        event.job_id
++      );
++      continue;
++    }
++
++    const job = jobById.get(event.job_id);
++    if (!job) {
++      reject(i, seq, "JOB_NOT_FOUND", `No job ${event.job_id}`, raw, event.job_id);
++      continue;
++    }
++    if (job.tenant_id !== credential.tenant_id) {
++      // Same answer shape as JOB_NOT_FOUND would give, but recorded distinctly
++      // in the dead-letter table: a credential probing another tenant's job ids
++      // is a security event, not a bug report.
++      reject(
++        i,
++        seq,
++        "JOB_TENANT_MISMATCH",
++        `No job ${event.job_id}`,
++        raw,
++        event.job_id
++      );
++      continue;
++    }
++    if (job.status === "archived") {
++      reject(
++        i,
++        seq,
++        "JOB_ARCHIVED",
++        `Job ${event.job_id} is archived and no longer accepts telemetry`,
++        raw,
++        event.job_id
++      );
++      continue;
++    }
++
++    const envelope = raw as Record<string, unknown>;
++    admissible.push({
++      index: i,
++      row: {
++        job_id: event.job_id,
++        robot_id: event.robot_id,
++        timestamp: event.timestamp,
++        event_type: event.event_type,
++        data: event.data,
++        seq,
++        provenance,
++        device_credential_id: credential.id,
++        firmware_version:
++          typeof envelope.firmware_version === "string"
++            ? envelope.firmware_version
++            : undefined,
++        software_version:
++          typeof envelope.software_version === "string"
++            ? envelope.software_version
++            : undefined,
++      },
++    });
++  }
++
++  // --- 4. Store ------------------------------------------------------------
++  //
++  // A batch can contain the same seq twice — an edge that retried mid-flush.
++  // Deduplicating here keeps the insert from conflicting with itself; the first
++  // occurrence is written and the rest are reported as duplicates, which is the
++  // same answer the database would give on a second request.
++  const seenInBatch = new Set<string>();
++  const toInsert: Array<{ index: number; row: TelemetryInsertRow }> = [];
++  const dupInBatch: Array<{ index: number; row: TelemetryInsertRow }> = [];
++  for (const entry of admissible) {
++    const key = `${entry.row.robot_id} ${entry.row.job_id} ${entry.row.seq}`;
++    if (seenInBatch.has(key)) dupInBatch.push(entry);
++    else {
++      seenInBatch.add(key);
++      toInsert.push(entry);
++    }
++  }
++
++  let insertedSeqs = new Set<number>();
++  if (toInsert.length > 0) {
++    const res = await store.insertEvents(toInsert.map((e) => e.row));
++    insertedSeqs = new Set(res.insertedSeqs);
++  }
++
++  for (const entry of toInsert) {
++    results[entry.index] = {
++      index: entry.index,
++      seq: entry.row.seq,
++      outcome: insertedSeqs.has(entry.row.seq) ? "accepted" : "duplicate",
++    };
++  }
++  for (const entry of dupInBatch) {
++    results[entry.index] = {
++      index: entry.index,
++      seq: entry.row.seq,
++      outcome: "duplicate",
++    };
++  }
++
++  // Dead-lettering must never turn a successful ingest into a failure. If the
++  // rejects table is unavailable the accepted events still stand, and the
++  // machine still gets a per-event answer.
++  if (rejects.length > 0) {
++    try {
++      await store.recordRejects(rejects);
++    } catch {
++      /* observability degrades; ingest does not */
++    }
++  }
++  try {
++    await store.touchCredential(credential.id);
++  } catch {
++    /* liveness degrades; ingest does not */
++  }
++
++  // --- 5. Resume high-water marks -----------------------------------------
++  const pairs = Array.from(
++    new Set(admissible.map((e) => `${e.row.robot_id} ${e.row.job_id}`))
++  );
++  const resume = await Promise.all(
++    pairs.map(async (p) => {
++      const [robot_id, job_id] = p.split(" ");
++      return { robot_id, job_id, max_seq: await store.maxSeq(robot_id, job_id) };
++    })
++  );
++
++  const accepted = results.filter((r) => r.outcome === "accepted").length;
++  const duplicate = results.filter((r) => r.outcome === "duplicate").length;
++  const rejected = results.filter((r) => r.outcome === "rejected").length;
++
++  return { accepted, duplicate, rejected, results, resume };
++}
+diff --git a/lib/types.ts b/lib/types.ts
+index ee73c6c..851ddb7 100644
+--- a/lib/types.ts
++++ b/lib/types.ts
+@@ -385,3 +385,74 @@ export interface PaginatedResponse<T> {
+   limit: number;
+   has_more: boolean;
+ }
++
++// ============================================================================
++// DATA PROVENANCE
++// ============================================================================
++
++/**
++ * What kind of thing a stored value is.
++ *
++ * FLOORFORGE_SYSTEM_BASELINE.md §3.6. `lib/simulation.ts` emits events in the
++ * exact shape of SOFTWARE_HARDWARE_CONTRACT.md, into the same endpoint, with
++ * the same event types. Nothing in the schema distinguished them, so the first
++ * day both a simulator and a machine wrote to `telemetry_events` the dataset
++ * would have become permanently inadmissible — no query could separate what was
++ * measured from what was modelled, and every quality claim built on it would
++ * have been unprovable.
++ *
++ * Mirrors the `data_provenance` enum in migrations/002_telemetry_integrity.sql.
++ * There is deliberately no value meaning "unspecified": a row that cannot say
++ * what it is does not get written.
++ */
++export type Provenance =
++  | "measured"
++  | "simulated"
++  | "model_estimated"
++  | "operator_entered"
++  | "manufacturer_specified"
++  | "design_target"
++  | "historical";
++
++/** Mirrors the `device_kind` enum in migrations/002_telemetry_integrity.sql. */
++export type DeviceKind = "hardware" | "simulator" | "test_harness";
++
++export type CredentialStatus = "active" | "revoked";
++
++/**
++ * An issued device credential. One row per credential, not per machine: a
++ * machine may hold several (rotation, a staging key) and revoking one must not
++ * brick the other.
++ *
++ * The key itself is never stored or returned. `key_prefix` exists so an
++ * operator can tell two credentials apart, and so a leaked key can be traced
++ * from a log line without the log holding the secret.
++ */
++export interface DeviceCredential {
++  id: string;
++  robot_id: string;
++  tenant_id: string;
++  kind: DeviceKind;
++  label?: string;
++  key_prefix: string;
++  status: CredentialStatus;
++  last_seen_at?: string;
++  created_at: string;
++  revoked_at?: string;
++}
++
++/**
++ * Provenance is decided by the credential that presented the event, never by
++ * the event itself. A simulator cannot claim measurement even if it asks to,
++ * and a test harness is simulated on purpose — CI traffic must never be able to
++ * enter the corpus as evidence.
++ */
++export function provenanceForDeviceKind(kind: DeviceKind): Provenance {
++  switch (kind) {
++    case "hardware":
++      return "measured";
++    case "simulator":
++    case "test_harness":
++      return "simulated";
++  }
++}
+diff --git a/scripts/issue-device-key.mjs b/scripts/issue-device-key.mjs
+new file mode 100644
+index 0000000..ed23f06
+--- /dev/null
++++ b/scripts/issue-device-key.mjs
+@@ -0,0 +1,110 @@
++#!/usr/bin/env node
++/**
++ * Mint a device credential for telemetry ingest.
++ *
++ *   node scripts/issue-device-key.mjs --robot FF-S001 \
++ *        --tenant 7c9e6679-7425-40de-944b-e07fc1f90ae7 \
++ *        --kind hardware --label "D1 prototype, bench"
++ *
++ * Prints the key once, and the SQL that registers it. The platform never stores
++ * the key — only its SHA-256 — so if this output is lost the credential is
++ * revoked and a new one issued. There is no recovery path by design: a key the
++ * server can recover is a key an attacker can recover.
++ *
++ * WHY THIS EMITS SQL RATHER THAN CONNECTING. It needs no credentials, no
++ * network and no dependencies, so it runs identically on a laptop, in
++ * Codespaces and on a bench next to the machine being provisioned. The person
++ * running it reads the statement before it touches the fleet, which is the
++ * right amount of friction for handing out a key that can write quality
++ * evidence.
++ *
++ * `--kind` is the safety-relevant argument:
++ *
++ *   hardware      telemetry is stamped `measured`. Only ever for a real machine.
++ *   simulator     stamped `simulated`. For lib/simulation.ts and successors.
++ *   test_harness  stamped `simulated`. For CI and load tests.
++ *
++ * The stamp is applied server-side from this field and cannot be overridden by
++ * the device. Issuing a `hardware` key to a simulator is the one action here
++ * that can poison the dataset, which is why the value is typed out by a human
++ * rather than inferred.
++ */
++
++import { randomBytes, createHash } from "node:crypto";
++
++const KINDS = new Set(["hardware", "simulator", "test_harness"]);
++const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++
++function parseArgs(argv) {
++  const out = {};
++  for (let i = 0; i < argv.length; i += 2) {
++    const flag = argv[i];
++    if (!flag?.startsWith("--")) usage(`Unexpected argument: ${flag}`);
++    const value = argv[i + 1];
++    if (value === undefined) usage(`Missing value for ${flag}`);
++    out[flag.slice(2)] = value;
++  }
++  return out;
++}
++
++function usage(message) {
++  if (message) console.error(`\n  error: ${message}\n`);
++  console.error(
++    `  usage: node scripts/issue-device-key.mjs \\\n` +
++      `           --robot <robot_id> --tenant <tenant_uuid> \\\n` +
++      `           --kind hardware|simulator|test_harness [--label "<text>"]\n`
++  );
++  process.exit(1);
++}
++
++const args = parseArgs(process.argv.slice(2));
++
++if (!args.robot) usage("--robot is required (robots.id, e.g. FF-S001)");
++if (!args.tenant) usage("--tenant is required (tenants.id, a UUID)");
++if (!UUID_RE.test(args.tenant)) usage(`--tenant must be a UUID, got: ${args.tenant}`);
++if (!args.kind) usage("--kind is required");
++if (!KINDS.has(args.kind)) {
++  usage(`--kind must be one of: ${[...KINDS].join(", ")} — got: ${args.kind}`);
++}
++
++// 32 bytes of CSPRNG output. The `ffk_` prefix makes a leaked key greppable in
++// logs and recognisable by secret scanners.
++const key = `ffk_${randomBytes(32).toString("base64url")}`;
++const keyHash = createHash("sha256").update(key, "utf8").digest("hex");
++const keyPrefix = key.slice(0, 8);
++const label = args.label ?? null;
++
++const sqlLabel = label === null ? "NULL" : `'${label.replace(/'/g, "''")}'`;
++
++console.log(`
++────────────────────────────────────────────────────────────────────────
++  DEVICE KEY — shown once, never recoverable
++
++    ${key}
++
++  robot     ${args.robot}
++  tenant    ${args.tenant}
++  kind      ${args.kind}  →  telemetry stamped '${
++    args.kind === "hardware" ? "measured" : "simulated"
++  }'
++  label     ${label ?? "(none)"}
++────────────────────────────────────────────────────────────────────────
++
++  1. Store the key on the machine. The platform holds only its SHA-256.
++
++  2. Register it — run this against the project database:
++
++INSERT INTO device_credentials (robot_id, tenant_id, kind, label, key_prefix, key_hash)
++VALUES ('${args.robot}', '${args.tenant}', '${args.kind}', ${sqlLabel}, '${keyPrefix}', '${keyHash}');
++
++  3. Verify from the machine:
++
++curl -sS -H "Authorization: Bearer ${key}" \\
++  "$FLOORFORGE_BASE_URL/api/telemetry/resume?job_id=<job_id>"
++
++  To revoke:
++
++UPDATE device_credentials
++   SET status = 'revoked', revoked_at = NOW()
++ WHERE key_prefix = '${keyPrefix}' AND robot_id = '${args.robot}';
++`);
