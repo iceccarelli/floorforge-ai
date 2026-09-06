@@ -1,0 +1,187 @@
+-- FloorForge — Identity and Tenancy
+-- Run with: supabase migration up
+-- Target: Supabase PostgreSQL 15+
+--
+-- ============================================================================
+-- WHY THIS MIGRATION EXISTS
+-- ============================================================================
+--
+-- Every Row Level Security policy in this database is dead code, and always
+-- has been.
+--
+-- 001 wrote seven SELECT policies keyed on `auth.uid()`. `auth.uid()` is the
+-- subject of a **Supabase Auth** session. This product authenticates with
+-- **Clerk** (proxy.ts, app/layout.tsx) and never establishes a Supabase Auth
+-- session anywhere — there is not one call to `supabase.auth` in the entire
+-- codebase. So `auth.uid()` is NULL on every request, every `USING` clause
+-- evaluates to NULL, and every policy denies.
+--
+--   grep -c "auth.uid()" migrations/001_initial_schema.sql   # 13
+--   grep -rn "supabase.auth" app lib components              # (nothing)
+--
+-- FLOORFORGE_SYSTEM_BASELINE.md §3.2 reported half of this: RLS was enabled
+-- with no write policies, so every INSERT and UPDATE was denied. The read half
+-- is broken for a different and equally final reason. "Add the missing write
+-- policies" would not have fixed anything, because the authorization model in
+-- 001 was written for an identity provider this product does not use.
+--
+-- 002 REPEATED THE MISTAKE. The write policies added in
+-- migrations/002_telemetry_integrity.sql §5 are keyed on `auth.uid()` too.
+-- They cannot fire either. They are dropped below rather than left in place
+-- looking like they permit something. A policy that appears to grant access and
+-- silently denies is worse than no policy: it is the reason someone spends a
+-- day debugging the application layer.
+--
+-- ============================================================================
+-- THE MODEL THIS MIGRATION COMMITS TO
+-- ============================================================================
+--
+-- Authorization is resolved **on the server**, from the Clerk session, and data
+-- is read and written with the service role under an explicit tenant filter.
+-- RLS stays enabled everywhere and grants nothing to `anon` or `authenticated`
+-- — deny by default, with exactly one deliberate exception (the public waitlist
+-- form). The service role bypasses RLS; `lib/apiAuth.ts` is what replaces it.
+--
+-- This is the same shape telemetry ingest already uses (002 §5), and it is now
+-- the whole product's shape rather than one endpoint's.
+--
+-- WHY NOT MAKE RLS WORK INSTEAD. Supabase can accept a Clerk JWT as a
+-- third-party auth provider, after which `auth.jwt() ->> 'sub'` yields the
+-- Clerk subject and policies keyed on `users.auth_subject` would fire. That is
+-- a genuine option and `auth_subject` below is deliberately the column it would
+-- need. It is not taken today for one reason: it only pays off when a browser
+-- queries Postgres directly, and nothing in this product does — all four API
+-- routes are server-side (`grep -rn "db/client" app lib components`). Buying
+-- that integration now would mean two authorization models to keep in agreement
+-- and no caller that benefits from the second.
+--
+-- What that leaves is a hard rule, and it is worth writing down where it will
+-- be read: **the service-role key must never be used by a route that has not
+-- already resolved the caller.** lib/db/server.ts requires a tenant id in the
+-- signature of every tenant-scoped query so that this cannot be forgotten
+-- quietly.
+
+-- ============================================================================
+-- 1. IDENTITY
+-- ============================================================================
+--
+-- The missing link. `users` has an id, an email and a tenant, and nothing that
+-- ties a row to a signed-in session — which is why every route in the product
+-- took `tenant_id` as a query parameter and let the caller choose whose data to
+-- read (FLOORFORGE_SYSTEM_BASELINE.md §3.4).
+--
+-- Named `auth_subject`, not `clerk_user_id`. The column holds whatever the
+-- identity provider calls a subject; swapping Clerk for an enterprise IdP later
+-- should be a change of issuer, not a schema migration and a rename across
+-- every query.
+
+ALTER TABLE users
+  ADD COLUMN auth_subject TEXT,
+  ADD COLUMN auth_issuer TEXT NOT NULL DEFAULT 'clerk';
+
+CREATE UNIQUE INDEX idx_users_auth_subject
+  ON users(auth_subject) WHERE auth_subject IS NOT NULL;
+
+COMMENT ON COLUMN users.auth_subject IS
+  'Identity-provider subject for this user (Clerk `sub`). NULL for rows created '
+  'before the user first signed in. Resolved by lib/apiAuth.ts on every '
+  'authenticated request; this is the only link between a session and a tenant.';
+
+-- ============================================================================
+-- 2. REMOVE THE POLICIES THAT CANNOT FIRE
+-- ============================================================================
+--
+-- All of these are keyed on auth.uid(), which is NULL for every request this
+-- product makes. Dropping them changes no observable behaviour — they already
+-- denied everything — and it removes thirteen statements that read as an
+-- authorization model and are not one.
+--
+-- RLS remains ENABLED on every table. With no policy, anon and authenticated
+-- are denied, which is exactly the intent.
+
+DROP POLICY IF EXISTS "Users see own tenant"                    ON tenants;
+DROP POLICY IF EXISTS "Users see tenant members"                ON users;
+DROP POLICY IF EXISTS "Users see tenant robots"                 ON robots;
+DROP POLICY IF EXISTS "Users see tenant jobs"                   ON jobs;
+DROP POLICY IF EXISTS "Admins see all applications"             ON pilot_applications;
+DROP POLICY IF EXISTS "Users see tenant reports"                ON post_job_reports;
+DROP POLICY IF EXISTS "Users see tenant telemetry"              ON telemetry_events;
+
+DROP POLICY IF EXISTS "Users see own tenant rejects"            ON telemetry_rejects;
+DROP POLICY IF EXISTS "Admins update applications"              ON pilot_applications;
+DROP POLICY IF EXISTS "Users create jobs in own tenant"         ON jobs;
+DROP POLICY IF EXISTS "Users update jobs in own tenant"         ON jobs;
+DROP POLICY IF EXISTS "Users create reports for own tenant jobs" ON post_job_reports;
+DROP POLICY IF EXISTS "Users update reports for own tenant jobs" ON post_job_reports;
+DROP POLICY IF EXISTS "Users update robots in own tenant"       ON robots;
+
+-- The one policy that survives, because it is the one that does not depend on a
+-- session: the public waitlist form. It was added in 002 §5 and its WITH CHECK
+-- is what keeps an unauthenticated INSERT from arriving pre-qualified with
+-- staff notes attached. There is still no anon SELECT, so the form can write
+-- and cannot read.
+--
+--   "Anyone may submit a pilot application" ON pilot_applications FOR INSERT
+--
+-- It is now defence in depth rather than the live path — POST /api/applications
+-- writes server-side — and it stays for the day a form posts directly.
+
+-- ============================================================================
+-- 3. MAKE THE DENY EXPLICIT
+-- ============================================================================
+--
+-- RLS denies by default, but "no policy" and "somebody deleted the policy" look
+-- identical six months from now. These say the quiet part out loud, and they
+-- are the statements a future reader will find when they ask why a direct
+-- browser query returns nothing.
+
+COMMENT ON TABLE jobs IS
+  'Tenant-scoped. No RLS policy grants anon or authenticated any access: reads '
+  'and writes go through lib/db/server.ts with the service role, after '
+  'lib/apiAuth.ts has resolved the caller''s tenant from their session. See '
+  'migrations/003_identity_and_tenancy.sql.';
+
+COMMENT ON TABLE pilot_applications IS
+  'Sales pipeline, and the only table with a public write: the waitlist form '
+  'INSERT policy from migration 002 §5. Reads are staff-only and are enforced '
+  'in lib/apiAuth.ts (requireRole), not by RLS.';
+
+COMMENT ON TABLE telemetry_events IS
+  'Machine evidence. Written only by the service role, only after '
+  'lib/telemetry/ingest.ts has authenticated a device credential. Every row '
+  'carries a provenance saying whether it was measured or simulated.';
+
+-- ============================================================================
+-- 4. TENANT INTEGRITY
+-- ============================================================================
+--
+-- A job may only ever be assigned a robot belonging to the same tenant. This
+-- was reachable before: `jobs.robot_id` references `robots(id)` with no tenant
+-- check, so a caller who supplied another tenant's robot id got a job whose
+-- telemetry, quality record and completion report were attributed across a
+-- tenant boundary. The API now resolves the tenant server-side, but the
+-- constraint belongs here too — the application check protects callers who come
+-- through the API, and this protects the data from everyone else.
+
+CREATE OR REPLACE FUNCTION robot_belongs_to_tenant(p_robot_id TEXT, p_tenant_id UUID)
+RETURNS BOOLEAN AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM robots WHERE id = p_robot_id AND tenant_id = p_tenant_id
+  );
+$$ LANGUAGE sql STABLE;
+
+CREATE OR REPLACE FUNCTION enforce_job_robot_tenant()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NOT robot_belongs_to_tenant(NEW.robot_id, NEW.tenant_id) THEN
+    RAISE EXCEPTION
+      'Robot % does not belong to tenant %', NEW.robot_id, NEW.tenant_id
+      USING ERRCODE = 'foreign_key_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER jobs_robot_tenant_check
+  BEFORE INSERT OR UPDATE OF robot_id, tenant_id ON jobs
+  FOR EACH ROW EXECUTE FUNCTION enforce_job_robot_tenant();
